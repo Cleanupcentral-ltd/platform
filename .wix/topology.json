@@ -1,0 +1,20 @@
+{
+  "preview": {
+    "id": "32cb4cce-c1dc-4f7d-b7c8-434356120ab4",
+    "site": {
+      "main": "https://zhirwm-clean-up-c-9fdfa51b-cucltd.wix-site-host.com"
+    },
+    "dashboard": {
+      "main": "https://manage.wix.com/dashboard/7af3933d-4ab0-4e1a-afd7-d7001fb21b4a?apps-override=32cb4cce-c1dc-4f7d-b7c8-434356120ab4"
+    }
+  },
+  "production": {
+    "id": "47e94784-b533-4cfd-b4a4-7f0fa2f73f35",
+    "site": {
+      "main": "https://p0nzq3-clean-up-c-9fdfa51b-cucltd.wix-site-host.com"
+    },
+    "dashboard": {
+      "main": "https://manage.wix.com/dashboard/7af3933d-4ab0-4e1a-afd7-d7001fb21b4a?apps-override=47e94784-b533-4cfd-b4a4-7f0fa2f73f35"
+    }
+  }
+}

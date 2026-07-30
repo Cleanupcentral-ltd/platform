@@ -1,0 +1,38 @@
+{
+  "name": "cleanup-central-backend",
+  "version": "0.1.0",
+  "description": "Portable backend API for Clean Up Central",
+  "scripts": {
+    "test": "node --env-file=.env --import tsx --test tests/**/*.test.ts",
+    "dev": "node --env-file=.env --watch --import tsx src/server.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tests/tsconfig.json && tsc --noEmit -p scripts/tsconfig.json",
+    "wix:check": "node --env-file=.env --import tsx scripts/check-wix-connection.ts",
+    "wix:schema": "node --env-file=.env --import tsx scripts/audit-wix-schema.ts",
+    "wix:repositories:verify": "node --env-file=.env --import tsx scripts/verify-wix-repositories.ts",
+    "wix:quote-flow:verify": "node --env-file=.env --import tsx scripts/verify-build4-quote-flow.ts",
+    "verify:build4": "npm run typecheck && npm test && npm run wix:check && npm run wix:schema && npm run wix:repositories:verify && npm run wix:quote-flow:verify",
+    "wix:attachment-flow:verify": "node --env-file=.env --import tsx scripts/verify-build5-attachment-flow.ts",
+    "verify:build5": "npm run typecheck && npm test && npm run wix:check && npm run wix:schema && npm run wix:attachment-flow:verify",
+    "wix:contact-flow:verify": "node --env-file=.env --import tsx scripts/verify-build6-contact-flow.ts",
+    "verify:build6": "npm run typecheck && npm test && npm run wix:check && npm run wix:schema && npm run wix:contact-flow:verify"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "@fastify/cors": "^11.3.0",
+    "@fastify/helmet": "^13.1.0",
+    "@fastify/rate-limit": "^11.1.0",
+    "fastify": "^5.10.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "tsx": "^4.23.1",
+    "typescript": "^7.0.2"
+  },
+  "private": true
+}

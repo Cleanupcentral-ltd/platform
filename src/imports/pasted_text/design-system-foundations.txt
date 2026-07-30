@@ -1,0 +1,151 @@
+You are a senior product designer creating the Clean Up Central design system in Figma for later recreation in Wix Studio. Build editable foundations and reusable components only. The approved composite mock-up is the visual authority; reproduce its warm editorial style rather than the longer card-heavy layouts from earlier drafts.
+
+
+Figma file structure
+
+Create three Figma pages:
+
+• 00 - Approved Mock-up Reference
+
+• 01 - Foundations
+
+• 02 - Components
+
+Place the supplied composite mock-up on 00 - Approved Mock-up Reference, lock it, and use it only as a composition guide. Use clear layer names, Auto Layout and naming format Category / Component / Variant.
+
+
+Visual direction
+
+Premium but accessible, warm, refined and highly legible. Use white and ivory surfaces, soft beige photography, black editorial type and restrained gold accents. Pages should feel compact and deliberate: fewer sections, strong horizontal rules, clean split layouts and minimal card repetition. Avoid dark luxury templates, gradients, glassmorphism, oversized rounded cards, floating blobs and decorative clutter.
+
+
+Colour variables
+
+Create semantic variables using these exact values:
+
+• Ink / 900 #121212
+
+• Ink / 700 #343434
+
+• Stone / 600 #66635E
+
+• Stone / 300 #D8D5CF
+
+• Canvas / 000 #FFFFFF
+
+• Ivory / 050 #FAF9F6
+
+• Sand / 100 #F1EDE4
+
+• Gold / 500 #B08A3C
+
+• Gold / 700 #7A5A1E
+
+• Success #176B45; Warning #9A6700; Error #B42318; Info #245B8A
+
+Use Gold / 500 as the public-site primary CTA fill with white text. Use Ink / 900 for body text, dark CTA strips and the metrics band. Gold may highlight one phrase in an editorial headline, but must not be used for paragraph text.
+
+
+Typography styles
+
+Use Manrope for navigation, body, labels, forms and buttons. Use Cormorant Garamond 500 for public hero headlines, editorial section statements and large metric values.
+
+Create desktop / tablet / mobile styles:
+
+• Display 1: 64/66, 50/54, 40/44
+
+• Display 2: 48/52, 42/46, 34/38
+
+• H1 UI Manrope 700: 44/52, 40/48, 32/40
+
+• H2 Manrope 700: 36/44, 32/40, 28/36
+
+• H3 Manrope 700: 24/32, 22/30, 20/28
+
+• Lead Manrope 400: 18/29, 18/28, 17/27
+
+• Body Manrope 400: 16/26, 16/26, 15/24
+
+• Body Small Manrope 400: 14/22, 14/22, 13/21
+
+• Label / Button Manrope 650: 14/20
+
+• Overline Manrope 700 uppercase, 0.12em tracking: 11/16
+
+
+Layout, spacing and shape
+
+Create frames for 1440, 1024 and 390px. Large desktop uses a 1280px max content width, 12 columns, 24px gutters and 80px side margins. Tablet uses 8 columns and 40px margins. Mobile uses 20px gutters.
+
+Create spacing variables 4, 8, 12, 16, 24, 32, 48, 64, 80 and 96px. Standard public sections use 48-64px vertical padding; heroes use 64-80px. Preserve the shorter page rhythm shown in the approved mock-up.
+
+Create radius variables 0, 4, 8 and 12px, plus full pill. The mock-up uses mostly square or lightly rounded imagery and cards. Do not default to 20-24px radii.
+
+Use 1px Stone / 300 rules and borders. Default surfaces have no shadow; form panels may use 0 8 28 rgba(18,18,18,.06).
+
+
+Reusable components
+
+Build with Auto Layout, responsive resizing and variants:
+
+• Navigation / Desktop and Mobile Drawer - 80px desktop, 68px mobile, active gold underline
+
+• Button / Gold Primary, Black Primary, Outline, Text Link and Icon
+
+• Button states: default, hover, pressed, focus, loading and disabled
+
+• Editorial Split / Text + Image and Image + Text
+
+• Confidence Item / Icon + Label
+
+• Editorial Service Card / Image + Copy
+
+• Service List Row / Thumbnail + Copy + Status Link + Icon
+
+• Process Step / Number + Icon + Copy
+
+• Standards Item / Icon + Heading + Line
+
+• Metric Strip / Four Columns with Placeholder Value and Label
+
+• Property Support Item / Icon + Title + Description
+
+• Selection Card / Default, Hover, Selected, Focus and Disabled
+
+• Stepper / Four High-level Stages and Compact Step X of Y
+
+• Input / Text, Email, Phone, Select, Textarea, Upload and Address Search
+
+• Form Panel / Default, Error and Success Notice
+
+• FAQ Banner / Copy + Image and FAQ Accordion / Closed + Open
+
+• Dark CTA Strip / Icon + Headline + Action
+
+• Footer / Compact Desktop and Stacked Mobile
+
+
+Exact component rules
+
+Primary gold buttons are 44-48px high, 4px radius, white label and 20-24px horizontal padding. Hover uses Gold / 700. Black buttons are reserved for secondary high-contrast moments. Text links use uppercase or small label text with a right arrow.
+
+Inputs are 48-52px high; textarea minimum 120px; 4px radius; persistent labels; visible 2px focus ring. Selection cards use a 1px Stone border; selected state uses a 2px Gold / 500 border and a small gold indicator.
+
+Icons are Lucide-style single-stroke outlines, 1.75px, in Ink or Gold. Use 16, 20, 24 and 32px sizes.
+
+The metrics component must display placeholders only: XX+, X.X star, XXXX+, XX%. Add a visible Figma annotation: Replace with approved real figures before publication.
+
+
+Photography direction
+
+Use warm neutral London interiors, close-up property details, secure keys/access, and authentic Clean Up Central team portraits or working scenes. Avoid fake review graphics, impossible uniforms, estate-agent clichés and obvious AI artefacts. Use labelled image placeholders if final photography is unavailable.
+
+
+Accessibility and Wix Studio guardrails
+
+Meet WCAG 2.2 AA. Use 44px minimum targets, visible focus and readable line lengths. Build with containers, stacks and repeaters. Avoid overlaps, complex masks, irregular grids and prototype-only interactions.
+
+
+Output
+
+Present labelled foundation boards and organised component sets. Do not create full pages, final ratings, final contact details, testimonials, certifications or business figures in this 

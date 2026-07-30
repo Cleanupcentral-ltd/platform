@@ -1,0 +1,1175 @@
+clean_up_central_booking_system:
+  document:
+    name: Phase 0 — Rules and Database Blueprint
+    status: complete
+    purpose: Source-of-truth specification for building Clean Up Central's quote generator, manual-quotation 
+      journeys, internal quote-review workflow and future custom booking system.
+    source_priority:
+      - Newest explicit decision from Amirah
+      - Final Locked Decisions dated 2026-07-20
+      - This Phase 0 blueprint v1.3
+      - Newest Founder Operations Handbook
+      - Highest-version AmirahOS
+      - Older conversations and files
+    version: '1.3'
+    last_updated: '2026-07-22'
+    supersedes: All earlier Phase 0 versions and conflicting rules in older files
+    supersession_rules:
+      - Room Selection is not a top-level journey.
+      - Selected Rooms is a cleaning scope within Residential Standard or Deep Clean.
+      - All earlier general Selected Rooms minimum-spend rules are revoked. The only Selected Rooms minimum is
+        the £40 minimum for bookings consisting exclusively of Hallways and/or Stairs.
+      - All BookingKoala references are obsolete and must be ignored.
+      - The approved implementation uses the exported React frontend with Wix-managed Headless and Wix business
+        services behind it; the quote generator must not be rebuilt as a Wix Studio Multi-State Box.
+      - Specialist and outsourced-supplier Property Support services are not offered in Phase 0 and must not be
+        displayed or implied in the customer journey.
+  scope:
+    included:
+      - Instant quote questions and conditional journeys
+      - Pricing and calculation rules
+      - Manual-review and approval rules
+      - Deposit, balance, cancellation and rescheduling rules
+      - Service-area calculation
+      - Quote and booking statuses
+      - Notification triggers
+      - Database collections, fields and relationships
+      - Reserved structure for future cleaner assignment
+      - Property Support custom-quotation journey
+      - Commercial custom-quotation journey
+    deferred:
+      - Cleaner matching and assignment automation
+      - Cleaner acceptance workflow
+      - Cleaner mobile portal
+      - Advanced CRM automations
+      - Google Sheets job tracking
+      - Full calendar integration
+      - Automatic invoicing for commercial contracts
+  customer_quote_journey:
+    step_1_quote_category:
+      question: What can we help you with?
+      selection_type: single
+      options:
+        - Residential Cleaning
+        - Airbnb Turnover
+        - Commercial Cleaning
+        - Property Support
+      rule: Room Selection must not appear as a separate top-level option.
+    residential_branch:
+      property_type:
+        question: What type of property is it?
+        selection_type: single
+        options:
+          - House
+          - Flat/Apartment
+      cleaning_service:
+        question: Which cleaning service do you need?
+        selection_type: single
+        options:
+          - Standard Clean
+          - Deep Clean
+          - End of Tenancy
+      standard_and_deep_scope:
+        display_when: Standard Clean or Deep Clean is selected
+        question: How much of the property would you like cleaned?
+        selection_type: single
+        options:
+          - Whole Property
+          - Selected Rooms
+        mutually_exclusive: true
+      whole_property:
+        collect:
+          - Property size
+          - Exact bedroom count where required
+          - Bathroom count
+        property_size_options:
+          - Studio
+          - 1 Bedroom
+          - 2 Bedrooms
+          - 3 Bedrooms
+          - 4+ Bedrooms
+        four_plus_follow_up: Ask for the exact number of bedrooms
+        bathroom_rule: The base price includes one bathroom. Add the automatic additional-bathroom fee for 
+          each bathroom after the first.
+        then_show:
+          - Eligible extras
+          - Address and appointment
+          - Customer details
+          - Estimated quote
+          - Submit for review
+      selected_rooms:
+        collect_room_quantities: true
+        room_options:
+          - Bathroom
+          - Bedroom
+          - Kitchen
+          - Living Room
+          - Hallway
+          - Stairs
+        cleaning_level_rule: Inherit the Standard or Deep service selected earlier. A customer cannot mix 
+          Standard and Deep room prices in one quote.
+        calculation:
+          - Multiply each room quantity by the applicable Standard or Deep room price
+          - Add all selected-room line totals
+          - If the booking consists exclusively of Hallways and/or Stairs and the line total is below £40, add
+            a minimum-booking adjustment so the Selected Rooms subtotal equals £40
+          - Add eligible extras
+          - Apply the normal travel rules
+        minimum_booking_value: 40
+        minimum_booking_rule: The £40 minimum applies only when the booking consists exclusively of one or more
+          Hallways and/or Stairs. It does not apply when at least one Bathroom, Bedroom, Kitchen or Living Room
+          is selected. If the Hallway/Stairs-only line total is already £40 or more, charge the calculated total.
+        additional_bathroom_rule: Do not add a separate additional-bathroom fee. Each selected bathroom is 
+          already priced individually.
+        travel_rules_apply: true
+        new_customer_discount_eligible: false
+        condition_rule: Room prices are base prices and may be revised following review if the room condition 
+          materially differs from the information supplied.
+        then_show:
+          - Eligible extras
+          - Address and appointment
+          - Travel calculation
+          - Customer details
+          - Estimated quote
+          - Submit for review
+      end_of_tenancy:
+        display_when: End of Tenancy is selected
+        result: custom_quote_required
+        manual_review: true
+        photos_required: true
+        collect:
+          - Property details
+          - Condition details
+          - Relevant property photos
+          - Address and appointment
+          - Customer details
+        hide:
+          - Whole Property or Selected Rooms scope question
+          - Optional extras
+          - Instant price
+          - Discount calculation
+          - Deposit estimate
+        customer_message: Custom Quotation Required
+    airbnb_branch:
+      service_type: Airbnb Turnover
+      collect:
+        - Property size
+        - Exact bedroom count where required
+        - Bathroom count
+        - Condition
+        - Eligible extras
+        - Address and appointment
+        - Customer details
+      property_size_options:
+        - Studio
+        - 1 Bedroom
+        - 2 Bedrooms
+        - 3 Bedrooms
+        - 4+ Bedrooms
+      four_plus_follow_up: Ask for the exact number of bedrooms
+      condition_page:
+        position: Immediately after number of bathrooms
+        options:
+          Good:
+            fee_gbp: 0
+            manual_review: false
+          Moderate:
+            fee_gbp: 10
+            manual_review: false
+          Dirty:
+            provisional_fee_gbp: 20
+            manual_review: true
+            photos_required: true
+            fee_revisable: true
+            revision_basis: Severity and evidence supplied
+            customer_message: The displayed estimate is provisional and the Dirty condition charge may be 
+              revised after review.
+      result: estimated_quote_then_submit_for_review
+    commercial_branch:
+      result: custom_quote_required
+      manual_review: true
+      question_order:
+        - Describe the premises
+        - Describe the current condition
+        - Describe the cleaning requirements
+        - Choose One-off or Recurring
+        - If Recurring, choose frequency
+        - Add preferred days and times
+        - Describe access and operational requirements
+        - Upload supporting photos or documents
+        - Property address and preferred start date
+        - Company and contact details
+      arrangement_options:
+        - One-off
+        - Recurring
+      recurring_frequency_options:
+        - Daily
+        - Five times weekly
+        - Three times weekly
+        - Twice weekly
+        - Weekly
+        - Fortnightly
+        - Monthly
+        - Ad hoc
+        - Other / Not sure
+      hide:
+        - Instant price
+        - Discount calculation
+        - Deposit estimate
+    property_support_branch:
+      result: custom_quote_required
+      manual_review: true
+      support_service_options:
+        - Key Holding
+        - Property Inspection
+        - Contractor Access
+        - Inventory Check
+        - Emergency Attendance
+        - Not Sure
+      multiple_services_allowed: true
+      collect:
+        - Property type
+        - Property address
+        - Postcode
+        - Number of properties
+        - Occupancy status
+        - Access arrangements
+        - Description of support required
+        - One-off or Recurring
+        - Recurring frequency when applicable
+        - Preferred start date
+        - Required completion date for one-off requests
+        - Standard, urgent or emergency urgency
+        - Preferred contact method
+        - Customer and company details
+        - Supporting photos or documents
+        - Access notes and additional comments
+      arrangement_options:
+        - One-off
+        - Recurring
+      recurring_frequency_options:
+        - Weekly
+        - Fortnightly
+        - Monthly
+        - Ad hoc
+        - Other
+      occupancy_status_options:
+        - Occupied
+        - Vacant
+        - Short-let / holiday let
+        - Other / not sure
+      outsourced_supplier_services_offered: false
+      hide:
+        - Bedrooms
+        - Bathrooms
+        - Cleaning type
+        - Cleaning add-ons
+        - Instant price
+        - Discount calculation
+        - Deposit estimate
+      customer_message: Property Support services are priced according to the property, responsibility, 
+        frequency, access requirements and urgency. Submit the request for a tailored quotation.
+    extras_page:
+      standard_and_deep:
+        - Oven
+        - Fridge
+        - Interior Windows
+        - Grout Cleaning
+      airbnb_additional_extras:
+        - Laundry
+        - Standard Consumables Package
+      end_of_tenancy:
+        show_extras: false
+        message: End-of-tenancy cleaning is custom quoted and standard internal cleaning extras are included 
+          subject to the approved scope.
+    shared_property_and_appointment_details:
+      - Address
+      - Postcode
+      - Preferred date
+      - Preferred arrival window
+      - Parking details
+      - Pets on property
+      - Access notes where relevant
+    customer_details:
+      - Full name
+      - Email address
+      - Phone number
+      - Company or agency name where applicable
+      - Customer type where applicable
+    result_page:
+      instant_estimate_branches:
+        - Residential Standard — Whole Property
+        - Residential Standard — Selected Rooms
+        - Residential Deep — Whole Property
+        - Residential Deep — Selected Rooms
+        - Airbnb Turnover
+      manual_quote_branches:
+        - End of Tenancy
+        - Commercial Cleaning
+        - Property Support
+      automatic_breakdown:
+        - Base whole-property price or selected-room total
+        - Additional bathrooms where applicable
+        - Airbnb condition fee where applicable
+        - Extras
+        - Travel fee
+        - Discount if eligible
+        - Estimated total
+      primary_button: Submit quote for review
+      booking_warning: An estimate is not a confirmed booking. The date is secured only after approval and 
+        receipt of the required upfront payment.
+  pricing:
+    currency: GBP
+    whole_property:
+      standard_clean:
+        studio: 80
+        1_bedroom: 80
+        2_bedrooms: 110
+        3_bedrooms: 150
+        4_plus_rule: 3-bedroom price + £20 for each bedroom above 3
+      deep_clean:
+        studio: 180
+        1_bedroom: 180
+        2_bedrooms: 235
+        3_bedrooms: 300
+        4_plus_rule: 3-bedroom price + £30 for each bedroom above 3
+      airbnb_turnover:
+        base_price_rule: Use the Standard Clean price for the selected property size
+        display_prices_gbp:
+          studio: 80
+          1_bedroom: 80
+          2_bedrooms: 110
+          3_bedrooms: 150
+          4_plus_rule: 3-bedroom price + £20 for each bedroom above 3
+        new_customer_discount_eligible: true
+        condition_fees_gbp:
+          Good: 0
+          Moderate: 10
+          Dirty: 20
+        dirty_condition_rule:
+          fee_status: provisional
+          photos_required: true
+          manual_review_required: true
+          revisable_based_on_severity: true
+          estimate_must_be_labelled_provisional: true
+      end_of_tenancy:
+        pricing: custom_quote
+        manual_review: true
+        photos_required: true
+    bathrooms:
+      whole_property:
+        included_in_base_price: 1
+        additional_bathroom_fee_gbp: 20
+        rule: For Whole Property quotes, add £20 for each bathroom after the first.
+      selected_rooms:
+        additional_bathroom_fee_gbp: 0
+        rule: Do not add a separate bathroom fee. Every selected bathroom is individually priced using the 
+          Selected Rooms table.
+    extras:
+      oven:
+        price_gbp: 50
+        quantity: one or more ovens
+      fridge:
+        price_gbp: 25
+        quantity: one or more fridge interiors
+      interior_windows:
+        price_gbp: 10
+        unit: per window
+      grout_cleaning:
+        price_gbp: 40
+        unit: per bathroom or tiled area
+      airbnb_laundry:
+        price_gbp: 10
+        unit: per load
+      airbnb_standard_consumables_package:
+        price_gbp: 20
+        purchase_allowance_cap_gbp: 20
+        includes:
+          - Toilet rolls
+          - Bin liners
+          - Washing-up liquid
+          - Hand soap
+          - Basic tea
+          - Basic coffee
+          - Sugar
+        rules:
+          - Premium brands are not automatically included.
+          - Unusual quantities are not automatically included.
+          - Costs above the £20 allowance require customer approval.
+          - Approved costs above the allowance may be charged separately.
+          - Higher consumables packages may be introduced later.
+        internal_only:
+          target_purchase_cost_gbp: 10
+          do_not_show_customer: true
+    discounts:
+      new_customer:
+        percentage: 15
+        customer_rule: Apply once, to a new customer's first clean, only when that clean is an eligible
+          automatically priced Whole Property service.
+        automatic_eligibility:
+          - Residential Standard Clean — Whole Property
+          - Residential Deep Clean — Whole Property
+          - Airbnb Turnover
+        discount_base: Whole-property base cleaning price plus automatic additional-bathroom charges
+        excluded_from_discount:
+          - Residential Selected Rooms scope
+          - Optional extras and add-ons
+          - Airbnb condition fees
+          - Travel fees
+          - Same-day charges
+          - Parking charges
+          - Congestion charges
+          - Tolls
+          - Consumables and separately approved costs
+        not_eligible:
+          - Residential Selected Rooms scope
+        manual_quote_services: Any discount for End of Tenancy, Commercial Cleaning or Property Support is 
+          decided manually as part of the approved quotation.
+    charges:
+      same_day:
+        range_gbp: 25-50
+        automatic_quote: false
+        manual_review: true
+      parking:
+        rule: Charge at cost
+        discountable: false
+      congestion_and_tolls:
+        rule: Charge at cost
+        discountable: false
+    calculation_order:
+      - Select the whole-property base price or calculate the selected-room line total
+      - For Whole Property only, add automatic additional-bathroom charges
+      - For eligible new-customer Whole Property quotes, calculate 15% of the base cleaning price plus
+        additional-bathroom charges and subtract that discount
+      - Add the Airbnb condition fee where relevant
+      - Add selected extras
+      - Add the travel fee
+      - Add non-discountable parking, congestion, toll and separately approved costs
+      - Calculate the estimated total
+      - Calculate the required upfront payment
+      - Calculate the remaining balance
+    rounding: Round monetary values to two decimal places
+    quote_snapshot_rule: Save the full calculation breakdown and pricing-rule version on the quote. Future 
+      price changes must not alter an existing submitted or approved quote.
+    selected_rooms:
+      journey_position: Residential Cleaning > Standard or Deep > Selected Rooms
+      standard:
+        Bathroom: 40
+        Bedroom: 30
+        Kitchen: 40
+        Living Room: 40
+        Hallway: 20
+        Stairs: 25
+      deep:
+        Bathroom: 55
+        Bedroom: 50
+        Kitchen: 70
+        Living Room: 70
+        Hallway: 30
+        Stairs: 40
+      rules:
+        multiple_room_types: true
+        quantities_allowed: true
+        cleaning_level_inherited_from_selected_service: true
+        mixed_standard_and_deep_not_allowed: true
+        calculation: Multiply each room quantity by the applicable Standard or Deep price and add the line 
+          totals.
+        hallway_unit: One connected hallway or landing area on one floor
+        stairs_unit: One continuous flight of stairs between two floors
+        minimum_booking_value_gbp: 40
+        minimum_booking_value_applies: Only when the booking consists exclusively of Hallways and/or Stairs
+        minimum_adjustment_rule: If the Hallway/Stairs-only line total is below £40, add the difference as a
+          room minimum adjustment. If any Bathroom, Bedroom, Kitchen or Living Room is selected, do not apply
+          the minimum.
+        travel_rules_apply: true
+        new_customer_discount_eligible: false
+        additional_bathroom_fee_applies: false
+        condition_rule: Prices are base prices and may be revised after review where the supplied room 
+          condition does not reflect the work required.
+    property_support:
+      quotation_method: manual_custom_quotation
+      instant_price_displayed: false
+      deposit_estimate_displayed: false
+      pricing_usage: Internal base rates for preparing tailored quotations. Final pricing may vary according 
+        to responsibility, property, frequency, access, waiting time, urgency and scope.
+      key_services:
+        key_holding_setup:
+          price_gbp: 35
+          unit: per property
+          includes: Secure key registration, storage and management
+        key_collection_or_return:
+          price_gbp: 20
+          unit: per visit within the standard service area
+        out_of_hours_key_attendance:
+          price_gbp: 55
+          unit: per visit
+      property_inspections:
+        basic:
+          price_gbp: 35
+          scope: 15–20 minute visual inspection
+        standard:
+          price_gbp: 50
+          scope: Photographs and written observations
+        detailed:
+          price_gbp: 75
+          scope: Extended report with photographs and observations/recommendations within scope
+        move_in_or_move_out:
+          price_gbp: 90
+      inventory_checks:
+        studio: 55
+        1_bedroom: 75
+        2_bedrooms: 95
+        3_bedrooms: 120
+        additional_bedroom_gbp: 20
+      property_access:
+        contractor_access_visit:
+          price_gbp: 35
+          included_onsite_minutes: 30
+        additional_waiting_time:
+          price_gbp: 15
+          unit: each additional 30 minutes
+        out_of_hours_access_supplement_gbp: 25
+        emergency_attendance:
+          business_hours_gbp: 65
+          evenings_19_00_to_22_00_gbp: 85
+          overnight_or_bank_holidays_gbp: 120
+          included_waiting_minutes: 30
+          additional_waiting_gbp: 20
+          additional_waiting_unit: each additional 30 minutes
+  service_area:
+    customer_facing_coverage: Whole of London
+    origin_postcodes:
+      - BR1 5HP
+      - RM10 8BE
+    distance_method: Calculate one-way driving distance from both origins and use the shorter distance.
+    bands:
+      - minimum_miles: 0
+        maximum_miles: 10
+        travel_fee_gbp: 0
+        review: false
+      - minimum_miles_exclusive: 10
+        maximum_miles: 20
+        travel_fee_gbp: 10
+        review: false
+      - minimum_miles_exclusive: 20
+        maximum_miles: 30
+        travel_fee_gbp: 20
+        review: false
+      - minimum_miles_exclusive: 30
+        travel_fee: manual
+        review: true
+    outside_area_action: Manual review, not automatic rejection
+    unknown_distance_action: Manual review
+    applies_to:
+      - Residential Whole Property
+      - Residential Selected Rooms
+      - Airbnb Turnover
+      - Other services where travel is chargeable under the approved quotation
+    selected_rooms_rule: Selected Rooms uses the normal travel bands. The £40 Hallway/Stairs-only minimum is
+      a cleaning-price adjustment applied before travel and does not replace, reduce or include the travel fee.
+  booking_windows:
+    minimum_notice_hours: 3
+    maximum_advance_booking_days: 90
+    same_day:
+      allowed: true
+      subject_to_availability: true
+      manual_review: true
+    preferred_time:
+      quote_stage: Customer may request a preferred arrival window; it is not guaranteed until approval.
+      suggested_windows:
+        - 08:00-11:00
+        - 11:00-14:00
+        - 14:00-17:00
+        - 17:00-20:00
+      same_day_windows: The same four arrival windows may be requested for same-day bookings, subject to the
+        minimum-notice, availability and manual-review rules.
+      after_20_00: Manual assessment required; do not show a later standard selectable window.
+      outside_windows: Manual request
+    sunday:
+      cleaning_bookings_accepted: true
+      customer_service_hours: 14:00-20:00
+    monday_to_saturday_customer_service_hours: 06:00-20:00
+    bank_holidays:
+      bookings_accepted: true
+      subject_to_staff_availability: true
+      manual_review: true
+      surcharge: No automatic surcharge until separately approved
+  planning_durations:
+    unit: cleaner-hours unless a team size is specified
+    standard_clean:
+      studio_or_1_bedroom: 2
+      2_bedrooms: 3
+      3_bedrooms: 3-4
+      4_plus: Calculated during review
+    deep_clean:
+      studio_or_1_bedroom: 4-5
+      2_bedrooms: 5-6
+      3_bedrooms: 6-8
+      4_plus: Manual review
+    airbnb_turnover:
+      studio_or_1_bedroom: 1.5
+      2_bedrooms: 2-2.5
+      3_bedrooms: 3-3.5
+      4_plus: Manual review
+    end_of_tenancy: Set during manual review
+    rule: Durations are planning estimates and must be refined using completed-job data.
+  approval:
+    always_manual_review:
+      - Every new customer's first quote
+      - End of Tenancy
+      - Commercial cleaning
+      - Property Support
+      - Dirty Airbnb turnover — provisional £20 fee, photos required and revisable
+      - Same-day booking
+      - 4+ bedroom property
+      - More than 30 miles from both origin postcodes
+      - Unknown service-area distance
+      - Unsafe-condition warning
+      - Hoarding, sharps, biohazards, pests or heavy mould
+      - Unusual customer notes
+      - Required photos missing
+      - Price manually adjusted
+      - Bank-holiday booking
+    existing_customer_auto_approval_eligible_when_all_true:
+      - Customer account is verified and not blacklisted
+      - Property is already verified or has no material changes
+      - Service is Standard, Deep or normal Airbnb Turnover; Selected Rooms is treated as a scope within 
+        Standard or Deep
+      - Property is within 30 miles
+      - No manual-review trigger exists
+      - Requested date has capacity
+      - Quote calculation completed without errors
+    precedence_rule: The strictest rule wins; an exception always overrides auto-approval.
+    outcomes:
+      - Approved
+      - More Information Required
+      - Rejected
+      - Revised Quote
+  customers:
+    existing_customers: May skip verification only when all auto-approval conditions are met
+    new_customers: First quote requires review
+    blacklist:
+      enabled: true
+      triggers:
+        - Repeated non-payment
+        - Repeated no-access incidents
+        - Abusive or unsafe behaviour
+        - Fraud or chargeback abuse
+        - Repeated serious policy breaches
+      effect: Block automatic quoting/booking and require admin review or rejection
+    monthly_invoicing:
+      eligible: Approved repeat customers only
+      deposit_waived: false
+      upfront_payment_still_required: true
+      remaining_balance: May be included in the approved monthly invoice
+      default_terms_days: 14
+  payments:
+    methods:
+      - Card
+      - Secure online payment link
+    cash: false
+    upfront_payment_rules:
+      - condition: Standard Clean, including Whole Property or Selected Rooms, booked more than 48 hours ahead
+        percentage: 30
+      - condition: Normal Airbnb Turnover booked more than 48 hours ahead
+        percentage: 30
+      - condition: Deep Clean, including Whole Property or Selected Rooms, below £250 and booked more than 48 
+          hours ahead
+        percentage: 30
+      - condition: Deep Clean, including Whole Property or Selected Rooms, £250 or more
+        percentage: 50
+      - condition: End of Tenancy
+        percentage: 50
+      - condition: Booking made 24–48 hours before arrival
+        percentage: 50
+      - condition: Booking made less than 24 hours before arrival
+        percentage: 100
+      - condition: Commercial Cleaning
+        percentage: Set in approved quotation
+      - condition: Property Support
+        percentage: Set in approved quotation
+    remaining_balance_due: 48 hours before the clean
+    confirmation_rule: A booking is not confirmed until the required upfront payment clears.
+    payment_failures:
+      deposit_failure: Keep quote approved but do not confirm or reserve booking
+      balance_failure: Notify customer and admin; booking may be paused or cancelled manually
+    refund_rule: Refunds and retained amounts follow the cancellation policy and must be recorded against the 
+      payment and booking.
+  cancellation_and_rescheduling:
+    cancellation:
+      - notice: More than 48 hours
+        charge: No cancellation charge
+      - notice: 24-48 hours
+        charge: 50% of full booking value
+      - notice: Less than 24 hours
+        charge: 100% of full booking value
+    rescheduling:
+      - notice: At least 48 hours
+        charge: One free reschedule, subject to availability
+      - notice: Less than 48 hours
+        charge: 50% of full booking value
+    no_access:
+      wait_minutes: 15
+      charge: May charge the full booking value
+    company_cancellation: Offer a suitable alternative date or cleaner. If Clean Up Central cannot fulfil the 
+      service and no alternative is accepted, refund applicable customer payments.
+  statuses:
+    quote_statuses:
+      - Draft
+      - Submitted
+      - Under Review
+      - More Information Required
+      - Revised Quote
+      - Approved
+      - Deposit Pending
+      - Converted to Booking
+      - Rejected
+      - Expired
+      - Cancelled
+    booking_statuses:
+      - Awaiting Upfront Payment
+      - Confirmed
+      - Assignment Pending
+      - Cleaner Assigned
+      - Cleaner En Route
+      - In Progress
+      - Completed
+      - Balance Paid
+      - Rescheduled
+      - Cancelled
+      - Refunded
+    payment_statuses:
+      - Pending
+      - Paid
+      - Partially Paid
+      - Failed
+      - Refund Pending
+      - Partially Refunded
+      - Refunded
+      - Overdue
+    quote_validity_days: 30
+  notifications:
+    customer:
+      - trigger: Quote submitted
+        message: Quote received and under review
+      - trigger: More information required
+        message: Request for missing information or photos
+      - trigger: Quote approved
+        message: Approval email with upfront-payment link
+      - trigger: Upfront payment received
+        message: Booking confirmation and summary
+      - trigger: Remaining balance due
+        message: Payment reminder
+      - trigger: Day before clean
+        message: Booking reminder
+      - trigger: Cleaner en route
+        message: Cleaner is on the way
+      - trigger: Booking changed
+        message: Reschedule or cancellation confirmation
+      - trigger: Job completed
+        message: Completion confirmation and review request
+    admin:
+      - New quote requiring review
+      - Customer supplied requested information
+      - Quote accepted or rejected by customer
+      - Upfront payment paid or failed
+      - Remaining balance paid, failed or overdue
+      - Cancellation or reschedule request
+      - Dirty Airbnb photos submitted
+      - Out-of-area quote
+      - Unsafe-condition flag
+      - Cleaner assignment required
+      - Cleaner en-route status
+      - Job completed
+    cleaner_future_phase:
+      - New job offer
+      - Assignment confirmation
+      - Job reminder
+      - Booking changed or cancelled
+      - Customer/access notes
+      - Request for arrival and completion evidence
+    logging_rule: Every notification attempt must record template, recipient, timestamp and delivery status.
+  database:
+    design_rules:
+      - Use stable internal IDs rather than email address or postcode as primary keys
+      - Store pricing rules separately from quote records
+      - Snapshot the quote breakdown when submitted
+      - Keep customer-facing notes separate from internal notes
+      - Record every status change
+      - Do not expose admin, payment or blacklist fields through public Wix collections
+      - Use created_at and updated_at timestamps on every main collection
+    collections:
+      customers:
+        primary_key: customer_id
+        fields:
+          - full_name
+          - company_name
+          - email_normalised
+          - phone_normalised
+          - customer_type
+          - verification_status
+          - is_existing_customer
+          - monthly_invoice_approved
+          - monthly_invoice_terms_days
+          - blacklist_status
+          - blacklist_reason_internal
+          - marketing_consent
+          - created_at
+          - updated_at
+      properties:
+        primary_key: property_id
+        foreign_keys:
+          - customer_id
+        fields:
+          - address_line_1
+          - address_line_2
+          - town_city
+          - postcode_normalised
+          - property_type
+          - bedroom_count
+          - bathroom_count
+          - parking_available
+          - pets_present
+          - access_notes_internal
+          - verified_property
+          - created_at
+          - updated_at
+          - occupancy_status
+          - access_arrangements
+      quotes:
+        primary_key: quote_id
+        foreign_keys:
+          - customer_id
+          - property_id
+          - pricing_version_id
+        fields:
+          - quote_number
+          - quote_category
+          - property_type
+          - cleaning_scope
+          - selected_rooms
+          - service_type
+          - clean_type
+          - property_size
+          - exact_bedroom_count
+          - bathroom_count
+          - airbnb_condition
+          - preferred_date
+          - preferred_time_window
+          - selected_support_services
+          - service_arrangement
+          - service_frequency
+          - support_requirements
+          - property_count
+          - required_completion_date
+          - urgency_level
+          - preferred_contact_method
+          - distance_origin_used
+          - distance_miles
+          - base_price
+          - room_minimum_adjustment
+          - bathroom_total
+          - condition_fee_total
+          - extras_total
+          - travel_fee
+          - discount_percentage
+          - discount_amount
+          - pass_through_costs
+          - estimated_total
+          - required_upfront_percentage
+          - required_upfront_amount
+          - remaining_balance
+          - manual_review_required
+          - manual_review_reasons
+          - quote_status
+          - customer_notes
+          - internal_notes
+          - submitted_at
+          - approved_at
+          - expires_at
+          - created_at
+          - updated_at
+        field_rules:
+          room_minimum_adjustment: Store the positive difference between £40 and the selected-room line total
+            only for bookings consisting exclusively of Hallways and/or Stairs whose line total is below £40;
+            otherwise store 0.
+      quote_items:
+        primary_key: quote_item_id
+        foreign_keys:
+          - quote_id
+          - pricing_rule_id
+        fields:
+          - item_type
+          - item_name
+          - quantity
+          - unit_price
+          - line_total
+          - discountable
+          - display_order
+          - metadata
+      quote_answers:
+        primary_key: answer_id
+        foreign_keys:
+          - quote_id
+        fields:
+          - question_key
+          - answer_value
+          - answer_label
+          - step_key
+      media_uploads:
+        primary_key: media_id
+        foreign_keys:
+          - quote_id
+          - booking_id
+        fields:
+          - media_type
+          - file_url
+          - upload_purpose
+          - uploaded_by_role
+          - uploaded_at
+      pricing_versions:
+        primary_key: pricing_version_id
+        fields:
+          - version_name
+          - effective_from
+          - effective_to
+          - is_active
+          - approved_by
+          - created_at
+      pricing_rules:
+        primary_key: pricing_rule_id
+        foreign_keys:
+          - pricing_version_id
+        fields:
+          - rule_key
+          - service_type
+          - property_size_or_room
+          - condition
+          - unit
+          - price
+          - percentage
+          - minimum_value
+          - manual_review
+          - priority
+          - active
+      service_area_rules:
+        primary_key: service_area_rule_id
+        fields:
+          - origin_postcodes
+          - minimum_miles
+          - maximum_miles
+          - travel_fee
+          - manual_review
+          - effective_from
+          - active
+      bookings:
+        primary_key: booking_id
+        foreign_keys:
+          - quote_id
+          - customer_id
+          - property_id
+          - cleaner_id
+        fields:
+          - booking_number
+          - scheduled_date
+          - arrival_window_start
+          - arrival_window_end
+          - estimated_cleaner_hours
+          - booking_status
+          - assignment_status
+          - cleaner_id_nullable
+          - customer_access_notes
+          - internal_job_notes
+          - confirmed_at
+          - completed_at
+          - created_at
+          - updated_at
+      payments:
+        primary_key: payment_id
+        foreign_keys:
+          - quote_id
+          - booking_id
+          - customer_id
+        fields:
+          - payment_type
+          - amount_due
+          - amount_paid
+          - currency
+          - provider
+          - provider_reference
+          - payment_status
+          - due_at
+          - paid_at
+          - refund_amount
+          - refunded_at
+          - created_at
+          - updated_at
+      notification_log:
+        primary_key: notification_id
+        foreign_keys:
+          - customer_id
+          - quote_id
+          - booking_id
+        fields:
+          - notification_type
+          - channel
+          - recipient
+          - template_version
+          - delivery_status
+          - sent_at
+          - error_message
+      status_history:
+        primary_key: status_history_id
+        fields:
+          - entity_type
+          - entity_id
+          - old_status
+          - new_status
+          - changed_by_role
+          - changed_by_id
+          - reason
+          - changed_at
+      customer_flags:
+        primary_key: flag_id
+        foreign_keys:
+          - customer_id
+        fields:
+          - flag_type
+          - severity
+          - description_internal
+          - active
+          - created_by
+          - created_at
+          - resolved_at
+      cleaners_reserved_for_future:
+        primary_key: cleaner_id
+        fields:
+          - full_name
+          - email
+          - phone
+          - active_status
+          - service_skills
+          - service_areas
+          - availability_reference
+          - rating
+          - created_at
+          - updated_at
+      audit_log:
+        primary_key: audit_id
+        fields:
+          - actor_role
+          - actor_id
+          - action
+          - entity_type
+          - entity_id
+          - before_snapshot
+          - after_snapshot
+          - created_at
+      property_support_pricing:
+        status: Represented through versioned pricing_rules rather than a separate live collection
+        rule_categories:
+          - key_services
+          - property_inspections
+          - inventory_checks
+          - property_access
+          - emergency_attendance
+    relationships:
+      - One customer can have many properties
+      - One customer can have many quotes
+      - One property can have many quotes and bookings
+      - One quote has many quote items, answers and media uploads
+      - One approved quote converts to zero or one booking
+      - One booking can have many payments, notifications and status-history records
+      - One pricing version has many pricing rules
+      - A cleaner relationship is nullable until the assignment phase is built
+  business_logic:
+    - rule: Residential branch
+      logic: IF quote_category = Residential Cleaning THEN ask House or Flat/Apartment, then ask Standard, 
+        Deep or End of Tenancy.
+    - rule: Residential cleaning scope
+      logic: 'IF service = Standard OR Deep THEN require exactly one cleaning_scope: Whole Property or Selected
+        Rooms.'
+    - rule: Selected Rooms
+      logic: IF cleaning_scope = Selected Rooms THEN inherit the chosen Standard or Deep level, multiply each 
+        room quantity by its matching price, add line totals, and do not add an additional-bathroom fee or
+        apply the new-customer discount. IF the selection consists exclusively of Hallways and/or Stairs and
+        its line total is below £40, add the difference to reach £40. IF any Bathroom, Bedroom, Kitchen or
+        Living Room is selected, do not apply a minimum. Apply normal travel rules in all cases.
+    - rule: End-of-tenancy branch
+      logic: IF service = End of Tenancy THEN skip the scope question, require relevant details and photos, 
+        hide extras and instant pricing, show Custom Quotation Required and set Under Review.
+    - rule: Commercial branch
+      logic: IF quote_category = Commercial Cleaning THEN bypass instant pricing and create a custom quotation
+        request under review. IF Recurring is selected THEN offer Daily, Five times weekly, Three times weekly,
+        Twice weekly, Weekly, Fortnightly, Monthly, Ad hoc and Other / Not sure.
+    - rule: Property Support branch
+      logic: IF quote_category = Property Support THEN collect support-service, property, responsibility, 
+        frequency, access, urgency and supporting-information details; hide instant pricing and deposit 
+        estimates; create a custom quotation request under review. Offer Key Holding, Property Inspection,
+        Contractor Access, Inventory Check, Emergency Attendance and Not Sure only. Collect Occupied, Vacant,
+        Short-let / holiday let or Other / not sure status. Do not offer or imply specialist or outsourced-supplier
+        services.
+    - rule: Preferred arrival windows
+      logic: Offer 08:00-11:00, 11:00-14:00, 14:00-17:00 and 17:00-20:00, including for same-day requests.
+        Same-day requests remain subject to minimum notice, availability and manual review. Any request after
+        20:00 requires manual assessment and is not a standard selectable window.
+    - rule: Airbnb base
+      logic: IF quote_category = Airbnb Turnover THEN use the Standard Clean base price for the selected 
+        property size and add the chosen condition fee.
+    - rule: Dirty Airbnb
+      logic: IF Airbnb condition = Dirty THEN add a provisional £20 condition fee, require photos, set manual 
+        review, label the estimate provisional and allow the charge to be revised based on severity.
+    - rule: Bathrooms
+      logic: IF cleaning_scope = Whole Property AND bathroom_count > 1 THEN add (bathroom_count - 1) × £20. IF
+        cleaning_scope = Selected Rooms THEN each bathroom is priced individually and no separate bathroom fee
+        applies.
+    - rule: Booking system
+      logic: Ignore all BookingKoala references. Use the exported React application as the customer-facing
+        frontend and Wix-managed Headless with Wix business services as the backend. Do not rebuild the quote
+        generator as a Wix Studio Multi-State Box.
+    - rule: Service area
+      logic: Calculate distance from BR1 5HP and RM10 8BE; use the shorter one-way driving distance and apply 
+        the matching band.
+    - rule: Outside service area
+      logic: IF shorter distance > 30 miles OR distance unavailable THEN set manual review; do not reject 
+        automatically.
+    - rule: New customer
+      logic: IF customer is new THEN set manual review. IF this is the customer's first clean and the selected
+        automatically priced service is Residential Standard Whole Property, Residential Deep Whole Property
+        or Airbnb Turnover, apply 15% only to the whole-property base cleaning price plus automatic
+        additional-bathroom charges. Do not discount Selected Rooms, extras, Airbnb condition fees, travel,
+        same-day, parking, congestion, tolls, consumables or separately approved costs.
+    - rule: Existing customer
+      logic: IF existing and verified AND no exception exists THEN quote may be auto-approved.
+    - rule: Payment
+      logic: Calculate required upfront percentage from service, total and lead time; confirm only after 
+        successful payment.
+    - rule: Quote conversion
+      logic: IF quote_status = Approved AND required upfront payment = Paid THEN create booking and set 
+        quote_status = Converted to Booking.
+    - rule: Unsafe conditions
+      logic: IF biohazard, sharps, hoarding, pests, heavy mould or other unsafe condition is reported THEN 
+        block auto-approval and escalate for review or rejection.
+  phase_0_acceptance_criteria:
+    complete_when:
+      - The four top-level quote categories are documented
+      - Residential Standard and Deep support mutually exclusive Whole Property or Selected Rooms scopes
+      - Selected Rooms prices are exact and quantity-based, with Hallways and Stairs priced separately
+      - The £40 Selected Rooms minimum applies only to bookings consisting exclusively of Hallways and/or
+        Stairs; selecting any Bathroom, Bedroom, Kitchen or Living Room disables that minimum
+      - Selected Rooms uses normal travel rules and no separate additional-bathroom charge
+      - End of Tenancy, Commercial Cleaning and Property Support are separated as manual-quotation journeys
+      - Commercial recurring requests offer all nine approved frequency options
+      - Property Support collects an approved occupancy status and does not offer specialist or outsourced-supplier services
+      - The four approved arrival windows include 17:00-20:00; later requests require manual assessment
+      - Every automatically priced item has an exact rule
+      - Dirty Airbnb uses a provisional £20 fee, required photos and mandatory manual review
+      - The Standard Consumables Package and £20 purchasing allowance are documented
+      - Property Support internal base pricing is documented
+      - Discount, distance, upfront-payment and balance ordering is documented
+      - Manual-review triggers are deterministic
+      - Quote, booking and payment statuses are separate
+      - Database collections and relationships are defined
+      - Historical quote prices are protected by snapshots and pricing versions
+      - No BookingKoala dependency remains in the blueprint
+    result: 'Phase 0 v1.3 complete. Ready to complete the React quote generator and connect the secure Wix-managed Headless quote-submission workflow.'

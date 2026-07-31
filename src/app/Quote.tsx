@@ -4,6 +4,7 @@ import { Link, useSearchParams } from "react-router";
 import horizontalFullColour from "@/imports/IMG_1776556945431__2_.png";
 import { PRICES, calculateSelectedRoomsEstimate, calculateWholePropertyEstimate, formatGBP } from "./pricing.js";
 import { createQuotePayload } from "./quotePayload.js";
+import { createQuoteSubmissionId, resolveQuoteApiBaseUrl, submitQuoteRequest, uploadQuoteAttachments } from "./quoteSubmission.js";
 import { bookingDateBounds, validateBookingDate } from "./bookingValidation.js";
 
 type Category = "Residential Cleaning" | "Airbnb Turnover" | "Commercial Cleaning" | "Property Support";
@@ -68,7 +69,7 @@ function UploadControl({ files, onChange, required }: { files: File[]; onChange:
     onChange([...files, ...allowed].slice(0, 10));
     if (input.current) input.current.value = "";
   };
-  return <div onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); acceptFiles(event.dataTransfer.files); }} className="border border-dashed border-[#D8D5CF] bg-[#FAF9F6] p-4"><div className="flex gap-3"><CloudUpload size={20} className={files.length ? "text-[#176B45]" : ""} /><div><p className="text-sm font-bold">Photos or documents {required ? "required" : "optional"}</p><p className="mt-1 text-xs text-[#66635E]">{files.length ? `Upload complete · ${files.length} file${files.length === 1 ? "" : "s"} selected` : "Empty upload area · Drag & Drop or Browse Files"}</p><p className="mt-1 text-[10px] text-[#66635E]">Up to 10 JPG, PNG, HEIC or PDF files. Files will be uploaded when Wix is connected.</p></div></div><input ref={input} type="file" multiple accept="image/*,.pdf" className="sr-only" onChange={e => acceptFiles(e.target.files)} /><button type="button" onClick={() => input.current?.click()} className="mt-3 min-h-9 border border-[#121212] px-3 text-[10px] font-bold uppercase tracking-[.08em]">Browse files</button>{files.length > 0 && <ul className="mt-4 space-y-2">{files.map((file, index) => <li key={`${file.name}-${file.lastModified}-${index}`} className="flex items-center justify-between gap-3 bg-white px-3 py-2 text-xs"><span className="min-w-0 truncate">{file.name} · {(file.size / 1024 / 1024).toFixed(1)} MB</span><button type="button" aria-label={`Remove ${file.name}`} onClick={() => onChange(files.filter((_, i) => i !== index))}><Trash2 size={15} /></button></li>)}</ul>}</div>;
+  return <div onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); acceptFiles(event.dataTransfer.files); }} className="border border-dashed border-[#D8D5CF] bg-[#FAF9F6] p-4"><div className="flex gap-3"><CloudUpload size={20} className={files.length ? "text-[#176B45]" : ""} /><div><p className="text-sm font-bold">Photos or documents {required ? "required" : "optional"}</p><p className="mt-1 text-xs text-[#66635E]">{files.length ? `Upload complete · ${files.length} file${files.length === 1 ? "" : "s"} selected` : "Empty upload area · Drag & Drop or Browse Files"}</p><p className="mt-1 text-[10px] text-[#66635E]">Up to 10 JPG, PNG, HEIC or PDF files. Selected files will be uploaded securely when the request is submitted.</p></div></div><input ref={input} type="file" multiple accept="image/*,.pdf" className="sr-only" onChange={e => acceptFiles(e.target.files)} /><button type="button" onClick={() => input.current?.click()} className="mt-3 min-h-9 border border-[#121212] px-3 text-[10px] font-bold uppercase tracking-[.08em]">Browse files</button>{files.length > 0 && <ul className="mt-4 space-y-2">{files.map((file, index) => <li key={`${file.name}-${file.lastModified}-${index}`} className="flex items-center justify-between gap-3 bg-white px-3 py-2 text-xs"><span className="min-w-0 truncate">{file.name} · {(file.size / 1024 / 1024).toFixed(1)} MB</span><button type="button" aria-label={`Remove ${file.name}`} onClick={() => onChange(files.filter((_, i) => i !== index))}><Trash2 size={15} /></button></li>)}</ul>}</div>;
 }
 
 function stageForStep(step: Step) { if (step === "service" || step === "supportServices") return 0; if (["address", "customer", "customSupporting"].includes(step)) return 2; if (["summary", "submitted"].includes(step)) return 3; return 1; }
@@ -128,11 +129,16 @@ export default function QuotePage() {
   const [errors, setErrors] = useState<string[]>([]);
   const [drawer, setDrawer] = useState(false);
   const [reference, setReference] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submissionId, setSubmissionId] = useState("");
   useEffect(() => {
     const nextEntryRoute = entryRouteForService(serviceParam);
     setData({ ...initialData, ...nextEntryRoute.preset });
     setStep(nextEntryRoute.step);
     setErrors([]);
+    setReference("");
+    setSubmissionId("");
+    setIsSubmitting(false);
   }, [serviceParam]);
   const update = <K extends keyof QuoteData>(key: K, value: QuoteData[K]) => setData(current => ({ ...current, [key]: value }));
   const go = (next: Step) => { setErrors([]); setStep(next); window.scrollTo({ top: 0, behavior: "smooth" }); };
@@ -150,19 +156,56 @@ export default function QuotePage() {
   const chooseCategory = (category: Category) => { setData(current => current.category === category ? current : { ...initialData, category }); go(category === "Residential Cleaning" ? "cleaningService" : category === "Airbnb Turnover" ? "propertyType" : category === "Property Support" ? "supportServices" : "customDetails"); };
   const validateAddress = () => { const dateError = appointmentRequired ? validateBookingDate(data.preferredDate, data.arrivalWindow) : ""; const e = [!data.address.trim() && "Enter the property address.", !data.postcode.trim() && "Enter the postcode.", appointmentRequired && !data.arrivalWindow && "Choose a preferred arrival window.", dateError].filter(Boolean) as string[]; setErrors(e); if (!e.length) go("customer"); };
   const validateCustomer = () => { const e = [!data.fullName.trim() && "Enter your full name.", !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email.trim()) && "Enter a valid email address.", !/^[+()\d\s-]{7,20}$/.test(data.phone.trim()) && "Enter a valid phone number.", !data.customerType && "Choose whether you are a new or existing customer.", !data.preferredContactMethod && "Choose a preferred contact method.", !data.privacyConsent && "Privacy consent is required."].filter(Boolean) as string[]; setErrors(e); if (!e.length) go("summary"); };
-  const submit = () => {
-    const payload = createQuotePayload(data, { distanceMiles: null, travelFee: null });
-    const ref = `CUC-${new Date().toISOString().slice(0, 10).replaceAll("-", "")}-${crypto.randomUUID().slice(0, 6).toUpperCase()}`;
-    const stored = { reference: ref, ...payload };
-    localStorage.setItem("cuc:lastPreparedQuote", JSON.stringify(stored));
-    window.dispatchEvent(new CustomEvent("cuc:quote-prepared", { detail: stored }));
-    setReference(ref); go("submitted");
+  const submit = async () => {
+    if (isSubmitting) return;
+
+    setErrors([]);
+    setIsSubmitting(true);
+
+    const activeSubmissionId = submissionId || createQuoteSubmissionId();
+    setSubmissionId(activeSubmissionId);
+
+    const apiBaseUrl = resolveQuoteApiBaseUrl(
+      import.meta.env.VITE_API_BASE_URL,
+    );
+
+    try {
+      const payload = createQuotePayload(data, {
+        distanceMiles: null,
+        travelFee: null,
+      });
+
+      const response = await submitQuoteRequest({
+        apiBaseUrl,
+        submissionId: activeSubmissionId,
+        payload,
+      });
+
+      if (data.files.length > 0) {
+        await uploadQuoteAttachments({
+          apiBaseUrl,
+          submissionId: activeSubmissionId,
+          files: data.files,
+        });
+      }
+
+      setReference(response.confirmation.quoteNumber);
+      go("submitted");
+    } catch (error) {
+      setErrors([
+        error instanceof Error
+          ? error.message
+          : "We could not submit your quote request. Please try again.",
+      ]);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  return <main className="min-h-screen bg-[#FAF9F6] font-sans text-[#121212]"><header className="sticky top-0 z-30 border-b border-[#D8D5CF] bg-white/95 backdrop-blur"><div className="relative mx-auto flex h-[68px] max-w-[1440px] items-center justify-between px-5 sm:h-20 sm:px-10 lg:px-16"><Link to="/home"><Logo /></Link><nav className="absolute left-1/2 hidden h-full -translate-x-1/2 items-center gap-6 lg:flex">{navigation.map(([name, to]) => <Link key={name} to={to} className="flex h-full items-center border-b-2 border-transparent text-[10px] font-bold uppercase tracking-[.09em] text-[#66635E] hover:text-[#121212]">{name}</Link>)}</nav><span className="hidden min-h-12 items-center rounded-[4px] bg-[#B08A3C] px-5 text-[11px] font-bold uppercase tracking-[.08em] text-white lg:inline-flex">Get a Quote</span><button type="button" onClick={() => setDrawer(!drawer)} className="grid size-11 place-items-center border border-[#D8D5CF] lg:hidden" aria-label="Toggle navigation">{drawer ? <X size={20} /> : <Menu size={20} />}</button></div>{drawer && <div className="border-t border-[#D8D5CF] bg-white px-5 pb-5 lg:hidden">{navigation.map(([name, to]) => <Link key={name} to={to} onClick={() => setDrawer(false)} className="block border-b border-[#D8D5CF] py-4 text-xs font-bold uppercase tracking-[.1em]">{name}</Link>)}</div>}</header><div className="mx-auto max-w-[1240px] px-5 py-8 sm:px-10"><div className="mx-auto mt-10 max-w-4xl"><Stepper stage={stageForStep(step)} /><QuoteStep step={step} data={data} update={update} go={go} errors={errors} setErrors={setErrors} chooseCategory={chooseCategory} validateAddress={validateAddress} validateCustomer={validateCustomer} estimate={estimate} customQuote={customQuote} appointmentRequired={appointmentRequired} submit={submit} reference={reference} /></div></div><footer className="border-t border-[#D8D5CF] bg-white"><div className="mx-auto flex max-w-[1440px] items-center justify-between px-5 py-6 sm:px-10 lg:px-16"><Logo /><p className="text-[10px] font-bold uppercase tracking-[.1em] text-[#66635E]">Clean Up Central · Quote Generator UI Reference</p></div></footer></main>;
+  return <main className="min-h-screen bg-[#FAF9F6] font-sans text-[#121212]"><header className="sticky top-0 z-30 border-b border-[#D8D5CF] bg-white/95 backdrop-blur"><div className="relative mx-auto flex h-[68px] max-w-[1440px] items-center justify-between px-5 sm:h-20 sm:px-10 lg:px-16"><Link to="/home"><Logo /></Link><nav className="absolute left-1/2 hidden h-full -translate-x-1/2 items-center gap-6 lg:flex">{navigation.map(([name, to]) => <Link key={name} to={to} className="flex h-full items-center border-b-2 border-transparent text-[10px] font-bold uppercase tracking-[.09em] text-[#66635E] hover:text-[#121212]">{name}</Link>)}</nav><span className="hidden min-h-12 items-center rounded-[4px] bg-[#B08A3C] px-5 text-[11px] font-bold uppercase tracking-[.08em] text-white lg:inline-flex">Get a Quote</span><button type="button" onClick={() => setDrawer(!drawer)} className="grid size-11 place-items-center border border-[#D8D5CF] lg:hidden" aria-label="Toggle navigation">{drawer ? <X size={20} /> : <Menu size={20} />}</button></div>{drawer && <div className="border-t border-[#D8D5CF] bg-white px-5 pb-5 lg:hidden">{navigation.map(([name, to]) => <Link key={name} to={to} onClick={() => setDrawer(false)} className="block border-b border-[#D8D5CF] py-4 text-xs font-bold uppercase tracking-[.1em]">{name}</Link>)}</div>}</header><div className="mx-auto max-w-[1240px] px-5 py-8 sm:px-10"><div className="mx-auto mt-10 max-w-4xl"><Stepper stage={stageForStep(step)} /><QuoteStep step={step} data={data} update={update} go={go} errors={errors} setErrors={setErrors} chooseCategory={chooseCategory} validateAddress={validateAddress} validateCustomer={validateCustomer} estimate={estimate} customQuote={customQuote} appointmentRequired={appointmentRequired} submit={submit} reference={reference} isSubmitting={isSubmitting} /></div></div><footer className="border-t border-[#D8D5CF] bg-white"><div className="mx-auto flex max-w-[1440px] items-center justify-between px-5 py-6 sm:px-10 lg:px-16"><Logo /><p className="text-[10px] font-bold uppercase tracking-[.1em] text-[#66635E]">Clean Up Central · Quote Generator UI Reference</p></div></footer></main>;
 }
 
-function QuoteStep({ step, data, update, go, errors, setErrors, chooseCategory, validateAddress, validateCustomer, estimate, customQuote, appointmentRequired, submit, reference }: { step: Step; data: QuoteData; update: <K extends keyof QuoteData>(key: K, value: QuoteData[K]) => void; go: (step: Step) => void; errors: string[]; setErrors: (errors: string[]) => void; chooseCategory: (category: Category) => void; validateAddress: () => void; validateCustomer: () => void; estimate: any; customQuote: boolean; appointmentRequired: boolean; submit: () => void; reference: string }) {
+function QuoteStep({ step, data, update, go, errors, setErrors, chooseCategory, validateAddress, validateCustomer, estimate, customQuote, appointmentRequired, submit, reference, isSubmitting }: { step: Step; data: QuoteData; update: <K extends keyof QuoteData>(key: K, value: QuoteData[K]) => void; go: (step: Step) => void; errors: string[]; setErrors: (errors: string[]) => void; chooseCategory: (category: Category) => void; validateAddress: () => void; validateCustomer: () => void; estimate: any; customQuote: boolean; appointmentRequired: boolean; submit: () => Promise<void>; reference: string; isSubmitting: boolean }) {
   if (step === "service") return <section className="mt-10 text-center"><Heading eyebrow="Service Type / Default" title="Let’s get you an instant quote" copy="Choose the type of support you are looking for to begin." /><div className="mt-8 grid gap-4 text-left sm:grid-cols-2">{[["Residential Cleaning", "Routine cleaning for your property.", Sparkles], ["Airbnb Turnover", "Guest-ready preparation between stays.", KeyRound], ["Commercial Cleaning", "Cleaning for offices and light commercial premises.", Building2], ["Property Support", "Practical help for property details.", ShieldCheck]].map(([label, copy, Icon]) => <button type="button" key={label as string} onClick={() => update("category", label as Category)} className={`relative min-h-40 border bg-white p-6 ${data.category === label ? "border-2 border-[#B08A3C]" : "border-[#D8D5CF]"}`}><span className="grid size-10 place-items-center border border-[#B08A3C] text-[#B08A3C]"><Icon size={20} /></span><b className="mt-5 block">{label as string}</b><span className="mt-2 block text-sm leading-5 text-[#66635E]">{copy as string}</span>{data.category === label && <span className="absolute right-4 top-4 grid size-5 place-items-center rounded-full bg-[#B08A3C] text-white"><Check size={13} /></span>}</button>)}</div><div className="mt-8"><Button disabled={!data.category} onClick={() => data.category && chooseCategory(data.category)}>Continue</Button></div></section>;
 
   if (step === "propertyType") return <section className="mx-auto mt-10 max-w-2xl"><Heading eyebrow={`${data.category} · Property`} title="What type of property is it?" copy="Choose the option that best describes the property." /><div className="mt-8 grid gap-3 sm:grid-cols-2">{["House", "Flat / Apartment"].map(option => <Choice key={option} label={option} selected={data.propertyType === option} onClick={() => update("propertyType", option)} />)}</div><Nav back={() => go(data.category === "Residential Cleaning" ? "cleaningService" : "service")} next={() => !data.propertyType ? setErrors(["Choose a property type."]) : go(data.category === "Residential Cleaning" ? (data.serviceType === "End of Tenancy" ? "customDetails" : "scope") : "property")} errors={errors} /></section>;
@@ -189,8 +232,8 @@ function QuoteStep({ step, data, update, go, errors, setErrors, chooseCategory, 
 
   if (step === "customer") return <section className="mx-auto mt-10 max-w-3xl"><Heading eyebrow="Your Details" title="Your details" copy="Add your contact details so we can review your request and share the next steps." /><Panel><ErrorBox errors={errors} /><div className="grid gap-5 sm:grid-cols-2"><Field required label="Full name" value={data.fullName} onChange={value => update("fullName", value)} /><Field required label="Email address" type="email" value={data.email} onChange={value => update("email", value)} /><Field required label="Phone number" type="tel" value={data.phone} onChange={value => update("phone", value)} /><Field label="Company or agency" value={data.company} onChange={value => update("company", value)} /><SelectField required label="New or existing customer" value={data.customerType} onChange={value => update("customerType", value)} options={["New customer", "Existing customer"]} /><SelectField required label="Preferred contact method" value={data.preferredContactMethod} onChange={value => update("preferredContactMethod", value)} options={["Email", "Phone"]} /><Field label="Anything else we should review?" value={data.additionalNotes} onChange={value => update("additionalNotes", value)} textarea /><label className="flex items-start gap-3 text-sm sm:col-span-2"><input type="checkbox" checked={data.privacyConsent} onChange={e => update("privacyConsent", e.target.checked)} className="mt-1 size-4" /> I consent to Clean Up Central using these details to prepare and contact me about this quote. *</label></div><div className="mt-8 flex justify-between"><Button variant="text" left onClick={() => go("address")}>Back</Button><Button onClick={validateCustomer}>Review Quote</Button></div></Panel></section>;
 
-  if (step === "summary") return <Summary data={data} estimate={estimate} customQuote={customQuote} back={() => go(data.category === "Commercial Cleaning" || data.category === "Property Support" ? "customSupporting" : "customer")} submit={submit} />;
-  return <section className="mx-auto mt-10 max-w-3xl text-center"><span className="mx-auto grid size-14 place-items-center rounded-full bg-[#176B45] text-white"><CheckCircle2 size={28} /></span><Heading eyebrow="Prepared for Submission" title="Your request is ready" copy="The complete quote payload has been created and checked in this Headless-ready test build." /><Panel><p className="text-left text-sm leading-6">Reference: <b>{reference}</b><br />The request is stored locally for testing. When Wix Headless is connected, this same submission action will save it to Wix and upload the selected files.</p><div className="mt-6"><Button onClick={() => window.location.reload()}>Start Another Quote</Button></div></Panel></section>;
+  if (step === "summary") return <Summary data={data} estimate={estimate} customQuote={customQuote} back={() => go(data.category === "Commercial Cleaning" || data.category === "Property Support" ? "customSupporting" : "customer")} submit={submit} errors={errors} isSubmitting={isSubmitting} />;
+  return <section className="mx-auto mt-10 max-w-3xl text-center"><span className="mx-auto grid size-14 place-items-center rounded-full bg-[#176B45] text-white"><CheckCircle2 size={28} /></span><Heading eyebrow="Request Received" title="Your quote request has been submitted" copy="We have received your details and will review the request before confirming availability or a booking." /><Panel><p className="text-left text-sm leading-6">Quote reference: <b>{reference}</b><br />This is not a confirmed booking. Clean Up Central will contact you after reviewing the information supplied.</p><div className="mt-6"><Button onClick={() => window.location.reload()}>Start Another Quote</Button></div></Panel></section>;
 }
 
 function CustomDetails({ data, update, errors, setErrors, go }: { data: QuoteData; update: <K extends keyof QuoteData>(key: K, value: QuoteData[K]) => void; errors: string[]; setErrors: (e: string[]) => void; go: (s: Step) => void }) {
@@ -229,8 +272,8 @@ function CustomSupporting({ data, update, go }: { data: QuoteData; update: <K ex
 function Nav({ back, next, errors }: { back: () => void; next: () => void; errors: string[] }) { return <><div className="mt-6"><ErrorBox errors={errors} /></div><div className="mt-8 flex justify-between"><Button variant="text" left onClick={back}>Back</Button><Button onClick={next}>Continue</Button></div></>; }
 function Row({ label, value, strong }: { label: string; value: string; strong?: boolean }) { return <div className="grid gap-1 py-3 sm:grid-cols-[.9fr_1.1fr]"><span className={strong ? "font-bold" : "text-[#66635E]"}>{label}</span><b>{value}</b></div>; }
 
-function Summary({ data, estimate, customQuote, back, submit }: { data: QuoteData; estimate: any; customQuote: boolean; back: () => void; submit: () => void }) {
-  if (customQuote) return <CustomQuoteSummary data={data} back={back} submit={submit} />;
+function Summary({ data, estimate, customQuote, back, submit, errors, isSubmitting }: { data: QuoteData; estimate: any; customQuote: boolean; back: () => void; submit: () => Promise<void>; errors: string[]; isSubmitting: boolean }) {
+  if (customQuote) return <CustomQuoteSummary data={data} back={back} submit={submit} errors={errors} isSubmitting={isSubmitting} />;
 
   const selectedRooms = Object.entries(data.rooms).filter(([, quantity]) => quantity).map(([name, quantity]) => `${quantity} × ${name}`).join(", ");
   const selectedExtras = Object.entries(data.extras).filter(([, quantity]) => quantity).map(([name, quantity]) => `${quantity} × ${name}`).join(", ") || "None";
@@ -241,6 +284,7 @@ function Summary({ data, estimate, customQuote, back, submit }: { data: QuoteDat
   return <section className="mx-auto mt-10 max-w-3xl">
     <Heading eyebrow={customQuote ? "Custom Quote Required" : data.category === "Airbnb Turnover" && data.airbnbCondition === "Dirty" ? "Provisional Estimate" : "Estimated Quote"} title={customQuote ? "Review your request" : data.category === "Airbnb Turnover" && data.airbnbCondition === "Dirty" ? "Review your provisional estimate" : "Review your estimated quote"} copy={customQuote ? "We’ll prepare a tailored quote after reviewing the information below." : "The calculated cleaning amount is shown below. Travel remains pending until driving distance is verified."} />
     <Panel>
+      <ErrorBox errors={errors} />
       {estimate && <><p className="font-serif text-[60px] leading-none text-[#B08A3C]">{formatGBP(estimate.estimatedTotal)}</p><p className="mt-3 text-[10px] font-bold uppercase tracking-[.12em] text-[#7A5A1E]">Calculated amount · Travel fee pending review</p></>}
       <div className="mt-7 divide-y divide-[#D8D5CF] border-y border-[#D8D5CF] text-sm">
         <Row label="Service" value={`${data.category}${data.serviceType ? ` · ${data.serviceType}` : ""}`} />
@@ -258,12 +302,12 @@ function Summary({ data, estimate, customQuote, back, submit }: { data: QuoteDat
       {data.category === "Airbnb Turnover" && data.airbnbCondition === "Dirty" && <p className="mt-6 border-l-4 border-[#B08A3C] bg-[#F1EDE4] p-4 text-sm leading-6"><b>Provisional estimate.</b> The £20 Dirty-condition charge and supplied photographs will be reviewed. The charge may be revised if the actual condition or work required is materially different.</p>}
       {data.cleaningScope === "Selected Rooms" && <p className="mt-6 border-l-4 border-[#B08A3C] bg-[#F1EDE4] p-4 text-sm leading-6">Room prices are based on the information supplied and may be revised after review if the actual condition materially differs.</p>}
       <p className="mt-6 text-sm leading-6 text-[#66635E]">This is not a confirmed booking. The requested date is secured only after review, approval and receipt of the required upfront payment.</p>
-      <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-between"><Button variant="outline" left onClick={back}>Back and Edit</Button><Button onClick={submit}>Submit for Review</Button></div>
+      <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-between"><Button variant="outline" left onClick={back}>Back and Edit</Button><Button onClick={() => void submit()} disabled={isSubmitting}>{isSubmitting ? "Submitting…" : "Submit for Review"}</Button></div>
     </Panel>
   </section>;
 }
 
-function CustomQuoteSummary({ data, back, submit }: { data: QuoteData; back: () => void; submit: () => void }) {
+function CustomQuoteSummary({ data, back, submit, errors, isSubmitting }: { data: QuoteData; back: () => void; submit: () => Promise<void>; errors: string[]; isSubmitting: boolean }) {
   const isEndOfTenancy = data.serviceType === "End of Tenancy";
   const isCommercial = data.category === "Commercial Cleaning";
   const valueOrFallback = (value: string | number | boolean) => {
@@ -340,6 +384,7 @@ function CustomQuoteSummary({ data, back, submit }: { data: QuoteData; back: () 
     <h1 className="mt-5 font-serif text-[46px] leading-[.98] tracking-[-.03em] sm:text-[60px]">CUSTOM QUOTE REQUIRED</h1>
     <p className="mt-5 max-w-2xl text-[16px] leading-7 text-[#66635E]">We’ll review your requirements and prepare a personalised quote tailored to your property and service needs.</p>
     <Panel>
+      <ErrorBox errors={errors} />
       <FileText className="text-[#B08A3C]" size={26} />
       <h2 className="mt-5 text-base font-bold">Request summary</h2>
       <div className="mt-4 divide-y divide-[#D8D5CF] border-y border-[#D8D5CF]">
@@ -347,7 +392,7 @@ function CustomQuoteSummary({ data, back, submit }: { data: QuoteData; back: () 
       </div>
       <p className="mt-6 text-sm leading-6 text-[#66635E]">{explanation}</p>
       <div className="mt-6 border-l-4 border-[#B08A3C] bg-[#F1EDE4] p-4 text-sm leading-6">This is a quote request, not a confirmed booking. Our team will review the information provided and contact you with the next step. The requested date and booking remain unconfirmed until review, approval and the required payment.</div>
-      <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-between"><Button variant="outline" left onClick={back}>Back and Edit Details</Button><Button onClick={submit}>Submit Request for Review</Button></div>
+      <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-between"><Button variant="outline" left onClick={back}>Back and Edit Details</Button><Button onClick={() => void submit()} disabled={isSubmitting}>{isSubmitting ? "Submitting…" : "Submit Request for Review"}</Button></div>
     </Panel>
   </section>;
 }

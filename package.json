@@ -12,8 +12,9 @@
     "test:figma": "node tests/figma-alignment.test.mjs",
     "test:alignment": "node tests/spec-alignment.test.mjs",
     "test:typecheck": "tsc --noEmit",
-    "test": "npm run test:pricing && npm run test:payload && npm run test:booking && npm run test:alignment && npm run test:figma && npm run test:contact && npm run test:typecheck",
     "test:contact": "node --test tests/contact-enquiry-client.test.mjs",
+    "test:quote-submission": "node --test tests/quote-submission-client.test.mjs",
+    "test": "npm run test:pricing && npm run test:payload && npm run test:booking && npm run test:alignment && npm run test:figma && npm run test:contact && npm run test:quote-submission && npm run test:typecheck",
     "verify:build6": "npm test && npm run build && npm --prefix backend run verify:build6"
   },
   "dependencies": {

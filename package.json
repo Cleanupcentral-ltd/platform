@@ -4,7 +4,7 @@
   "version": "2.2.0",
   "type": "module",
   "scripts": {
-    "build": "vite build",
+    "build": "vite build && node scripts/generate-clean-route-entries.mjs",
     "dev": "vite",
     "test:pricing": "node tests/pricing.test.mjs",
     "test:payload": "node tests/quote-payload.test.mjs",

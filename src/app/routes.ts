@@ -1,4 +1,4 @@
-import { createBrowserRouter, Outlet, useLocation } from "react-router";
+import { createHashRouter, Outlet, useLocation } from "react-router";
 import { createElement, useEffect } from "react";
 import Home from "./Home";
 import DesignSystem from "./DesignSystem";
@@ -22,10 +22,11 @@ function SiteRouteLayout() {
   return createElement(Outlet);
 }
 
-export const router = createBrowserRouter([
+export const router = createHashRouter([
   {
     Component: SiteRouteLayout,
     children: [
+      { path: "/", Component: Home },
       { path: "/home", Component: Home },
       { path: "/design-system", Component: DesignSystem },
       { path: "/about", Component: AboutPage },

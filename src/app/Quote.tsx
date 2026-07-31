@@ -4,6 +4,7 @@ import { Link, useSearchParams } from "react-router";
 import horizontalFullColour from "@/imports/IMG_1776556945431__2_.png";
 import { PRICES, calculateSelectedRoomsEstimate, calculateWholePropertyEstimate, formatGBP } from "./pricing.js";
 import { createQuotePayload } from "./quotePayload.js";
+import { createBackendQuotePayload } from "./quoteRequestMapper.js";
 import { createQuoteSubmissionId, resolveQuoteApiBaseUrl, submitQuoteRequest, uploadQuoteAttachments } from "./quoteSubmission.js";
 import { bookingDateBounds, validateBookingDate } from "./bookingValidation.js";
 
@@ -170,10 +171,10 @@ export default function QuotePage() {
     );
 
     try {
-      const payload = createQuotePayload(data, {
-        distanceMiles: null,
-        travelFee: null,
-      });
+      const payload = createBackendQuotePayload(
+        data,
+        estimate,
+      );
 
       const response = await submitQuoteRequest({
         apiBaseUrl,

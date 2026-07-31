@@ -269,7 +269,7 @@ export class ResendNotificationDelivery
 
                 to:
                   draft.to.map(
-                    recipientAddress,
+                    ({ email }) => email,
                   ),
 
                 ...(draft.replyTo ===

@@ -16,7 +16,9 @@
     "wix:attachment-flow:verify": "node --env-file=.env --import tsx scripts/verify-build5-attachment-flow.ts",
     "verify:build5": "npm run typecheck && npm test && npm run wix:check && npm run wix:schema && npm run wix:attachment-flow:verify",
     "wix:contact-flow:verify": "node --env-file=.env --import tsx scripts/verify-build6-contact-flow.ts",
-    "verify:build6": "npm run typecheck && npm test && npm run wix:check && npm run wix:schema && npm run wix:contact-flow:verify"
+    "verify:build6": "npm run typecheck && npm test && npm run wix:check && npm run wix:schema && npm run wix:contact-flow:verify",
+    "resend:notification-flow:verify": "node --env-file=.env --import tsx scripts/verify-build7-notification-flow.ts",
+    "verify:build7": "npm run typecheck && NOTIFICATIONS_ENABLED=false npm test && npm run wix:check && npm run wix:schema && npm run resend:notification-flow:verify"
   },
   "keywords": [],
   "author": "",

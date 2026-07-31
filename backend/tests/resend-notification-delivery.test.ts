@@ -205,7 +205,7 @@ test(
           "Clean Up Central <notifications@example.com>",
 
         to: [
-          "Test Customer <customer@example.com>",
+          "customer@example.com",
         ],
 
         reply_to:

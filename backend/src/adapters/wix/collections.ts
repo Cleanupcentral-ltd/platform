@@ -52,6 +52,7 @@ export const WIX_FIELDS = Object.freeze({
     quoteNumber: "quoteNumber",
     submissionId: "submissionId",
     customer: "customer",
+    customerEmail: "customerEmail",
     property: "property",
     schemaVersion: "schemaVersion",
     pricingVersion: "pricingVersion",

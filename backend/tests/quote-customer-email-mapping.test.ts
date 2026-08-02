@@ -30,7 +30,7 @@ function quoteRecord(): CreateQuoteRecord {
     verifiedCustomerStatus: "Verified New",
     customerStatusMismatch: false,
     preferredContactMethod: "Email",
-    preferredDate: null,
+    preferredDate: "2026-08-15",
     arrivalWindow: null,
     preferredStartDate: null,
     requiredCompletionDate: null,
@@ -61,7 +61,7 @@ function quoteRecord(): CreateQuoteRecord {
 }
 
 test(
-  "maps submitted customer email and phone directly onto a Wix quote item",
+  "maps submitted customer details and a readable preferred date onto a Wix quote item",
   () => {
     const mapped = mapQuoteCreateToWix(
       quoteRecord(),
@@ -82,8 +82,40 @@ test(
     );
 
     assert.equal(
+      mapped[
+        WIX_FIELDS.quotes.preferredDate
+      ],
+      "2026-08-15",
+    );
+
+    assert.equal(
+      mapped[
+        WIX_FIELDS.quotes.preferredDateDisplay
+      ],
+      "Saturday, 15 August 2026",
+    );
+
+    assert.equal(
       mapped[WIX_FIELDS.quotes.customer],
       "customer-1",
+    );
+  },
+);
+
+test(
+  "leaves the preferred date display empty when no date was requested",
+  () => {
+    const record = quoteRecord();
+    const mapped = mapQuoteCreateToWix({
+      ...record,
+      preferredDate: null,
+    });
+
+    assert.equal(
+      mapped[
+        WIX_FIELDS.quotes.preferredDateDisplay
+      ],
+      null,
     );
   },
 );

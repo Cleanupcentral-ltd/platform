@@ -348,13 +348,6 @@ export function mapQuoteCreateToWix(
     [fields.customer]:
       quote.customerId,
 
-    [fields.customerFullName]:
-      submittedCustomerText(
-        quote,
-        "fullName",
-        "full name",
-      ),
-
     [fields.customerEmail]:
       submittedCustomerEmail(quote),
 

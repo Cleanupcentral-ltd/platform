@@ -53,6 +53,7 @@ function quoteRecord(): CreateQuoteRecord {
     rawSubmission: {
       customer: {
         email: " Customer@Example.com ",
+        phone: " 07123 456789 ",
       },
     },
     pricingSnapshot: {},
@@ -60,7 +61,7 @@ function quoteRecord(): CreateQuoteRecord {
 }
 
 test(
-  "maps the submitted customer email directly onto a Wix quote item",
+  "maps submitted customer email and phone directly onto a Wix quote item",
   () => {
     const mapped = mapQuoteCreateToWix(
       quoteRecord(),
@@ -71,6 +72,13 @@ test(
         WIX_FIELDS.quotes.customerEmail
       ],
       "customer@example.com",
+    );
+
+    assert.equal(
+      mapped[
+        WIX_FIELDS.quotes.customerPhone
+      ],
+      "07123 456789",
     );
 
     assert.equal(

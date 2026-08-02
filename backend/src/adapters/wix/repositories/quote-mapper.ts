@@ -73,8 +73,10 @@ function readSupportServices(
   return values as readonly SupportService[];
 }
 
-function submittedCustomerEmail(
+function submittedCustomerText(
   quote: CreateQuoteRecord,
+  fieldName: string,
+  fieldLabel: string,
 ): string {
   const customer =
     quote.rawSubmission["customer"];
@@ -92,25 +94,35 @@ function submittedCustomerEmail(
     });
   }
 
-  const email = (
+  const value = (
     customer as Readonly<
       Record<string, unknown>
     >
-  )["email"];
+  )[fieldName];
 
   if (
-    typeof email !== "string" ||
-    email.trim().length === 0
+    typeof value !== "string" ||
+    value.trim().length === 0
   ) {
     throw new ApplicationError({
       code: "STORAGE_ERROR",
       message:
-        "The quote submission does not contain a customer email address.",
+        `The quote submission does not contain a customer ${fieldLabel}.`,
       statusCode: 500,
     });
   }
 
-  return email.trim().toLowerCase();
+  return value.trim();
+}
+
+function submittedCustomerEmail(
+  quote: CreateQuoteRecord,
+): string {
+  return submittedCustomerText(
+    quote,
+    "email",
+    "email address",
+  ).toLowerCase();
 }
 
 export function mapQuoteFromWix(
@@ -336,8 +348,22 @@ export function mapQuoteCreateToWix(
     [fields.customer]:
       quote.customerId,
 
+    [fields.customerFullName]:
+      submittedCustomerText(
+        quote,
+        "fullName",
+        "full name",
+      ),
+
     [fields.customerEmail]:
       submittedCustomerEmail(quote),
+
+    [fields.customerPhone]:
+      submittedCustomerText(
+        quote,
+        "phone",
+        "phone number",
+      ),
 
     [fields.property]:
       quote.propertyId,

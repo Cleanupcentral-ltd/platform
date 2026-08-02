@@ -69,6 +69,8 @@ export const WIX_FIELDS = Object.freeze({
     preferredContactMethod:
       "preferredContactMethod",
     preferredDate: "preferredDate",
+    preferredDateDisplay:
+      "preferredDateDisplay",
     arrivalWindow: "arrivalWindow",
     preferredStartDate: "preferredStartDate",
     requiredCompletionDate:

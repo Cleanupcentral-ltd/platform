@@ -1,5 +1,5 @@
 /**
- * Clean Up Central Phase 0 v1.3 pricing engine.
+ * Clean Up Central Phase 0 v1.4 pricing engine.
  *
  * This file contains no React or Wix imports. The same functions can therefore
  * be reused by the quote page and the protected Wix backend.
@@ -12,7 +12,7 @@
  * - Travel uses the shorter driving distance from BR1 5HP or RM10 8BE.
  */
 
-export const PRICING_VERSION = "CUC Phase 0 v1.3";
+export const PRICING_VERSION = "CUC Phase 0 v1.4";
 
 export const PRICES = Object.freeze({
   wholeProperty: {
@@ -268,17 +268,10 @@ function upfrontPayment(
     );
   }
 
-  let percentage = 30;
+  let percentage = 50;
 
   if (hours !== null && hours < 24) {
     percentage = 100;
-  } else if (hours !== null && hours <= 48) {
-    percentage = 50;
-  } else if (
-    service === "Deep Clean" &&
-    estimatedTotal >= 250
-  ) {
-    percentage = 50;
   }
 
   const amount = money(estimatedTotal * (percentage / 100));

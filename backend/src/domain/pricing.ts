@@ -1,5 +1,5 @@
 export const PRICING_VERSION =
-  "CUC Phase 0 v1.3";
+  "CUC Phase 0 v1.4";
 
 export const PRICES = {
   wholeProperty: {
@@ -382,23 +382,13 @@ export function calculateUpfrontPayment(
     );
   }
 
-  let percentage = 30;
+  let percentage = 50;
 
   if (
     leadTimeHours !== null &&
     leadTimeHours < 24
   ) {
     percentage = 100;
-  } else if (
-    leadTimeHours !== null &&
-    leadTimeHours <= 48
-  ) {
-    percentage = 50;
-  } else if (
-    service === "Deep Clean" &&
-    estimatedTotal >= 250
-  ) {
-    percentage = 50;
   }
 
   const amount = roundMoney(

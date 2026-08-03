@@ -3,6 +3,13 @@ import { readFileSync } from "node:fs";
 
 const quoteSource = readFileSync(new URL("../src/app/Quote.tsx", import.meta.url), "utf8");
 const payloadSource = readFileSync(new URL("../src/app/quotePayload.js", import.meta.url), "utf8");
+const phaseZeroSource = readFileSync(
+  new URL(
+    "../specifications/CUC_Phase_0_Rules_and_Database_Blueprint_v1.4.yaml",
+    import.meta.url,
+  ),
+  "utf8",
+);
 
 const commercialFrequencies = [
   "Daily",
@@ -32,7 +39,20 @@ for (const option of [...commercialFrequencies, ...propertySupportOptions, ...oc
 assert.equal(quoteSource.includes('"17:00–20:00"'), true);
 assert.equal(quoteSource.includes("Specialist Add-on / Outsourced Supplier"), false);
 assert.equal(quoteSource.includes("Specialist Property Support"), false);
-assert.equal(payloadSource.includes('CUC Phase 0 v1.3'), true);
+assert.equal(payloadSource.includes('CUC Phase 0 v1.4'), true);
 assert.equal(payloadSource.includes("occupancyStatus"), true);
+assert.equal(phaseZeroSource.includes("wait_minutes: 30"), true);
+assert.equal(
+  phaseZeroSource.includes("Flexible Hourly Cleaning"),
+  true,
+);
+assert.equal(
+  phaseZeroSource.includes("percentage: 50"),
+  true,
+);
+assert.equal(
+  phaseZeroSource.includes("two hours before the earliest time"),
+  true,
+);
 
 console.log("Specification alignment tests passed: commercial, Property Support, occupancy and arrival-window decisions.");

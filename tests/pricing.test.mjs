@@ -8,7 +8,7 @@ import {
   wholePropertyBasePrice,
 } from "../src/app/pricing.js";
 
-assert.match(PRICING_VERSION, /Phase 0 v1\.3/);
+assert.match(PRICING_VERSION, /Phase 0 v1\.4/);
 
 assert.equal(wholePropertyBasePrice("Standard Clean", 0), 80);
 assert.equal(wholePropertyBasePrice("Standard Clean", 2), 110);
@@ -54,8 +54,8 @@ assert.equal(standard.extrasCharge, 50);
 assert.equal(standard.discountBase, 130);
 assert.equal(standard.discountAmount, 19.5);
 assert.equal(standard.estimatedTotal, 170.5);
-assert.equal(standard.requiredUpfrontPercentage, 30);
-assert.equal(standard.requiredUpfrontAmount, 51.15);
+assert.equal(standard.requiredUpfrontPercentage, 50);
+assert.equal(standard.requiredUpfrontAmount, 85.25);
 
 const dirtyAirbnb = calculateWholePropertyEstimate({
   service: "Airbnb Turnover",

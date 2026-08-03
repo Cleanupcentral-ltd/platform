@@ -85,6 +85,11 @@ const quoteCreate = {
 
   rawSubmission: {
     source: "repository-test",
+    customer: {
+      fullName: "Test Customer",
+      email: "customer@example.com",
+      phone: "07123 456789",
+    },
   },
 
   pricingSnapshot: {
@@ -101,6 +106,15 @@ const quoteWixData = {
 
   customer:
     quoteCreate.customerId,
+
+  customerFullName:
+    "Test Customer",
+
+  customerEmail:
+    "customer@example.com",
+
+  customerPhone:
+    "07123 456789",
 
   property:
     quoteCreate.propertyId,
@@ -140,6 +154,9 @@ const quoteWixData = {
 
   preferredDate:
     quoteCreate.preferredDate,
+
+  preferredDateDisplay:
+    "Saturday, 15 August 2026",
 
   arrivalWindow:
     quoteCreate.arrivalWindow,

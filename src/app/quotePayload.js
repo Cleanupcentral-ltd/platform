@@ -1,6 +1,6 @@
 import { calculateSelectedRoomsEstimate, calculateWholePropertyEstimate } from "./pricing.js";
 
-export const PRICING_VERSION = "CUC Phase 0 v1.3";
+export const PRICING_VERSION = "CUC Phase 0 v1.4";
 
 const clean = (value) => typeof value === "string" ? value.trim() : value;
 
@@ -39,6 +39,7 @@ export function calculateEstimate(data, travelFee = null) {
       cleaningLevel: data.serviceType,
       rooms: data.rooms,
       extras: data.extras,
+      isNewCustomer: data.customerType === "New customer",
       travelFee,
     });
   }

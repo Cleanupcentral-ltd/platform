@@ -203,8 +203,18 @@ test(
     );
 
     assert.equal(
+      result.requiredUpfrontPercentage,
+      50,
+    );
+
+    assert.equal(
+      result.requiredUpfrontAmount,
+      46.75,
+    );
+
+    assert.equal(
       result.pricingVersion,
-      "CUC Phase 0 v1.3",
+      "CUC Phase 0 v1.4",
     );
 
     assert.equal(
@@ -222,7 +232,7 @@ test(
 
     request.clientEstimate = {
       pricingVersion:
-        "CUC Phase 0 v1.3",
+        "CUC Phase 0 v1.4",
 
       estimatedTotal: 1,
     };

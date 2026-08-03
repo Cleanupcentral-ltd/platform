@@ -259,7 +259,7 @@ async function verifyWixRepositories():
         schemaVersion: "1",
 
         pricingVersion:
-          "CUC Phase 0 v1.3",
+          "CUC Phase 0 v1.4",
 
         status: "Submitted",
 

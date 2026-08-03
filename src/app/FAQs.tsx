@@ -47,7 +47,7 @@ const fallbackCategories: FaqCategory[] = [
         id: "faq.quotes.upfront_payment",
         question: "Do you require an upfront payment?",
         answer:
-          "Yes. Once your quote has been approved, a 30% upfront payment is normally required to secure the booking. The remaining balance and payment terms will be clearly shown before you proceed.",
+          "Yes. Once your quote has been approved, a 50% upfront payment is normally required to secure the booking. Same-day bookings, bookings made less than 24 hours before the arrival window, and Flexible Hourly Cleaning must be paid in full. Any remaining balance is due on the service date, no later than two hours before the earliest time in the confirmed arrival window.",
       },
     ],
   },
@@ -117,7 +117,7 @@ const fallbackCategories: FaqCategory[] = [
         id: "faq.policies.cancellation",
         question: "What happens if I need to cancel?",
         answer:
-          "More than 48 hours’ notice normally carries no cancellation charge. Cancellations made 24–48 hours before the service may be charged at 50%, while cancellations with less than 24 hours’ notice may be charged at the full booking value.",
+          "Cancellations made at least 48 hours before the confirmed arrival window normally carry no cancellation charge. For cancellations made with less than 48 hours’ notice, Clean Up Central retains 50% of the full booking value. Where the booking was paid in full, the remaining 50% is refunded.",
       },
       {
         id: "faq.policies.quality_concerns",

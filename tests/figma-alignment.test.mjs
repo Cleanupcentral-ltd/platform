@@ -13,7 +13,7 @@ const APPROVED_PAGE_HASHES = Object.freeze({
     "bae12137027858a96cb2041d3b6a30deb36bdc8efc44c5e3babef76c2d38f59c",
 
   "src/app/FAQs.tsx":
-    "1182c58cd148c8c3d3aa477d90cf701c27ebd0d1361caaa83e2e1d12bc40a5d7",
+    "6c65213682186f60eabb398f27b40a65e42ccb344275e41b1b1c0bc9b8b9253e",
 
   "src/app/PlaceholderPage.tsx":
     "97ec745b8908a6a80849a9c04aa50d2f5f5ea5eecece946fab347fc0e96ad9a3",

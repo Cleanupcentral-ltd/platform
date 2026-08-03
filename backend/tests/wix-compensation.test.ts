@@ -60,7 +60,13 @@ const quoteCreate = {
   distanceMiles: 0,
   provisional: false,
   customerNotes: null,
-  rawSubmission: {},
+  rawSubmission: {
+    customer: {
+      fullName: "Test Customer",
+      email: "customer@example.com",
+      phone: "07123 456789",
+    },
+  },
   pricingSnapshot: {},
 } satisfies CreateQuoteRecord;
 

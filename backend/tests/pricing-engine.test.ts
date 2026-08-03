@@ -57,12 +57,12 @@ test(
 
     assert.equal(
       result.requiredUpfrontPercentage,
-      30,
+      50,
     );
 
     assert.equal(
       result.requiredUpfrontAmount,
-      28.05,
+      46.75,
     );
   },
 );

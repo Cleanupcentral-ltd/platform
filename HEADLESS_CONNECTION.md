@@ -7,7 +7,7 @@ This v2 frontend intentionally keeps Wix-dependent writes behind two browser eve
 - Event: `cuc:quote-prepared`
 - Temporary local test record: `localStorage['cuc:lastPreparedQuote']`
 - Payload builder: `src/app/quotePayload.js`
-- Pricing version: `CUC Phase 0 v1.3`
+- Pricing version: `CUC Phase 0 v1.4`
 
 Replace the temporary local write in `src/app/Quote.tsx` with a Wix-backed submission adapter that:
 

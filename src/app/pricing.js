@@ -290,7 +290,10 @@ export function calculateWholePropertyEstimate({
   extras = {},
   isNewCustomer = false,
   airbnbCondition = null,
-  travelFee = null,
+  travelFee =
+    /** @type {number | null} */ (
+      null
+    ),
   sameDayNoticeHours = null,
   requestAfter21 = false,
   leadTimeHours = null,
@@ -412,7 +415,10 @@ export function calculateSelectedRoomsEstimate({
   cleaningLevel,
   rooms = {},
   extras = {},
-  travelFee = null,
+  travelFee =
+    /** @type {number | null} */ (
+      null
+    ),
   sameDayNoticeHours = null,
   requestAfter21 = false,
   leadTimeHours = null,

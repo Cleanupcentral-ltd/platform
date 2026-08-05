@@ -1,4 +1,6 @@
 const QUOTE_API_PATH = "/api/quotes";
+const TRAVEL_API_PATH =
+  "/api/travel/estimate";
 
 function clean(value) {
   return typeof value === "string" ? value.trim() : "";
@@ -73,6 +75,123 @@ function isSuccessBody(body) {
     typeof body.confirmation?.quoteNumber === "string" &&
     typeof body.confirmation?.message === "string"
   );
+}
+
+function isTravelSuccessBody(body) {
+  const travel = body?.travel;
+
+  return (
+    body?.success === true &&
+    typeof body.requestId === "string" &&
+    (
+      travel?.status ===
+        "calculated" ||
+      travel?.status ===
+        "manual_review"
+    ) &&
+    (
+      travel.fee === null ||
+      (
+        typeof travel.fee ===
+          "number" &&
+        Number.isFinite(
+          travel.fee,
+        )
+      )
+    ) &&
+    (
+      travel.distanceMiles ===
+        null ||
+      (
+        typeof travel
+          .distanceMiles ===
+          "number" &&
+        Number.isFinite(
+          travel.distanceMiles,
+        )
+      )
+    ) &&
+    typeof travel.pendingReview ===
+      "boolean"
+  );
+}
+
+export async function fetchTravelEstimate({
+  apiBaseUrl,
+  postcode,
+  fetchImpl = globalThis.fetch,
+}) {
+  if (typeof fetchImpl !== "function") {
+    throw new QuoteSubmissionRequestError({
+      message:
+        "The travel calculation service is unavailable.",
+    });
+  }
+
+  const baseUrl =
+    clean(apiBaseUrl)
+      .replace(/\/+$/u, "");
+
+  let response;
+
+  try {
+    response = await fetchImpl(
+      `${baseUrl}${TRAVEL_API_PATH}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type":
+            "application/json",
+        },
+        body: JSON.stringify({
+          postcode:
+            clean(postcode),
+        }),
+        cache: "no-store",
+      },
+    );
+  } catch {
+    throw new QuoteSubmissionRequestError({
+      message:
+        "We could not verify the travel distance right now.",
+      code:
+        "TRAVEL_NETWORK_ERROR",
+    });
+  }
+
+  let body = null;
+
+  try {
+    body = await response.json();
+  } catch {
+    body = null;
+  }
+
+  if (!response.ok) {
+    throw new QuoteSubmissionRequestError({
+      message:
+        body?.error?.message ||
+        "We could not verify the travel distance right now.",
+      code:
+        body?.error?.code ||
+        "TRAVEL_REQUEST_FAILED",
+      status: response.status,
+      requestId:
+        body?.requestId || "",
+    });
+  }
+
+  if (!isTravelSuccessBody(body)) {
+    throw new QuoteSubmissionRequestError({
+      message:
+        "The travel service returned an unexpected response.",
+      code:
+        "INVALID_TRAVEL_RESPONSE",
+      status: response.status,
+    });
+  }
+
+  return body.travel;
 }
 
 export async function submitQuoteRequest({

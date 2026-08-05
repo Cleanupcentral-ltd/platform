@@ -83,6 +83,36 @@ const environmentSchema = z
         .min(1_000)
         .max(60_000)
         .default(10_000),
+
+    TRAVEL_AUTO_ENABLED:
+      z.enum(["true", "false"])
+        .default("false")
+        .transform(
+          (value) =>
+            value === "true",
+        ),
+
+    GOOGLE_ROUTES_API_KEY:
+      z.string()
+        .trim()
+        .min(1)
+        .optional(),
+
+    GOOGLE_ROUTES_API_BASE_URL:
+      z.string()
+        .trim()
+        .url()
+        .default(
+          "https://routes.googleapis.com",
+        ),
+
+    GOOGLE_ROUTES_TIMEOUT_MS:
+      z.coerce
+        .number()
+        .int()
+        .min(1_000)
+        .max(15_000)
+        .default(5_000),
   })
   .superRefine(
     (value, context) => {

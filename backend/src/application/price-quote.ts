@@ -2,6 +2,10 @@ import type {
   CreateQuoteItemRecord,
 } from "../domain/models.js";
 
+import type {
+  TravelCalculation,
+} from "../domain/travel.js";
+
 import {
   PRICES,
   PRICING_VERSION,
@@ -80,9 +84,16 @@ export type DistanceResolver = (
   postcode: string,
 ) => Promise<number | null>;
 
+export type TravelResolver = (
+  postcode: string,
+) => Promise<TravelCalculation>;
+
 export interface QuotePricingOptions {
   readonly resolveDistanceMiles?:
     DistanceResolver;
+
+  readonly resolveTravel?:
+    TravelResolver;
 
   readonly now?: () => Date;
 }
@@ -677,6 +688,9 @@ export function createQuotePricingService(
     options.resolveDistanceMiles ??
     (async () => null);
 
+  const resolveTravel =
+    options.resolveTravel;
+
   const now =
     options.now ??
     (() => new Date());
@@ -734,14 +748,33 @@ export function createQuotePricingService(
           ? calculatedLeadTime
           : null;
 
+      const travelCalculation =
+        resolveTravel === undefined
+          ? null
+          : await resolveTravel(
+              context.property
+                .normalizedPostcode,
+            );
+
       const distanceMiles =
-        await resolveDistanceMiles(
-          context.property
-            .normalizedPostcode,
-        );
+        travelCalculation === null
+          ? await resolveDistanceMiles(
+              context.property
+                .normalizedPostcode,
+            )
+          : travelCalculation
+              .distanceMiles;
 
       const baseReasons = [
         ...context.reviewReasons,
+
+        ...(travelCalculation
+          ?.manualReviewReason
+          ? [
+              travelCalculation
+                .manualReviewReason,
+            ]
+          : []),
 
         ...(context.submission
           .safetyWarnings
@@ -930,6 +963,13 @@ export function createQuotePricingService(
               service.serviceType,
 
             distanceMiles,
+
+            distanceOriginUsed:
+              travelCalculation
+                ?.originPostcode ??
+              null,
+
+            travelCalculation,
 
             serverCalculatedAt:
               currentTime.toISOString(),
@@ -1198,6 +1238,13 @@ export function createQuotePricingService(
 
             distanceMiles,
 
+            distanceOriginUsed:
+              travelCalculation
+                ?.originPostcode ??
+              null,
+
+            travelCalculation,
+
             serverCalculatedAt:
               currentTime.toISOString(),
 
@@ -1387,6 +1434,13 @@ export function createQuotePricingService(
             service.cleaningScope,
 
           distanceMiles,
+
+          distanceOriginUsed:
+            travelCalculation
+              ?.originPostcode ??
+            null,
+
+          travelCalculation,
 
           serverCalculatedAt:
             currentTime.toISOString(),

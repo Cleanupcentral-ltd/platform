@@ -11,6 +11,10 @@ import {
 } from "./adapters/resend/resend-notification-delivery.js";
 
 import {
+  GoogleRoutesMatrixProvider,
+} from "./adapters/google/google-routes-matrix.js";
+
+import {
   createWixContactEnquiryRepository,
 } from "./adapters/wix/create-wix-contact-enquiry-repository.js";
 
@@ -36,6 +40,11 @@ import {
   createQuoteAttachmentLinkingService,
   type QuoteAttachmentLinkingService,
 } from "./application/link-quote-attachment.js";
+
+import {
+  createTravelCalculationService,
+  type TravelCalculationService,
+} from "./application/calculate-travel.js";
 
 import {
   createContactEnquiryPersistenceService,
@@ -84,6 +93,10 @@ import {
   registerQuoteRoutes,
 } from "./http/routes/quotes.js";
 
+import {
+  registerTravelRoutes,
+} from "./http/routes/travel.js";
+
 import type {
   NotificationRecipient,
 } from "./ports/notifications.js";
@@ -110,6 +123,9 @@ export interface BuildAppOptions {
 
   readonly submissionNotificationService?:
     SubmissionNotificationService;
+
+  readonly travelCalculationService?:
+    TravelCalculationService;
 }
 
 function getAllowedOrigins(): string[] {
@@ -230,6 +246,34 @@ export async function buildApp(
     healthRoutes,
   );
 
+  const travelCalculationService =
+    options
+      .travelCalculationService ??
+    createTravelCalculationService({
+      enabled:
+        env.TRAVEL_AUTO_ENABLED,
+
+      provider:
+        env.GOOGLE_ROUTES_API_KEY ===
+        undefined
+          ? null
+          : new GoogleRoutesMatrixProvider({
+              apiKey:
+                env.GOOGLE_ROUTES_API_KEY,
+
+              apiBaseUrl:
+                env.GOOGLE_ROUTES_API_BASE_URL,
+
+              timeoutMs:
+                env.GOOGLE_ROUTES_TIMEOUT_MS,
+            }),
+    });
+
+  registerTravelRoutes(app, {
+    service:
+      travelCalculationService,
+  });
+
   let defaultRepositories:
     QuoteRepositories | null = null;
 
@@ -330,7 +374,18 @@ export async function buildApp(
 
   const quotePricingService =
     options.quotePricingService ??
-    createQuotePricingService();
+    createQuotePricingService(
+      env.TRAVEL_AUTO_ENABLED
+        ? {
+            resolveTravel:
+              (postcode) =>
+                travelCalculationService
+                  .calculate(
+                    postcode,
+                  ),
+          }
+        : {},
+    );
 
   const quotePersistenceService =
     options.quotePersistenceService ??

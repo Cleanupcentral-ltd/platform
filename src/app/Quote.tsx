@@ -5,7 +5,7 @@ import horizontalFullColour from "@/imports/IMG_1776556945431__2_.png";
 import { PRICES, calculateSelectedRoomsEstimate, calculateWholePropertyEstimate, formatGBP } from "./pricing.js";
 import { createQuotePayload } from "./quotePayload.js";
 import { createBackendQuotePayload } from "./quoteRequestMapper.js";
-import { createQuoteSubmissionId, resolveQuoteApiBaseUrl, submitQuoteRequest, uploadQuoteAttachments } from "./quoteSubmission.js";
+import { createQuoteSubmissionId, fetchTravelEstimate, resolveQuoteApiBaseUrl, submitQuoteRequest, uploadQuoteAttachments } from "./quoteSubmission.js";
 import { bookingDateBounds, validateBookingDate } from "./bookingValidation.js";
 
 type Category = "Residential Cleaning" | "Airbnb Turnover" | "Commercial Cleaning" | "Property Support";
@@ -14,6 +14,12 @@ type Scope = "Whole Property" | "Selected Rooms";
 type Room = "Bathroom" | "Bedroom" | "Kitchen" | "Living Room" | "Hallway" | "Stairs";
 type Extra = "Oven" | "Fridge" | "Interior Windows" | "Grout Cleaning" | "Laundry" | "Standard Consumables Package";
 type Step = "service" | "propertyType" | "cleaningService" | "scope" | "property" | "rooms" | "condition" | "supportServices" | "customDetails" | "customArrangement" | "customSupporting" | "extras" | "address" | "customer" | "summary" | "submitted";
+
+type TravelState = {
+  status: "idle" | "loading" | "calculated" | "manual_review";
+  fee: number | null;
+  distanceMiles: number | null;
+};
 
 type QuoteData = {
   category: Category | ""; propertyType: string; propertyTypeOther: string; serviceType: CleaningService | ""; cleaningScope: Scope | "";
@@ -48,6 +54,12 @@ const initialData: QuoteData = {
   address: "", postcode: "", preferredDate: "", arrivalWindow: "", preferredStartDate: "", requiredCompletionDate: "",
   parkingDetails: "", pets: "", accessNotes: "", sameDay: false, urgency: "Standard", fullName: "", email: "", phone: "",
   company: "", customerType: "", preferredContactMethod: "", privacyConsent: false, safetyWarnings: "", additionalNotes: "", files: [],
+};
+
+const initialTravel: TravelState = {
+  status: "idle",
+  fee: null,
+  distanceMiles: null,
 };
 
 function Logo() { return <span className="block h-10 w-[145px] overflow-hidden sm:h-11 sm:w-[180px]"><img src={horizontalFullColour} className="size-full scale-[1.65] object-contain" alt="Clean Up Central" /></span>; }
@@ -132,6 +144,7 @@ export default function QuotePage() {
   const [reference, setReference] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionId, setSubmissionId] = useState("");
+  const [travel, setTravel] = useState<TravelState>(initialTravel);
   useEffect(() => {
     const nextEntryRoute = entryRouteForService(serviceParam);
     setData({ ...initialData, ...nextEntryRoute.preset });
@@ -140,22 +153,54 @@ export default function QuotePage() {
     setReference("");
     setSubmissionId("");
     setIsSubmitting(false);
+    setTravel(initialTravel);
   }, [serviceParam]);
-  const update = <K extends keyof QuoteData>(key: K, value: QuoteData[K]) => setData(current => ({ ...current, [key]: value }));
+  const update = <K extends keyof QuoteData>(key: K, value: QuoteData[K]) => {
+    setData(current => ({ ...current, [key]: value }));
+    if (key === "postcode") setTravel(initialTravel);
+  };
   const go = (next: Step) => { setErrors([]); setStep(next); window.scrollTo({ top: 0, behavior: "smooth" }); };
   const customQuote = data.category === "Commercial Cleaning" || data.category === "Property Support" || data.serviceType === "End of Tenancy";
   const appointmentRequired = !customQuote || data.serviceType === "End of Tenancy";
   const estimate = useMemo(() => {
     try {
-      if (data.category === "Residential Cleaning" && data.cleaningScope === "Selected Rooms") return calculateSelectedRoomsEstimate({ cleaningLevel: data.serviceType, rooms: data.rooms, extras: data.extras, travelFee: null });
-      if (data.category === "Residential Cleaning" && data.serviceType && data.serviceType !== "End of Tenancy") return calculateWholePropertyEstimate({ service: data.serviceType, bedrooms: data.bedrooms, bathrooms: data.bathrooms, extras: data.extras, isNewCustomer: data.customerType === "New customer", travelFee: null });
-      if (data.category === "Airbnb Turnover" && data.airbnbCondition) return calculateWholePropertyEstimate({ service: "Airbnb Turnover", bedrooms: data.bedrooms, bathrooms: data.bathrooms, extras: data.extras, isNewCustomer: data.customerType === "New customer", airbnbCondition: data.airbnbCondition as any, travelFee: null });
+      if (data.category === "Residential Cleaning" && data.cleaningScope === "Selected Rooms") return calculateSelectedRoomsEstimate({ cleaningLevel: data.serviceType, rooms: data.rooms, extras: data.extras, travelFee: travel.fee });
+      if (data.category === "Residential Cleaning" && data.serviceType && data.serviceType !== "End of Tenancy") return calculateWholePropertyEstimate({ service: data.serviceType, bedrooms: data.bedrooms, bathrooms: data.bathrooms, extras: data.extras, isNewCustomer: data.customerType === "New customer", travelFee: travel.fee });
+      if (data.category === "Airbnb Turnover" && data.airbnbCondition) return calculateWholePropertyEstimate({ service: "Airbnb Turnover", bedrooms: data.bedrooms, bathrooms: data.bathrooms, extras: data.extras, isNewCustomer: data.customerType === "New customer", airbnbCondition: data.airbnbCondition as any, travelFee: travel.fee });
     } catch { return null; }
     return null;
-  }, [data]);
+  }, [data, travel.fee]);
 
-  const chooseCategory = (category: Category) => { setData(current => current.category === category ? current : { ...initialData, category }); go(category === "Residential Cleaning" ? "cleaningService" : category === "Airbnb Turnover" ? "propertyType" : category === "Property Support" ? "supportServices" : "customDetails"); };
-  const validateAddress = () => { const dateError = appointmentRequired ? validateBookingDate(data.preferredDate, data.arrivalWindow) : ""; const e = [!data.address.trim() && "Enter the property address.", !data.postcode.trim() && "Enter the postcode.", appointmentRequired && !data.arrivalWindow && "Choose a preferred arrival window.", dateError].filter(Boolean) as string[]; setErrors(e); if (!e.length) go("customer"); };
+  const chooseCategory = (category: Category) => { setData(current => current.category === category ? current : { ...initialData, category }); setTravel(initialTravel); go(category === "Residential Cleaning" ? "cleaningService" : category === "Airbnb Turnover" ? "propertyType" : category === "Property Support" ? "supportServices" : "customDetails"); };
+  const validateAddress = async () => {
+    const dateError = appointmentRequired ? validateBookingDate(data.preferredDate, data.arrivalWindow) : "";
+    const nextErrors = [!data.address.trim() && "Enter the property address.", !data.postcode.trim() && "Enter the postcode.", appointmentRequired && !data.arrivalWindow && "Choose a preferred arrival window.", dateError].filter(Boolean) as string[];
+    setErrors(nextErrors);
+    if (nextErrors.length) return;
+    if (customQuote) {
+      go("customer");
+      return;
+    }
+    setTravel({ status: "loading", fee: null, distanceMiles: null });
+    try {
+      const result = await fetchTravelEstimate({
+        apiBaseUrl: resolveQuoteApiBaseUrl(import.meta.env.VITE_API_BASE_URL),
+        postcode: data.postcode,
+      });
+      setTravel({
+        status: result.status,
+        fee: result.fee,
+        distanceMiles: result.distanceMiles,
+      });
+    } catch {
+      setTravel({
+        status: "manual_review",
+        fee: null,
+        distanceMiles: null,
+      });
+    }
+    go("customer");
+  };
   const validateCustomer = () => { const e = [!data.fullName.trim() && "Enter your full name.", !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email.trim()) && "Enter a valid email address.", !/^[+()\d\s-]{7,20}$/.test(data.phone.trim()) && "Enter a valid phone number.", !data.customerType && "Choose whether you are a new or existing customer.", !data.preferredContactMethod && "Choose a preferred contact method.", !data.privacyConsent && "Privacy consent is required."].filter(Boolean) as string[]; setErrors(e); if (!e.length) go("summary"); };
   const submit = async () => {
     if (isSubmitting) return;
@@ -203,10 +248,10 @@ export default function QuotePage() {
     }
   };
 
-  return <main className="min-h-screen bg-[#FAF9F6] font-sans text-[#121212]"><header className="sticky top-0 z-30 border-b border-[#D8D5CF] bg-white/95 backdrop-blur"><div className="relative mx-auto flex h-[68px] max-w-[1440px] items-center justify-between px-5 sm:h-20 sm:px-10 lg:px-16"><Link to="/home"><Logo /></Link><nav className="absolute left-1/2 hidden h-full -translate-x-1/2 items-center gap-6 lg:flex">{navigation.map(([name, to]) => <Link key={name} to={to} className="flex h-full items-center border-b-2 border-transparent text-[10px] font-bold uppercase tracking-[.09em] text-[#66635E] hover:text-[#121212]">{name}</Link>)}</nav><span className="hidden min-h-12 items-center rounded-[4px] bg-[#B08A3C] px-5 text-[11px] font-bold uppercase tracking-[.08em] text-white lg:inline-flex">Get a Quote</span><button type="button" onClick={() => setDrawer(!drawer)} className="grid size-11 place-items-center border border-[#D8D5CF] lg:hidden" aria-label="Toggle navigation">{drawer ? <X size={20} /> : <Menu size={20} />}</button></div>{drawer && <div className="border-t border-[#D8D5CF] bg-white px-5 pb-5 lg:hidden">{navigation.map(([name, to]) => <Link key={name} to={to} onClick={() => setDrawer(false)} className="block border-b border-[#D8D5CF] py-4 text-xs font-bold uppercase tracking-[.1em]">{name}</Link>)}</div>}</header><div className="mx-auto max-w-[1240px] px-5 py-8 sm:px-10"><div className="mx-auto mt-10 max-w-4xl"><Stepper stage={stageForStep(step)} /><QuoteStep step={step} data={data} update={update} go={go} errors={errors} setErrors={setErrors} chooseCategory={chooseCategory} validateAddress={validateAddress} validateCustomer={validateCustomer} estimate={estimate} customQuote={customQuote} appointmentRequired={appointmentRequired} submit={submit} reference={reference} isSubmitting={isSubmitting} /></div></div><footer className="border-t border-[#D8D5CF] bg-white"><div className="mx-auto flex max-w-[1440px] items-center justify-between px-5 py-6 sm:px-10 lg:px-16"><Logo /><p className="text-[10px] font-bold uppercase tracking-[.1em] text-[#66635E]">Clean Up Central · Quote Generator UI Reference</p></div></footer></main>;
+  return <main className="min-h-screen bg-[#FAF9F6] font-sans text-[#121212]"><header className="sticky top-0 z-30 border-b border-[#D8D5CF] bg-white/95 backdrop-blur"><div className="relative mx-auto flex h-[68px] max-w-[1440px] items-center justify-between px-5 sm:h-20 sm:px-10 lg:px-16"><Link to="/home"><Logo /></Link><nav className="absolute left-1/2 hidden h-full -translate-x-1/2 items-center gap-6 lg:flex">{navigation.map(([name, to]) => <Link key={name} to={to} className="flex h-full items-center border-b-2 border-transparent text-[10px] font-bold uppercase tracking-[.09em] text-[#66635E] hover:text-[#121212]">{name}</Link>)}</nav><span className="hidden min-h-12 items-center rounded-[4px] bg-[#B08A3C] px-5 text-[11px] font-bold uppercase tracking-[.08em] text-white lg:inline-flex">Get a Quote</span><button type="button" onClick={() => setDrawer(!drawer)} className="grid size-11 place-items-center border border-[#D8D5CF] lg:hidden" aria-label="Toggle navigation">{drawer ? <X size={20} /> : <Menu size={20} />}</button></div>{drawer && <div className="border-t border-[#D8D5CF] bg-white px-5 pb-5 lg:hidden">{navigation.map(([name, to]) => <Link key={name} to={to} onClick={() => setDrawer(false)} className="block border-b border-[#D8D5CF] py-4 text-xs font-bold uppercase tracking-[.1em]">{name}</Link>)}</div>}</header><div className="mx-auto max-w-[1240px] px-5 py-8 sm:px-10"><div className="mx-auto mt-10 max-w-4xl"><Stepper stage={stageForStep(step)} /><QuoteStep step={step} data={data} update={update} go={go} errors={errors} setErrors={setErrors} chooseCategory={chooseCategory} validateAddress={validateAddress} validateCustomer={validateCustomer} estimate={estimate} travel={travel} customQuote={customQuote} appointmentRequired={appointmentRequired} submit={submit} reference={reference} isSubmitting={isSubmitting} /></div></div><footer className="border-t border-[#D8D5CF] bg-white"><div className="mx-auto flex max-w-[1440px] items-center justify-between px-5 py-6 sm:px-10 lg:px-16"><Logo /><p className="text-[10px] font-bold uppercase tracking-[.1em] text-[#66635E]">Clean Up Central · Quote Generator UI Reference</p></div></footer></main>;
 }
 
-function QuoteStep({ step, data, update, go, errors, setErrors, chooseCategory, validateAddress, validateCustomer, estimate, customQuote, appointmentRequired, submit, reference, isSubmitting }: { step: Step; data: QuoteData; update: <K extends keyof QuoteData>(key: K, value: QuoteData[K]) => void; go: (step: Step) => void; errors: string[]; setErrors: (errors: string[]) => void; chooseCategory: (category: Category) => void; validateAddress: () => void; validateCustomer: () => void; estimate: any; customQuote: boolean; appointmentRequired: boolean; submit: () => Promise<void>; reference: string; isSubmitting: boolean }) {
+function QuoteStep({ step, data, update, go, errors, setErrors, chooseCategory, validateAddress, validateCustomer, estimate, travel, customQuote, appointmentRequired, submit, reference, isSubmitting }: { step: Step; data: QuoteData; update: <K extends keyof QuoteData>(key: K, value: QuoteData[K]) => void; go: (step: Step) => void; errors: string[]; setErrors: (errors: string[]) => void; chooseCategory: (category: Category) => void; validateAddress: () => Promise<void>; validateCustomer: () => void; estimate: any; travel: TravelState; customQuote: boolean; appointmentRequired: boolean; submit: () => Promise<void>; reference: string; isSubmitting: boolean }) {
   if (step === "service") return <section className="mt-10 text-center"><Heading eyebrow="Service Type / Default" title="Let’s get you an instant quote" copy="Choose the type of support you are looking for to begin." /><div className="mt-8 grid gap-4 text-left sm:grid-cols-2">{[["Residential Cleaning", "Routine cleaning for your property.", Sparkles], ["Airbnb Turnover", "Guest-ready preparation between stays.", KeyRound], ["Commercial Cleaning", "Cleaning for offices and light commercial premises.", Building2], ["Property Support", "Practical help for property details.", ShieldCheck]].map(([label, copy, Icon]) => <button type="button" key={label as string} onClick={() => update("category", label as Category)} className={`relative min-h-40 border bg-white p-6 ${data.category === label ? "border-2 border-[#B08A3C]" : "border-[#D8D5CF]"}`}><span className="grid size-10 place-items-center border border-[#B08A3C] text-[#B08A3C]"><Icon size={20} /></span><b className="mt-5 block">{label as string}</b><span className="mt-2 block text-sm leading-5 text-[#66635E]">{copy as string}</span>{data.category === label && <span className="absolute right-4 top-4 grid size-5 place-items-center rounded-full bg-[#B08A3C] text-white"><Check size={13} /></span>}</button>)}</div><div className="mt-8"><Button disabled={!data.category} onClick={() => data.category && chooseCategory(data.category)}>Continue</Button></div></section>;
 
   if (step === "propertyType") return <section className="mx-auto mt-10 max-w-2xl"><Heading eyebrow={`${data.category} · Property`} title="What type of property is it?" copy="Choose the option that best describes the property." /><div className="mt-8 grid gap-3 sm:grid-cols-2">{["House", "Flat / Apartment"].map(option => <Choice key={option} label={option} selected={data.propertyType === option} onClick={() => update("propertyType", option)} />)}</div><Nav back={() => go(data.category === "Residential Cleaning" ? "cleaningService" : "service")} next={() => !data.propertyType ? setErrors(["Choose a property type."]) : go(data.category === "Residential Cleaning" ? (data.serviceType === "End of Tenancy" ? "customDetails" : "scope") : "property")} errors={errors} /></section>;
@@ -229,11 +274,11 @@ function QuoteStep({ step, data, update, go, errors, setErrors, chooseCategory, 
 
   if (step === "extras") { const options = data.category === "Airbnb Turnover" ? airbnbExtras : residentialExtras; return <section className="mx-auto mt-10 max-w-3xl"><Heading eyebrow={`${data.category} · Extras`} title="Eligible extras" copy="Select any eligible extras required for your service." /><Panel><div className="grid gap-3 sm:grid-cols-2">{options.map(extra => <Quantity key={extra} label={extra} detail={`${formatGBP(PRICES.extras[extra])}${extra === "Interior Windows" ? " per window" : extra === "Laundry" ? " per load" : ""}`} value={data.extras[extra]} onChange={value => update("extras", { ...data.extras, [extra]: value })} />)}</div><p className="mt-4 text-xs text-[#66635E]">Select any eligible extras required for your service. You may choose more than one.</p><Nav back={() => go(data.cleaningScope === "Selected Rooms" ? "rooms" : data.category === "Airbnb Turnover" ? "condition" : "property")} next={() => go("address")} errors={errors} /></Panel></section>; }
 
-  if (step === "address") { const bounds = bookingDateBounds(); return <section className="mx-auto mt-10 max-w-3xl"><Heading eyebrow="Address and Appointment" title="Address and appointment" copy="Add the practical details needed to prepare your quote." /><Panel><ErrorBox errors={errors} /><div className="grid gap-5 sm:grid-cols-2"><Field required label="Address" value={data.address} onChange={value => update("address", value)} /><Field required label="Postcode" value={data.postcode} onChange={value => update("postcode", value)} />{appointmentRequired && <><Field required label="Preferred date" type="date" min={bounds.min} max={bounds.max} value={data.preferredDate} onChange={value => update("preferredDate", value)} /><SelectField required label="Preferred arrival window" value={data.arrivalWindow} onChange={value => update("arrivalWindow", value)} options={arrivalWindows} /></>}<Field label="Parking details" value={data.parkingDetails} onChange={value => update("parkingDetails", value)} textarea /><SelectField label="Pets at the property" value={data.pets} onChange={value => update("pets", value)} options={["Yes", "No"]} /><Field label="Access notes" value={data.accessNotes} onChange={value => update("accessNotes", value)} textarea /><Field label="Safety concerns (if any)" value={data.safetyWarnings} onChange={value => update("safetyWarnings", value)} textarea placeholder="For example: sharps, pests, heavy mould or biohazards" />{appointmentRequired && <label className="flex items-start gap-3 text-sm sm:col-span-2"><input type="checkbox" checked={data.sameDay} onChange={e => update("sameDay", e.target.checked)} className="mt-1 size-4" /> This is a same-day request</label>}</div>{appointmentRequired && <p className="mt-5 text-xs leading-5 text-[#66635E]">Dates must be within the next 90 days. Same-day requests require at least three hours’ notice before the selected arrival window begins.</p>}<div className="mt-8 flex justify-between"><Button variant="text" left onClick={() => go(data.serviceType === "End of Tenancy" ? "customDetails" : customQuote ? "customSupporting" : "extras")}>Back</Button><Button onClick={validateAddress}>Continue</Button></div></Panel></section>; }
+  if (step === "address") { const bounds = bookingDateBounds(); return <section className="mx-auto mt-10 max-w-3xl"><Heading eyebrow="Address and Appointment" title="Address and appointment" copy="Add the practical details needed to prepare your quote." /><Panel><ErrorBox errors={errors} /><div className="grid gap-5 sm:grid-cols-2"><Field required label="Address" value={data.address} onChange={value => update("address", value)} /><Field required label="Postcode" value={data.postcode} onChange={value => update("postcode", value)} />{appointmentRequired && <><Field required label="Preferred date" type="date" min={bounds.min} max={bounds.max} value={data.preferredDate} onChange={value => update("preferredDate", value)} /><SelectField required label="Preferred arrival window" value={data.arrivalWindow} onChange={value => update("arrivalWindow", value)} options={arrivalWindows} /></>}<Field label="Parking details" value={data.parkingDetails} onChange={value => update("parkingDetails", value)} textarea /><SelectField label="Pets at the property" value={data.pets} onChange={value => update("pets", value)} options={["Yes", "No"]} /><Field label="Access notes" value={data.accessNotes} onChange={value => update("accessNotes", value)} textarea /><Field label="Safety concerns (if any)" value={data.safetyWarnings} onChange={value => update("safetyWarnings", value)} textarea placeholder="For example: sharps, pests, heavy mould or biohazards" />{appointmentRequired && <label className="flex items-start gap-3 text-sm sm:col-span-2"><input type="checkbox" checked={data.sameDay} onChange={e => update("sameDay", e.target.checked)} className="mt-1 size-4" /> This is a same-day request</label>}</div>{appointmentRequired && <p className="mt-5 text-xs leading-5 text-[#66635E]">Dates must be within the next 90 days. Same-day requests require at least three hours’ notice before the selected arrival window begins.</p>}<div className="mt-8 flex justify-between"><Button variant="text" left onClick={() => go(data.serviceType === "End of Tenancy" ? "customDetails" : customQuote ? "customSupporting" : "extras")}>Back</Button><Button onClick={() => void validateAddress()} disabled={travel.status === "loading"}>{travel.status === "loading" ? "Calculating travel…" : "Continue"}</Button></div></Panel></section>; }
 
   if (step === "customer") return <section className="mx-auto mt-10 max-w-3xl"><Heading eyebrow="Your Details" title="Your details" copy="Add your contact details so we can review your request and share the next steps." /><Panel><ErrorBox errors={errors} /><div className="grid gap-5 sm:grid-cols-2"><Field required label="Full name" value={data.fullName} onChange={value => update("fullName", value)} /><Field required label="Email address" type="email" value={data.email} onChange={value => update("email", value)} /><Field required label="Phone number" type="tel" value={data.phone} onChange={value => update("phone", value)} /><Field label="Company or agency" value={data.company} onChange={value => update("company", value)} /><SelectField required label="New or existing customer" value={data.customerType} onChange={value => update("customerType", value)} options={["New customer", "Existing customer"]} /><SelectField required label="Preferred contact method" value={data.preferredContactMethod} onChange={value => update("preferredContactMethod", value)} options={["Email", "Phone"]} /><Field label="Anything else we should review?" value={data.additionalNotes} onChange={value => update("additionalNotes", value)} textarea /><label className="flex items-start gap-3 text-sm sm:col-span-2"><input type="checkbox" checked={data.privacyConsent} onChange={e => update("privacyConsent", e.target.checked)} className="mt-1 size-4" /> I consent to Clean Up Central using these details to prepare and contact me about this quote. *</label></div><div className="mt-8 flex justify-between"><Button variant="text" left onClick={() => go("address")}>Back</Button><Button onClick={validateCustomer}>Review Quote</Button></div></Panel></section>;
 
-  if (step === "summary") return <Summary data={data} estimate={estimate} customQuote={customQuote} back={() => go(data.category === "Commercial Cleaning" || data.category === "Property Support" ? "customSupporting" : "customer")} submit={submit} errors={errors} isSubmitting={isSubmitting} />;
+  if (step === "summary") return <Summary data={data} estimate={estimate} travel={travel} customQuote={customQuote} back={() => go(data.category === "Commercial Cleaning" || data.category === "Property Support" ? "customSupporting" : "customer")} submit={submit} errors={errors} isSubmitting={isSubmitting} />;
   return <section className="mx-auto mt-10 max-w-3xl text-center"><span className="mx-auto grid size-14 place-items-center rounded-full bg-[#176B45] text-white"><CheckCircle2 size={28} /></span><Heading eyebrow="Request Received" title="Your quote request has been submitted" copy="We have received your details and will review the request before confirming availability or a booking." /><Panel><p className="text-left text-sm leading-6">Quote reference: <b>{reference}</b><br />This is not a confirmed booking. Clean Up Central will contact you after reviewing the information supplied.</p><div className="mt-6"><Button onClick={() => window.location.reload()}>Start Another Quote</Button></div></Panel></section>;
 }
 
@@ -273,20 +318,20 @@ function CustomSupporting({ data, update, go }: { data: QuoteData; update: <K ex
 function Nav({ back, next, errors }: { back: () => void; next: () => void; errors: string[] }) { return <><div className="mt-6"><ErrorBox errors={errors} /></div><div className="mt-8 flex justify-between"><Button variant="text" left onClick={back}>Back</Button><Button onClick={next}>Continue</Button></div></>; }
 function Row({ label, value, strong }: { label: string; value: string; strong?: boolean }) { return <div className="grid gap-1 py-3 sm:grid-cols-[.9fr_1.1fr]"><span className={strong ? "font-bold" : "text-[#66635E]"}>{label}</span><b>{value}</b></div>; }
 
-function Summary({ data, estimate, customQuote, back, submit, errors, isSubmitting }: { data: QuoteData; estimate: any; customQuote: boolean; back: () => void; submit: () => Promise<void>; errors: string[]; isSubmitting: boolean }) {
+function Summary({ data, estimate, travel, customQuote, back, submit, errors, isSubmitting }: { data: QuoteData; estimate: any; travel: TravelState; customQuote: boolean; back: () => void; submit: () => Promise<void>; errors: string[]; isSubmitting: boolean }) {
   if (customQuote) return <CustomQuoteSummary data={data} back={back} submit={submit} errors={errors} isSubmitting={isSubmitting} />;
 
   const selectedRooms = Object.entries(data.rooms).filter(([, quantity]) => quantity).map(([name, quantity]) => `${quantity} × ${name}`).join(", ");
   const selectedExtras = Object.entries(data.extras).filter(([, quantity]) => quantity).map(([name, quantity]) => `${quantity} × ${name}`).join(", ") || "None";
-  const payload = createQuotePayload(data, { distanceMiles: null, travelFee: null });
+  const payload = createQuotePayload(data, { distanceMiles: travel.distanceMiles, travelFee: travel.fee });
   const customSchedule = data.serviceType !== "End of Tenancy" && customQuote;
   const schedule = customSchedule ? [data.preferredStartDate, data.preferredSchedule].filter(Boolean).join(" · ") || "To be discussed" : `${data.preferredDate} · ${data.arrivalWindow}`;
   const address = [data.address, data.postcode].filter(Boolean).join(", ");
   return <section className="mx-auto mt-10 max-w-3xl">
-    <Heading eyebrow={customQuote ? "Custom Quote Required" : data.category === "Airbnb Turnover" && data.airbnbCondition === "Dirty" ? "Provisional Estimate" : "Estimated Quote"} title={customQuote ? "Review your request" : data.category === "Airbnb Turnover" && data.airbnbCondition === "Dirty" ? "Review your provisional estimate" : "Review your estimated quote"} copy={customQuote ? "We’ll prepare a tailored quote after reviewing the information below." : "The calculated cleaning amount is shown below. Travel remains pending until driving distance is verified."} />
+    <Heading eyebrow={customQuote ? "Custom Quote Required" : data.category === "Airbnb Turnover" && data.airbnbCondition === "Dirty" ? "Provisional Estimate" : "Estimated Quote"} title={customQuote ? "Review your request" : data.category === "Airbnb Turnover" && data.airbnbCondition === "Dirty" ? "Review your provisional estimate" : "Review your estimated quote"} copy={customQuote ? "We’ll prepare a tailored quote after reviewing the information below." : travel.status === "calculated" ? "The calculated amount includes the automatic travel fee for the postcode supplied." : "The calculated cleaning amount is shown below. Travel will be confirmed during review."} />
     <Panel>
       <ErrorBox errors={errors} />
-      {estimate && <><p className="font-serif text-[60px] leading-none text-[#B08A3C]">{formatGBP(estimate.estimatedTotal)}</p><p className="mt-3 text-[10px] font-bold uppercase tracking-[.12em] text-[#7A5A1E]">Calculated amount · Travel fee pending review</p></>}
+      {estimate && <><p className="font-serif text-[60px] leading-none text-[#B08A3C]">{formatGBP(estimate.estimatedTotal)}</p><p className="mt-3 text-[10px] font-bold uppercase tracking-[.12em] text-[#7A5A1E]">{travel.status === "calculated" ? "Calculated amount · Travel included" : "Calculated amount · Travel pending review"}</p></>}
       <div className="mt-7 divide-y divide-[#D8D5CF] border-y border-[#D8D5CF] text-sm">
         <Row label="Service" value={`${data.category}${data.serviceType ? ` · ${data.serviceType}` : ""}`} />
         {data.cleaningScope && <Row label="Scope" value={data.cleaningScope} />}<Row label="Property" value={`${data.propertyType === "Other / Not sure" ? data.propertyTypeOther : data.propertyType || data.premisesDescription}${data.cleaningScope !== "Selected Rooms" && data.bedrooms >= 0 && !customSchedule ? ` · ${data.bedrooms === 0 ? "Studio" : `${data.bedrooms} bedroom(s)`} · ${data.bathrooms} bathroom(s)` : ""}`} />
@@ -297,7 +342,7 @@ function Summary({ data, estimate, customQuote, back, submit, errors, isSubmitti
               label="Minimum booking adjustment"
               value={formatGBP(estimate.minimumAdjustment)}
             />
-          )}<Row label="Additional bathrooms" value={formatGBP(estimate.bathroomCharge ?? 0)} /><Row label="Condition charge" value={formatGBP(estimate.conditionCharge ?? 0)} /><Row label="Extras" value={formatGBP(estimate.extrasCharge ?? 0)} /><Row label="New-customer discount" value={estimate.discountAmount ? `−${formatGBP(estimate.discountAmount)}` : formatGBP(0)} /><Row label="Travel fee" value="Pending review" /><Row label="Current calculated amount" value={formatGBP(estimate.estimatedTotal)} strong /></>}
+          )}<Row label="Additional bathrooms" value={formatGBP(estimate.bathroomCharge ?? 0)} /><Row label="Condition charge" value={formatGBP(estimate.conditionCharge ?? 0)} /><Row label="Extras" value={formatGBP(estimate.extrasCharge ?? 0)} /><Row label="New-customer discount" value={estimate.discountAmount ? `−${formatGBP(estimate.discountAmount)}` : formatGBP(0)} /><Row label="Travel fee" value={travel.status === "calculated" ? formatGBP(travel.fee ?? 0) : "Pending review"} /><Row label="Current calculated amount" value={formatGBP(estimate.estimatedTotal)} strong /></>}
       </div>
       {payload.manualReviewReasons.length > 0 && <div className="mt-6 border-l-4 border-[#B08A3C] bg-[#F1EDE4] p-4 text-sm"><b>Review required:</b> {payload.manualReviewReasons.join("; ")}.</div>}
       {data.category === "Airbnb Turnover" && data.airbnbCondition === "Dirty" && <p className="mt-6 border-l-4 border-[#B08A3C] bg-[#F1EDE4] p-4 text-sm leading-6"><b>Provisional estimate.</b> The £20 Dirty-condition charge and supplied photographs will be reviewed. The charge may be revised if the actual condition or work required is materially different.</p>}

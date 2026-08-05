@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   QuoteSubmissionRequestError,
   createQuoteSubmissionId,
+  fetchTravelEstimate,
   resolveQuoteApiBaseUrl,
   submitQuoteRequest,
   uploadQuoteAttachments,
@@ -29,6 +30,106 @@ test("resolves configured and local quote API bases", () => {
       hostname: "cleanupcentral.com",
     }),
     "",
+  );
+});
+
+test("requests a safe travel estimate for a postcode", async () => {
+  const calls = [];
+
+  const travel =
+    await fetchTravelEstimate({
+      apiBaseUrl:
+        "https://api.example.com/",
+      postcode: " SE1 2AA ",
+
+      fetchImpl:
+        async (url, options) => {
+          calls.push({
+            url,
+            options,
+          });
+
+          return new Response(
+            JSON.stringify({
+              success: true,
+              travel: {
+                status:
+                  "calculated",
+                fee: 10,
+                distanceMiles:
+                  12.34,
+                pendingReview:
+                  false,
+                reason: null,
+              },
+              requestId:
+                "request-travel-1",
+            }),
+            {
+              status: 200,
+              headers: {
+                "content-type":
+                  "application/json",
+              },
+            },
+          );
+        },
+    });
+
+  assert.equal(travel.fee, 10);
+  assert.equal(calls.length, 1);
+
+  assert.equal(
+    calls[0].url,
+    "https://api.example.com/api/travel/estimate",
+  );
+
+  assert.deepEqual(
+    JSON.parse(
+      calls[0].options.body,
+    ),
+    {
+      postcode: "SE1 2AA",
+    },
+  );
+});
+
+test("rejects an invalid travel response for manual fallback", async () => {
+  await assert.rejects(
+    fetchTravelEstimate({
+      apiBaseUrl:
+        "https://api.example.com",
+      postcode: "SE1 2AA",
+
+      fetchImpl:
+        async () =>
+          new Response(
+            JSON.stringify({
+              success: true,
+              travel: {
+                fee: "10",
+              },
+              requestId:
+                "request-travel-2",
+            }),
+            {
+              status: 200,
+            },
+          ),
+    }),
+    (error) => {
+      assert.ok(
+        error instanceof
+          QuoteSubmissionRequestError,
+      );
+
+      assert.equal(
+        error.code,
+        "INVALID_TRAVEL_RESPONSE",
+      );
+
+      return true;
+    },
   );
 });
 

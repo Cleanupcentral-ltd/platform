@@ -44,10 +44,12 @@ The performance advisor reported only expected informational `unused_index` noti
 
 ## Open acceptance item
 
-The Supabase project currently has one confirmed password user and one user with
-`app_metadata.role = founder`, but no verified MFA factor. Stage 2 cannot be
-closed until that founder account enrols MFA and the protected endpoint is
-verified with the resulting real `aal2` session.
+The Supabase project currently has two confirmed password users and exactly one
+user with `app_metadata.role = founder`. The founder role is assigned to the
+Clean Up Central Outlook account; the earlier Gmail account no longer has it.
+No verified MFA factor exists. Stage 2 cannot be closed until the Clean Up
+Central founder account enrols MFA and the protected endpoint is verified with
+the resulting real `aal2` session.
 
 ## Safe rollback
 

@@ -12,8 +12,9 @@ Status: **implemented; founder MFA enrolment and live-session verification remai
 - Approved Lead Engine feature flags exist and default to `false`.
 - A separate founder operations console is implemented for
   `app.cleanupcentral.com/ops/leads`; it does not alter the public Wix site.
-- The console supports password sign-in, TOTP enrolment/challenge, founder-role
-  denial and the protected backend readiness check.
+- The console supports password sign-in, password recovery returning to the
+  deployed founder route, TOTP enrolment/challenge, founder-role denial and the
+  protected backend readiness check.
 - No email sending was added. Lean v1 remains Outlook-draft-only.
 
 ## Verified evidence — 10 August 2026
@@ -36,9 +37,10 @@ Status: **implemented; founder MFA enrolment and live-session verification remai
 | Test-data cleanup | 0 prospect rows after transaction rollback |
 | Supabase security advisor | 0 findings |
 | Operations console type-check | Passed |
-| Operations console unit tests | 6 passed; 0 failed |
+| Operations console unit tests | 8 passed; 0 failed |
 | Operations console production build | Passed |
 | Operations console production dependency audit | 0 vulnerabilities |
+| Temporary founder console deployment | Render commit `29aa064e`; live |
 
 The performance advisor reported only expected informational `unused_index` notices because the new tables contain no production data.
 
@@ -47,9 +49,11 @@ The performance advisor reported only expected informational `unused_index` noti
 The Supabase project currently has two confirmed password users and exactly one
 user with `app_metadata.role = founder`. The founder role is assigned to the
 Clean Up Central Outlook account; the earlier Gmail account no longer has it.
-No verified MFA factor exists. Stage 2 cannot be closed until the Clean Up
-Central founder account enrols MFA and the protected endpoint is verified with
-the resulting real `aal2` session.
+No verified MFA factor exists. Password recovery is deployed, but the current
+Supabase built-in email rate limit must clear before the founder can set the new
+password. Stage 2 cannot be closed until the Clean Up Central founder account
+resets the password, enrols MFA and the protected endpoint is verified with the
+resulting real `aal2` session.
 
 ## Safe rollback
 

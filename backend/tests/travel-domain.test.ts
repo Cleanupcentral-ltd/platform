@@ -3,7 +3,7 @@ import test from "node:test";
 
 import {
   METERS_PER_MILE,
-  selectShortestRoute,
+  selectFastestRoute,
   travelCalculationForRoutes,
   type TravelCalculationEvidence,
   type TravelRouteEvidence,
@@ -12,6 +12,8 @@ import {
 function route(
   originPostcode: string,
   distanceMeters: number | null,
+  durationSeconds:
+    number | null = 600,
 ): TravelRouteEvidence {
   return {
     originPostcode,
@@ -27,7 +29,7 @@ function route(
     durationSeconds:
       distanceMeters === null
         ? null
-        : 600,
+        : durationSeconds,
   };
 }
 
@@ -46,17 +48,57 @@ function evidence(
 }
 
 test(
-  "selects the shorter valid route regardless of response order",
+  "selects the faster valid route even when it has more miles",
   () => {
     const selected =
-      selectShortestRoute([
-        route("RM10 8BE", 20_000),
-        route("BR1 5HP", 10_000),
+      selectFastestRoute([
+        route(
+          "BR1 5HP",
+          12 * METERS_PER_MILE,
+          3_000,
+        ),
+        route(
+          "RM10 8BE",
+          15.41 * METERS_PER_MILE,
+          2_700,
+        ),
       ]);
 
     assert.equal(
       selected?.originPostcode,
-      "BR1 5HP",
+      "RM10 8BE",
+    );
+  },
+);
+
+test(
+  "charges for the mileage of the selected fastest route",
+  () => {
+    const result =
+      travelCalculationForRoutes(
+        evidence([
+          route(
+            "BR1 5HP",
+            9 * METERS_PER_MILE,
+            3_000,
+          ),
+          route(
+            "RM10 8BE",
+            15.41 * METERS_PER_MILE,
+            2_700,
+          ),
+        ]),
+      );
+
+    assert.equal(
+      result.originPostcode,
+      "RM10 8BE",
+    );
+
+    assert.equal(result.fee, 10);
+    assert.equal(
+      result.distanceMiles,
+      15.41,
     );
   },
 );
@@ -93,10 +135,26 @@ test(
 );
 
 test(
-  "uses approved origin order as a stable equal-distance tie-break",
+  "uses shorter distance as an equal-duration tie-break",
   () => {
     const selected =
-      selectShortestRoute([
+      selectFastestRoute([
+        route("RM10 8BE", 20_000),
+        route("BR1 5HP", 10_000),
+      ]);
+
+    assert.equal(
+      selected?.originPostcode,
+      "BR1 5HP",
+    );
+  },
+);
+
+test(
+  "uses approved origin order as a stable equal-route tie-break",
+  () => {
+    const selected =
+      selectFastestRoute([
         route("RM10 8BE", 10_000),
         route("BR1 5HP", 10_000),
       ]);
@@ -104,6 +162,27 @@ test(
     assert.equal(
       selected?.originPostcode,
       "BR1 5HP",
+    );
+  },
+);
+
+test(
+  "requires duration evidence before selecting a route",
+  () => {
+    const result =
+      travelCalculationForRoutes(
+        evidence([
+          route(
+            "BR1 5HP",
+            10_000,
+            null,
+          ),
+        ]),
+      );
+
+    assert.equal(
+      result.manualReviewReason,
+      "TRAVEL_ROUTE_UNAVAILABLE",
     );
   },
 );

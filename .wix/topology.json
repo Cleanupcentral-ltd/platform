@@ -1,20 +1,20 @@
 {
   "preview": {
-    "id": "32cb4cce-c1dc-4f7d-b7c8-434356120ab4",
+    "id": "a7077348-34f3-47c0-807c-d2a93ae09b21",
     "site": {
-      "main": "https://zhirwm-clean-up-c-9fdfa51b-cucltd.wix-site-host.com"
+      "main": "https://to5gne-clean-up-c-9fdfa51b-cucltd.wix-site-host.com"
     },
     "dashboard": {
-      "main": "https://manage.wix.com/dashboard/7af3933d-4ab0-4e1a-afd7-d7001fb21b4a?apps-override=32cb4cce-c1dc-4f7d-b7c8-434356120ab4"
+      "main": "https://manage.wix.com/dashboard/7af3933d-4ab0-4e1a-afd7-d7001fb21b4a?apps-override=a7077348-34f3-47c0-807c-d2a93ae09b21"
     }
   },
   "production": {
-    "id": "47e94784-b533-4cfd-b4a4-7f0fa2f73f35",
+    "id": "b5afcd64-42e5-4d9d-b0b8-2511ff0c3e64",
     "site": {
-      "main": "https://p0nzq3-clean-up-c-9fdfa51b-cucltd.wix-site-host.com"
+      "main": "https://rkordb-clean-up-c-9fdfa51b-cucltd.wix-site-host.com"
     },
     "dashboard": {
-      "main": "https://manage.wix.com/dashboard/7af3933d-4ab0-4e1a-afd7-d7001fb21b4a?apps-override=47e94784-b533-4cfd-b4a4-7f0fa2f73f35"
+      "main": "https://manage.wix.com/dashboard/7af3933d-4ab0-4e1a-afd7-d7001fb21b4a?apps-override=b5afcd64-42e5-4d9d-b0b8-2511ff0c3e64"
     }
   }
 }

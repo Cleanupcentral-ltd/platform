@@ -1,6 +1,6 @@
 # Lead Engine Lite — Stage 2 Testable Foundation
 
-Status: **implemented; founder Auth enrolment remains open**
+Status: **implemented; founder MFA enrolment and live-session verification remain open**
 
 ## Scope delivered
 
@@ -10,6 +10,10 @@ Status: **implemented; founder Auth enrolment remains open**
 - A defence-in-depth founder policy requires both `app_metadata.role = founder` and Auth Assurance Level 2.
 - Protected `GET /api/ops/leads/health` endpoint validates the Supabase session through `/auth/v1/user`, then verifies issuer, audience, expiry, subject, founder role, non-anonymous status, and MFA (`aal2`).
 - Approved Lead Engine feature flags exist and default to `false`.
+- A separate founder operations console is implemented for
+  `app.cleanupcentral.com/ops/leads`; it does not alter the public Wix site.
+- The console supports password sign-in, TOTP enrolment/challenge, founder-role
+  denial and the protected backend readiness check.
 - No email sending was added. Lean v1 remains Outlook-draft-only.
 
 ## Verified evidence — 10 August 2026
@@ -31,12 +35,19 @@ Status: **implemented; founder Auth enrolment remains open**
 | RLS coverage | 10/10 tables enabled and forced; 10 founder policies |
 | Test-data cleanup | 0 prospect rows after transaction rollback |
 | Supabase security advisor | 0 findings |
+| Operations console type-check | Passed |
+| Operations console unit tests | 6 passed; 0 failed |
+| Operations console production build | Passed |
+| Operations console production dependency audit | 0 vulnerabilities |
 
 The performance advisor reported only expected informational `unused_index` notices because the new tables contain no production data.
 
 ## Open acceptance item
 
-The Supabase project currently has 0 Auth users, 0 users with the founder role, and 0 verified MFA factors. Stage 2 cannot be closed until the founder account is created, assigned `app_metadata.role = founder`, enrolled in MFA, and the protected endpoint is verified with that real session.
+The Supabase project currently has one confirmed password user and one user with
+`app_metadata.role = founder`, but no verified MFA factor. Stage 2 cannot be
+closed until that founder account enrols MFA and the protected endpoint is
+verified with the resulting real `aal2` session.
 
 ## Safe rollback
 

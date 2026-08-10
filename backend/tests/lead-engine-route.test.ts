@@ -8,6 +8,10 @@ import {
   type FounderAuthService,
 } from "../src/ports/founder-auth.js";
 
+import type {
+  LeadSearchService,
+} from "../src/application/search-leads.js";
+
 const USER_ID =
   "79b42d3d-78be-42fc-9d91-5d97566d2ed0";
 
@@ -18,6 +22,63 @@ const founderService:
         userId: USER_ID,
         email:
           "founder@example.com",
+      };
+    },
+  };
+
+const leadSearchService:
+  LeadSearchService = {
+    async search(
+      founderId,
+      input,
+    ) {
+      assert.equal(
+        founderId,
+        USER_ID,
+      );
+      return {
+        searchRunId:
+          "1f8a558b-f3b6-453b-b201-6d57323d0663",
+        postcode: input.postcode,
+        sector: input.sector,
+        radiusMiles:
+          input.radiusMiles,
+        resultCount: 1,
+        createdCount: 1,
+        results: [{
+          businessName:
+            "Example Workspace",
+          formattedAddress:
+            "1 High Street",
+          primaryPostcode:
+            "BR1 1AA",
+          websiteUrl:
+            "https://example.com/",
+          phone: null,
+          sourceUrl:
+            "https://maps.google.com/?cid=1",
+          distanceMiles: 1.2,
+          evidenceStatus:
+            "unverified",
+        }],
+      };
+    },
+
+    async captureManual(
+      founderId,
+      input,
+    ) {
+      assert.equal(
+        founderId,
+        USER_ID,
+      );
+      return {
+        resultCount: 1,
+        createdCount: 1,
+        businessName:
+          input.businessName,
+        evidenceStatus:
+          "unverified",
       };
     },
   };
@@ -49,6 +110,166 @@ test(
     assert.equal(
       response.statusCode,
       404,
+    );
+  },
+);
+
+test(
+  "Lead search routes stay absent when the Stage 3 flag is off",
+  async (context) => {
+    const app = await buildApp({
+      leadEngineUiEnabled: true,
+      leadSearchEnabled: false,
+      founderAuthService:
+        founderService,
+      leadSearchService,
+    });
+
+    context.after(
+      async () => app.close(),
+    );
+
+    const response =
+      await app.inject({
+        method: "POST",
+        url:
+          "/api/ops/leads/search",
+        headers: {
+          authorization:
+            "Bearer test-token",
+          "content-type":
+            "application/json",
+        },
+        payload: {
+          postcode: "BR1 5HP",
+          radiusMiles: 5,
+          sector:
+            "offices_coworking",
+        },
+      });
+
+    assert.equal(
+      response.statusCode,
+      404,
+    );
+  },
+);
+
+test(
+  "Lead search accepts only an authenticated approved search and returns unverified evidence",
+  async (context) => {
+    const app = await buildApp({
+      leadEngineUiEnabled: true,
+      leadSearchEnabled: true,
+      founderAuthService:
+        founderService,
+      leadSearchService,
+    });
+
+    context.after(
+      async () => app.close(),
+    );
+
+    const response =
+      await app.inject({
+        method: "POST",
+        url:
+          "/api/ops/leads/search",
+        headers: {
+          authorization:
+            "Bearer test-token",
+          "content-type":
+            "application/json",
+        },
+        payload: {
+          postcode: "BR1 5HP",
+          radiusMiles: 5,
+          sector:
+            "offices_coworking",
+        },
+      });
+
+    assert.equal(
+      response.statusCode,
+      200,
+    );
+    assert.equal(
+      response.json().search
+        .results[0]
+        .evidenceStatus,
+      "unverified",
+    );
+  },
+);
+
+test(
+  "manual capture remains available as the Stage 3 fallback and requires a public source",
+  async (context) => {
+    const app = await buildApp({
+      leadEngineUiEnabled: true,
+      leadSearchEnabled: true,
+      founderAuthService:
+        founderService,
+      leadSearchService,
+    });
+
+    context.after(
+      async () => app.close(),
+    );
+
+    const invalid =
+      await app.inject({
+        method: "POST",
+        url:
+          "/api/ops/leads/manual",
+        headers: {
+          authorization:
+            "Bearer test-token",
+          "content-type":
+            "application/json",
+        },
+        payload: {
+          businessName:
+            "Manual Venue",
+          sector:
+            "community_halls_event_venues",
+          sourceUrl:
+            "not-a-public-url",
+        },
+      });
+    assert.equal(
+      invalid.statusCode,
+      400,
+    );
+
+    const valid =
+      await app.inject({
+        method: "POST",
+        url:
+          "/api/ops/leads/manual",
+        headers: {
+          authorization:
+            "Bearer test-token",
+          "content-type":
+            "application/json",
+        },
+        payload: {
+          businessName:
+            "Manual Venue",
+          sector:
+            "community_halls_event_venues",
+          sourceUrl:
+            "https://venue.example/about",
+        },
+      });
+    assert.equal(
+      valid.statusCode,
+      201,
+    );
+    assert.equal(
+      valid.json().manualCapture
+        .evidenceStatus,
+      "unverified",
     );
   },
 );

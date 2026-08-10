@@ -130,6 +130,44 @@ const environmentSchema = z
             value === "true",
         ),
 
+    GOOGLE_PLACES_API_KEY:
+      z.string()
+        .trim()
+        .min(1)
+        .optional(),
+
+    GOOGLE_PLACES_API_BASE_URL:
+      z.string()
+        .trim()
+        .url()
+        .default(
+          "https://places.googleapis.com/v1",
+        ),
+
+    GOOGLE_PLACES_TIMEOUT_MS:
+      z.coerce
+        .number()
+        .int()
+        .min(1_000)
+        .max(15_000)
+        .default(8_000),
+
+    POSTCODES_IO_API_BASE_URL:
+      z.string()
+        .trim()
+        .url()
+        .default(
+          "https://api.postcodes.io",
+        ),
+
+    POSTCODES_IO_TIMEOUT_MS:
+      z.coerce
+        .number()
+        .int()
+        .min(1_000)
+        .max(15_000)
+        .default(5_000),
+
     LEAD_COMPANIES_HOUSE_V1:
       z.enum(["true", "false"])
         .default("false")
@@ -165,6 +203,20 @@ const environmentSchema = z
         .trim()
         .min(1)
         .optional(),
+
+    SUPABASE_SECRET_KEY:
+      z.string()
+        .trim()
+        .min(1)
+        .optional(),
+
+    SUPABASE_DATA_TIMEOUT_MS:
+      z.coerce
+        .number()
+        .int()
+        .min(1_000)
+        .max(15_000)
+        .default(8_000),
 
     SUPABASE_AUTH_TIMEOUT_MS:
       z.coerce
@@ -252,6 +304,40 @@ const environmentSchema = z
               path: [field],
               message:
                 `${field} is required when the Lead Engine founder UI is enabled.`,
+            });
+          }
+        }
+      }
+
+      if (value.LEAD_SEARCH_GOOGLE_V1) {
+        const leadSearchRequired = [
+          [
+            "SUPABASE_URL",
+            value.SUPABASE_URL,
+          ],
+          [
+            "SUPABASE_SECRET_KEY",
+            value.SUPABASE_SECRET_KEY,
+          ],
+          [
+            "GOOGLE_PLACES_API_KEY",
+            value.GOOGLE_PLACES_API_KEY,
+          ],
+        ] as const;
+
+        for (
+          const [field, fieldValue] of
+            leadSearchRequired
+        ) {
+          if (
+            fieldValue === undefined ||
+            fieldValue.length === 0
+          ) {
+            context.addIssue({
+              code: "custom",
+              path: [field],
+              message:
+                `${field} is required when Google lead search is enabled.`,
             });
           }
         }

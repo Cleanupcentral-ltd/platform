@@ -11,6 +11,9 @@ import {
   isPasswordRecoveryReturn,
 } from "./password-recovery";
 import { getSupabaseClient } from "./supabase";
+import {
+  LeadSearchWorkspace,
+} from "./LeadSearchWorkspace";
 
 type Screen =
   | "loading"
@@ -39,6 +42,15 @@ interface FoundationResponse {
     readonly access?: unknown;
     readonly mfa?: unknown;
   };
+  readonly capabilities?: {
+    readonly search?: unknown;
+    readonly manualCapture?: unknown;
+  };
+}
+
+interface Capabilities {
+  readonly search: boolean;
+  readonly manualCapture: boolean;
 }
 
 function messageFrom(error: unknown): string {
@@ -60,6 +72,13 @@ export function LeadEngineFoundation() {
     null,
   );
   const [error, setError] = useState<string | null>(null);
+  const [accessToken, setAccessToken] =
+    useState<string | null>(null);
+  const [capabilities, setCapabilities] =
+    useState<Capabilities>({
+      search: false,
+      manualCapture: false,
+    });
 
   const client = useMemo<SupabaseClient | null>(() => {
     if (!config.enabled) {
@@ -118,6 +137,17 @@ export function LeadEngineFoundation() {
       );
     }
 
+    setCapabilities({
+      search:
+        body.capabilities?.search ===
+        true,
+      manualCapture:
+        body.capabilities
+          ?.manualCapture === true,
+    });
+    setAccessToken(
+      session.access_token,
+    );
     setScreen("ready");
   }
 
@@ -190,10 +220,19 @@ export function LeadEngineFoundation() {
     );
     const {
       data: { subscription },
-    } = client.auth.onAuthStateChange((event) => {
+    } = client.auth.onAuthStateChange((event, session) => {
       if (event === "PASSWORD_RECOVERY") {
         setError(null);
         setScreen("password_update_required");
+      }
+
+      if (
+        event === "TOKEN_REFRESHED" &&
+        session !== null
+      ) {
+        setAccessToken(
+          session.access_token,
+        );
       }
     });
 
@@ -356,6 +395,11 @@ export function LeadEngineFoundation() {
     setFactorId(null);
     setCode("");
     setError(null);
+    setAccessToken(null);
+    setCapabilities({
+      search: false,
+      manualCapture: false,
+    });
     setScreen("signed_out");
   }
 
@@ -373,7 +417,15 @@ export function LeadEngineFoundation() {
 
   return (
     <main className="shell">
-      <section className="card" aria-live="polite">
+      <section
+        className={
+          screen === "ready" &&
+          capabilities.search
+            ? "card card-wide"
+            : "card"
+        }
+        aria-live="polite"
+      >
         <p className="eyebrow">Clean Up Central · Founder operations</p>
         <h1>Lead Engine Lite</h1>
 
@@ -550,16 +602,38 @@ export function LeadEngineFoundation() {
         )}
 
         {screen === "ready" && (
-          <div className="stack">
-            <p className="success">Founder access and MFA are verified.</p>
-            <p>
-              The Stage 2 foundation is ready. Search and outreach capabilities
-              remain disabled.
-            </p>
-            <button type="button" className="secondary" onClick={signOut}>
-              Sign out
-            </button>
-          </div>
+          capabilities.search &&
+          capabilities.manualCapture &&
+          accessToken !== null &&
+          config.backendUrl !== null
+            ? (
+                <LeadSearchWorkspace
+                  backendUrl={
+                    config.backendUrl
+                  }
+                  accessToken={
+                    accessToken
+                  }
+                  onSignOut={signOut}
+                />
+              )
+            : (
+                <div className="stack">
+                  <p className="success">
+                    Founder access and MFA are verified.
+                  </p>
+                  <p>
+                    The Stage 2 foundation is ready. Stage 3 search remains disabled.
+                  </p>
+                  <button
+                    type="button"
+                    className="secondary"
+                    onClick={signOut}
+                  >
+                    Sign out
+                  </button>
+                </div>
+              )
         )}
 
         {screen === "error" && (

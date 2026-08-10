@@ -1,1 +1,15 @@
-Y29uc3QgUkVDT1ZFUllfUVVFUllfUEFSQU1FVEVSID0gInJlY292ZXJ5IjsKCmV4cG9ydCBmdW5jdGlvbiBidWlsZFBhc3N3b3JkUmVjb3ZlcnlSZWRpcmVjdCgKICBvcmlnaW46IHN0cmluZywKKTogc3RyaW5nIHsKICBjb25zdCByZWRpcmVjdCA9IG5ldyBVUkwoIi9vcHMvbGVhZHMiLCBvcmlnaW4pOwogIHJlZGlyZWN0LnNlYXJjaFBhcmFtcy5zZXQoUkVDT1ZFUllfUVVFUllfUEFSQU1FVEVSLCAiMSIpOwogIHJldHVybiByZWRpcmVjdC50b1N0cmluZygpOwp9CgpleHBvcnQgZnVuY3Rpb24gaXNQYXNzd29yZFJlY292ZXJ5UmV0dXJuKHVybDogc3RyaW5nKTogYm9vbGVhbiB7CiAgcmV0dXJuICgKICAgIG5ldyBVUkwodXJsKS5zZWFyY2hQYXJhbXMuZ2V0KFJFQ09WRVJZX1FVRVJZX1BBUkFNRVRFUikgPT09ICIxIgogICk7Cn0K
+const RECOVERY_QUERY_PARAMETER = "recovery";
+
+export function buildPasswordRecoveryRedirect(
+  origin: string,
+): string {
+  const redirect = new URL("/ops/leads", origin);
+  redirect.searchParams.set(RECOVERY_QUERY_PARAMETER, "1");
+  return redirect.toString();
+}
+
+export function isPasswordRecoveryReturn(url: string): boolean {
+  return (
+    new URL(url).searchParams.get(RECOVERY_QUERY_PARAMETER) === "1"
+  );
+}

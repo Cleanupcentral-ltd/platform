@@ -9,7 +9,8 @@
  * - Selected Rooms never receives the new-customer discount.
  * - The 15% discount covers the base cleaning price and additional bathrooms.
  * - Extras, travel, Airbnb condition and same-day charges are not discounted.
- * - Travel uses the shorter driving distance from BR1 5HP or RM10 8BE.
+ * - Travel uses the fastest route by time from BR1 5HP or RM10 8BE,
+ *   then applies the fee band to that route's driving distance.
  */
 
 export const PRICING_VERSION = "CUC Phase 0 v1.4";

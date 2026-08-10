@@ -1,1 +1,40 @@
-IyBDbGVhbiBVcCBDZW50cmFsIE9wZXJhdGlvbnMgQ29uc29sZQoKTWluaW1hbCByZXVzYWJsZSBmb3VuZGVyIGF1dGhlbnRpY2F0aW9uIGZvciBMZWFkIEVuZ2luZSBMaXRlIFN0YWdlIDIuCgojIyBSb3V0ZQoKVGhlIHByb2R1Y3Rpb24gcm91dGUgaXMgYGh0dHBzOi8vYXBwLmNsZWFudXBjZW50cmFsLmNvbS9vcHMvbGVhZHNgLiBUaGUgYnVpbGQKYWxzbyBlbWl0cyBgL29wcy9pbmRleC5odG1sYCBhbmQgYC9vcHMvbGVhZHMvaW5kZXguaHRtbGAgc28gZGlyZWN0IG5hdmlnYXRpb24Kd29ya3Mgb24gYSBzdGF0aWMgaG9zdCB3aXRob3V0IGV4cG9zaW5nIHRoZSBwdWJsaWMgV2l4IGFwcGxpY2F0aW9uLgoKIyMgU2VjdXJpdHkgYm91bmRhcnkKCi0gVGhlIGJyb3dzZXIgcmVjZWl2ZXMgb25seSB0aGUgU3VwYWJhc2UgcHJvamVjdCBVUkwgYW5kIHB1Ymxpc2hhYmxlIGtleS4KLSBUaGUgU3VwYWJhc2Ugc2VydmljZS1yb2xlIGtleSBhbmQgcHJvdmlkZXIgY3JlZGVudGlhbHMgYXJlIHByb2hpYml0ZWQgZnJvbQogIHRoaXMgcGFja2FnZS4KLSBgYXBwX21ldGFkYXRhLnJvbGUgPSBmb3VuZGVyYCBhbmQgYW4gYGFhbDJgIFN1cGFiYXNlIHNlc3Npb24gYXJlIHJlcXVpcmVkLgotIFBhc3N3b3JkIHJlY292ZXJ5IHJldHVybnMgdG8gYC9vcHMvbGVhZHNgOyB0aGUgZGVwbG95ZWQgcm91dGUgbXVzdCBiZSBpbiB0aGUKICBTdXBhYmFzZSBBdXRoIHJlZGlyZWN0IGFsbG93IGxpc3QuCi0gVGhlIGJhY2tlbmQgaW5kZXBlbmRlbnRseSB2YWxpZGF0ZXMgdGhlIHNlc3Npb24gYmVmb3JlIHJldHVybmluZyByZWFkaW5lc3MuCi0gQWxsIExlYWQgRW5naW5lIGNhcGFiaWxpdHkgZmxhZ3MgcmVtYWluIGRpc2FibGVkIGJ5IGRlZmF1bHQuCgojIyBMb2NhbCB2ZXJpZmljYXRpb24KCmBgYHNoCm5wbSBjaQpucG0gdGVzdApgYGAKClNldCB0aGUgdmFsdWVzIGZyb20gYC5lbnYuZXhhbXBsZWAgb25seSBmb3IgbG9jYWwgbWFudWFsIGF1dGhlbnRpY2F0aW9uIHRlc3RzLgoKIyMgUmVuZGVyIGJ1aWxkCgotIEJ1aWxkIGNvbW1hbmQ6IGBjZCBvcHMtY29uc29sZSAmJiBucG0gY2kgJiYgbnBtIHJ1biBidWlsZGAKLSBQdWJsaXNoIGRpcmVjdG9yeTogYG9wcy1jb25zb2xlL2Rpc3RgCi0gUmVxdWlyZWQgYnVpbGQgdmFyaWFibGVzOiBgVklURV9MRUFEX0VOR0lORV9VSV9WMWAsIGBWSVRFX1NVUEFCQVNFX1VSTGAsCiAgYFZJVEVfU1VQQUJBU0VfUFVCTElTSEFCTEVfS0VZYCwgYW5kIGBWSVRFX0JBQ0tFTkRfVVJMYAoKS2VlcCBgVklURV9MRUFEX0VOR0lORV9VSV9WMT1mYWxzZWAgdW50aWwgdGhlIGNvbnRyb2xsZWQgZm91bmRlciBNRkEgdGVzdCBpcwpyZWFkeS4gTm8gc2VhcmNoLCBwcm92aWRlciwgZXhwb3J0LCBPdXRsb29rIG9yIHNlbmRpbmcgY2FwYWJpbGl0eSBpcyBwcmVzZW50IGluCnRoaXMgU3RhZ2UgMiBjb25zb2xlLgo=
+# Clean Up Central Operations Console
+
+Minimal reusable founder authentication for Lead Engine Lite Stage 2.
+
+## Route
+
+The production route is `https://app.cleanupcentral.com/ops/leads`. The build
+also emits `/ops/index.html` and `/ops/leads/index.html` so direct navigation
+works on a static host without exposing the public Wix application.
+
+## Security boundary
+
+- The browser receives only the Supabase project URL and publishable key.
+- The Supabase service-role key and provider credentials are prohibited from
+  this package.
+- `app_metadata.role = founder` and an `aal2` Supabase session are required.
+- Password recovery returns to `/ops/leads`; the deployed route must be in the
+  Supabase Auth redirect allow list.
+- The backend independently validates the session before returning readiness.
+- All Lead Engine capability flags remain disabled by default.
+
+## Local verification
+
+```sh
+npm ci
+npm test
+```
+
+Set the values from `.env.example` only for local manual authentication tests.
+
+## Render build
+
+- Build command: `cd ops-console && npm ci && npm run build`
+- Publish directory: `ops-console/dist`
+- Required build variables: `VITE_LEAD_ENGINE_UI_V1`, `VITE_SUPABASE_URL`,
+  `VITE_SUPABASE_PUBLISHABLE_KEY`, and `VITE_BACKEND_URL`
+
+Keep `VITE_LEAD_ENGINE_UI_V1=false` until the controlled founder MFA test is
+ready. No search, provider, export, Outlook or sending capability is present in
+this Stage 2 console.

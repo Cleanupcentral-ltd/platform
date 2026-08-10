@@ -146,11 +146,25 @@ export interface BuildAppOptions {
     FounderAuthService;
 }
 
-function getAllowedOrigins(): string[] {
-  return env.CORS_ORIGINS
+export function buildAllowedOrigins(
+  corsOrigins: string,
+  leadEngineUiEnabled: boolean,
+  leadEngineConsoleOrigin?: string,
+): string[] {
+  const origins = corsOrigins
     .split(",")
     .map((origin) => origin.trim())
     .filter(Boolean);
+
+  if (
+    leadEngineUiEnabled &&
+    leadEngineConsoleOrigin !== undefined &&
+    !origins.includes(leadEngineConsoleOrigin)
+  ) {
+    origins.push(leadEngineConsoleOrigin);
+  }
+
+  return origins;
 }
 
 function requiredEnvironmentValue(
@@ -209,6 +223,10 @@ function internalNotificationRecipients():
 export async function buildApp(
   options: BuildAppOptions = {},
 ): Promise<FastifyInstance> {
+  const leadEngineUiEnabled =
+    options.leadEngineUiEnabled ??
+    env.LEAD_ENGINE_UI_V1;
+
   const app = Fastify({
     bodyLimit: 1_048_576,
 
@@ -234,7 +252,11 @@ export async function buildApp(
   await app.register(helmet);
 
   await app.register(cors, {
-    origin: getAllowedOrigins(),
+    origin: buildAllowedOrigins(
+      env.CORS_ORIGINS,
+      leadEngineUiEnabled,
+      env.LEAD_ENGINE_CONSOLE_ORIGIN,
+    ),
 
     methods: [
       "GET",
@@ -264,10 +286,6 @@ export async function buildApp(
   await app.register(
     healthRoutes,
   );
-
-  const leadEngineUiEnabled =
-    options.leadEngineUiEnabled ??
-    env.LEAD_ENGINE_UI_V1;
 
   if (leadEngineUiEnabled) {
     registerLeadEngineRoutes(app, {

@@ -113,16 +113,76 @@ const environmentSchema = z
         .min(1_000)
         .max(15_000)
         .default(5_000),
+
+    LEAD_ENGINE_UI_V1:
+      z.enum(["true", "false"])
+        .default("false")
+        .transform(
+          (value) =>
+            value === "true",
+        ),
+
+    LEAD_SEARCH_GOOGLE_V1:
+      z.enum(["true", "false"])
+        .default("false")
+        .transform(
+          (value) =>
+            value === "true",
+        ),
+
+    LEAD_COMPANIES_HOUSE_V1:
+      z.enum(["true", "false"])
+        .default("false")
+        .transform(
+          (value) =>
+            value === "true",
+        ),
+
+    LEAD_OUTLOOK_DRAFT_V1:
+      z.enum(["true", "false"])
+        .default("false")
+        .transform(
+          (value) =>
+            value === "true",
+        ),
+
+    LEAD_EXPORT_V1:
+      z.enum(["true", "false"])
+        .default("false")
+        .transform(
+          (value) =>
+            value === "true",
+        ),
+
+    SUPABASE_URL:
+      z.string()
+        .trim()
+        .url()
+        .optional(),
+
+    SUPABASE_PUBLISHABLE_KEY:
+      z.string()
+        .trim()
+        .min(1)
+        .optional(),
+
+    SUPABASE_AUTH_TIMEOUT_MS:
+      z.coerce
+        .number()
+        .int()
+        .min(1_000)
+        .max(15_000)
+        .default(5_000),
+
+    LEAD_ENGINE_CONSOLE_ORIGIN:
+      z.string()
+        .trim()
+        .url()
+        .optional(),
   })
   .superRefine(
     (value, context) => {
-      if (
-        !value.NOTIFICATIONS_ENABLED
-      ) {
-        return;
-      }
-
-      const required = [
+      const notificationRequired = [
         [
           "RESEND_API_KEY",
           value.RESEND_API_KEY,
@@ -141,23 +201,59 @@ const environmentSchema = z
         ],
       ] as const;
 
-      for (
-        const [field, fieldValue] of
-          required
-      ) {
-        if (
-          fieldValue === undefined ||
-          fieldValue.length === 0
+      if (value.NOTIFICATIONS_ENABLED) {
+        for (
+          const [field, fieldValue] of
+            notificationRequired
         ) {
-          context.addIssue({
-            code:
-              "custom",
+          if (
+            fieldValue === undefined ||
+            fieldValue.length === 0
+          ) {
+            context.addIssue({
+              code:
+                "custom",
 
-            path: [field],
+              path: [field],
 
-            message:
-              `${field} is required when notifications are enabled.`,
-          });
+              message:
+                `${field} is required when notifications are enabled.`,
+            });
+          }
+        }
+      }
+
+      if (value.LEAD_ENGINE_UI_V1) {
+        const leadEngineRequired = [
+          [
+            "SUPABASE_URL",
+            value.SUPABASE_URL,
+          ],
+          [
+            "SUPABASE_PUBLISHABLE_KEY",
+            value.SUPABASE_PUBLISHABLE_KEY,
+          ],
+          [
+            "LEAD_ENGINE_CONSOLE_ORIGIN",
+            value.LEAD_ENGINE_CONSOLE_ORIGIN,
+          ],
+        ] as const;
+
+        for (
+          const [field, fieldValue] of
+            leadEngineRequired
+        ) {
+          if (
+            fieldValue === undefined ||
+            fieldValue.length === 0
+          ) {
+            context.addIssue({
+              code: "custom",
+              path: [field],
+              message:
+                `${field} is required when the Lead Engine founder UI is enabled.`,
+            });
+          }
         }
       }
     },

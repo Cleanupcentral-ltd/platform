@@ -71,7 +71,22 @@ export function metersToMiles(
   );
 }
 
-export function selectShortestRoute(
+function originPriority(
+  originPostcode: string,
+): number {
+  const priority =
+    TRAVEL_ORIGIN_POSTCODES
+      .indexOf(
+        originPostcode as
+          typeof TRAVEL_ORIGIN_POSTCODES[number],
+      );
+
+  return priority === -1
+    ? Number.MAX_SAFE_INTEGER
+    : priority;
+}
+
+export function selectFastestRoute(
   routes:
     readonly TravelRouteEvidence[],
 ): TravelRouteEvidence | null {
@@ -88,7 +103,12 @@ export function selectShortestRoute(
       Number.isFinite(
         route.distanceMeters,
       ) &&
-      route.distanceMeters >= 0,
+      route.distanceMeters >= 0 &&
+      route.durationSeconds !== null &&
+      Number.isFinite(
+        route.durationSeconds,
+      ) &&
+      route.durationSeconds >= 0,
   );
 
   if (usable.length === 0) {
@@ -96,39 +116,56 @@ export function selectShortestRoute(
   }
 
   return usable.reduce(
-    (shortest, route) => {
+    (fastest, route) => {
+      const routeDuration =
+        route.durationSeconds as number;
+
+      const fastestDuration =
+        fastest
+          .durationSeconds as number;
+
+      if (
+        routeDuration <
+        fastestDuration
+      ) {
+        return route;
+      }
+
+      if (
+        routeDuration >
+        fastestDuration
+      ) {
+        return fastest;
+      }
+
       const routeDistance =
         route.distanceMeters as number;
 
-      const shortestDistance =
-        shortest
+      const fastestDistance =
+        fastest
           .distanceMeters as number;
 
       if (
         routeDistance <
-        shortestDistance
+        fastestDistance
       ) {
         return route;
       }
 
       if (
         routeDistance ===
-          shortestDistance &&
-        TRAVEL_ORIGIN_POSTCODES
-          .indexOf(
-            route.originPostcode as
-              typeof TRAVEL_ORIGIN_POSTCODES[number],
-          ) <
-          TRAVEL_ORIGIN_POSTCODES
-            .indexOf(
-              shortest.originPostcode as
-                typeof TRAVEL_ORIGIN_POSTCODES[number],
-            )
+          fastestDistance &&
+        originPriority(
+          route.originPostcode,
+        ) <
+          originPriority(
+            fastest.originPostcode,
+          )
       ) {
         return route;
       }
 
-      return shortest;
+      return fastest;
     },
   );
 }
@@ -138,7 +175,7 @@ export function travelCalculationForRoutes(
     TravelCalculationEvidence,
 ): TravelCalculation {
   const route =
-    selectShortestRoute(
+    selectFastestRoute(
       evidence.routes,
     );
 

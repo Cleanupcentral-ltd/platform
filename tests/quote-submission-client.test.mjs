@@ -29,7 +29,7 @@ test("resolves configured and local quote API bases", () => {
     resolveQuoteApiBaseUrl("", {
       hostname: "cleanupcentral.com",
     }),
-    "",
+    "https://cuc-backend-2xcc.onrender.com",
   );
 });
 

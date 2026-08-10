@@ -15,8 +15,20 @@ import {
 } from "./adapters/google/google-routes-matrix.js";
 
 import {
+  GooglePlacesLeadSearchProvider,
+} from "./adapters/google/google-places-lead-search.js";
+
+import {
+  PostcodesIoLocator,
+} from "./adapters/postcodes-io/postcodes-io-locator.js";
+
+import {
   SupabaseFounderAuthService,
 } from "./adapters/supabase/supabase-founder-auth.js";
+
+import {
+  SupabaseLeadSearchRepository,
+} from "./adapters/supabase/supabase-lead-search-repository.js";
 
 import {
   createWixContactEnquiryRepository,
@@ -49,6 +61,11 @@ import {
   createTravelCalculationService,
   type TravelCalculationService,
 } from "./application/calculate-travel.js";
+
+import {
+  createLeadSearchService,
+  type LeadSearchService,
+} from "./application/search-leads.js";
 
 import {
   createContactEnquiryPersistenceService,
@@ -142,6 +159,12 @@ export interface BuildAppOptions {
   readonly leadEngineUiEnabled?:
     boolean;
 
+  readonly leadSearchEnabled?:
+    boolean;
+
+  readonly leadSearchService?:
+    LeadSearchService;
+
   readonly founderAuthService?:
     FounderAuthService;
 }
@@ -176,7 +199,7 @@ function requiredEnvironmentValue(
     value.length === 0
   ) {
     throw new Error(
-      `${name} is required when notifications are enabled.`,
+      `${name} is required for the enabled feature.`,
     );
   }
 
@@ -226,6 +249,10 @@ export async function buildApp(
   const leadEngineUiEnabled =
     options.leadEngineUiEnabled ??
     env.LEAD_ENGINE_UI_V1;
+
+  const leadSearchEnabled =
+    options.leadSearchEnabled ??
+    env.LEAD_SEARCH_GOOGLE_V1;
 
   const app = Fastify({
     bodyLimit: 1_048_576,
@@ -288,6 +315,48 @@ export async function buildApp(
   );
 
   if (leadEngineUiEnabled) {
+    const leadSearchService =
+      leadSearchEnabled
+        ? options.leadSearchService ??
+          createLeadSearchService({
+              enabled: true,
+              postcodeLocator:
+                new PostcodesIoLocator({
+                  apiBaseUrl:
+                    env.POSTCODES_IO_API_BASE_URL,
+                  timeoutMs:
+                    env.POSTCODES_IO_TIMEOUT_MS,
+                }),
+              searchProvider:
+                new GooglePlacesLeadSearchProvider({
+                  apiKey:
+                    requiredEnvironmentValue(
+                      env.GOOGLE_PLACES_API_KEY,
+                      "GOOGLE_PLACES_API_KEY",
+                    ),
+                  apiBaseUrl:
+                    env.GOOGLE_PLACES_API_BASE_URL,
+                  timeoutMs:
+                    env.GOOGLE_PLACES_TIMEOUT_MS,
+                }),
+              repository:
+                new SupabaseLeadSearchRepository({
+                  supabaseUrl:
+                    requiredEnvironmentValue(
+                      env.SUPABASE_URL,
+                      "SUPABASE_URL",
+                    ),
+                  secretKey:
+                    requiredEnvironmentValue(
+                      env.SUPABASE_SECRET_KEY,
+                      "SUPABASE_SECRET_KEY",
+                    ),
+                  timeoutMs:
+                    env.SUPABASE_DATA_TIMEOUT_MS,
+                }),
+          })
+        : null;
+
     registerLeadEngineRoutes(app, {
       founderAuthService:
         options.founderAuthService ??
@@ -305,6 +374,8 @@ export async function buildApp(
           timeoutMs:
             env.SUPABASE_AUTH_TIMEOUT_MS,
         }),
+      leadSearchEnabled,
+      leadSearchService,
     });
   }
 

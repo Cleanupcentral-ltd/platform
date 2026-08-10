@@ -173,6 +173,12 @@ const environmentSchema = z
         .min(1_000)
         .max(15_000)
         .default(5_000),
+
+    LEAD_ENGINE_CONSOLE_ORIGIN:
+      z.string()
+        .trim()
+        .url()
+        .optional(),
   })
   .superRefine(
     (value, context) => {
@@ -226,6 +232,10 @@ const environmentSchema = z
           [
             "SUPABASE_PUBLISHABLE_KEY",
             value.SUPABASE_PUBLISHABLE_KEY,
+          ],
+          [
+            "LEAD_ENGINE_CONSOLE_ORIGIN",
+            value.LEAD_ENGINE_CONSOLE_ORIGIN,
           ],
         ] as const;
 

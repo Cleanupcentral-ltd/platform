@@ -1,6 +1,8 @@
 const QUOTE_API_PATH = "/api/quotes";
 const TRAVEL_API_PATH =
   "/api/travel/estimate";
+const PRODUCTION_API_BASE_URL =
+  "https://cuc-backend-2xcc.onrender.com";
 
 function clean(value) {
   return typeof value === "string" ? value.trim() : "";
@@ -22,7 +24,7 @@ export function resolveQuoteApiBaseUrl(
     return "http://127.0.0.1:3001";
   }
 
-  return "";
+  return PRODUCTION_API_BASE_URL;
 }
 
 export function createQuoteSubmissionId(

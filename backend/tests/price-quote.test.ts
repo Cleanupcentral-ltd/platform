@@ -274,6 +274,96 @@ test(
 );
 
 test(
+  "adds automatic travel and retains its source evidence in the pricing snapshot",
+  async () => {
+    const service =
+      createQuotePricingService({
+        async resolveTravel() {
+          return {
+            status: "calculated",
+            fee: 10,
+            distanceMiles: 12,
+            originPostcode:
+              "BR1 5HP",
+            pendingReview: false,
+            manualReviewReason:
+              null,
+            evidence: {
+              provider:
+                "google-routes",
+              destinationPostcode:
+                "SE12AA",
+              calculatedAt:
+                "2026-08-10T09:59:00.000Z",
+              routes: [
+                {
+                  originPostcode:
+                    "BR1 5HP",
+                  condition:
+                    "ROUTE_EXISTS",
+                  providerStatusCode:
+                    null,
+                  distanceMeters:
+                    19_312,
+                  durationSeconds:
+                    1_200,
+                },
+              ],
+            },
+          };
+        },
+
+        now: () =>
+          new Date(
+            "2026-08-10T10:00:00Z",
+          ),
+      });
+
+    const result =
+      await service.price(
+        context(),
+      );
+
+    assert.equal(
+      result.travelFee,
+      10,
+    );
+
+    assert.equal(
+      result.travelPending,
+      false,
+    );
+
+    assert.equal(
+      result.estimatedTotal,
+      103.5,
+    );
+
+    assert.equal(
+      result.pricingSnapshot[
+        "distanceOriginUsed"
+      ],
+      "BR1 5HP",
+    );
+
+    const travel =
+      result.pricingSnapshot[
+        "travelCalculation"
+      ] as {
+        readonly evidence?: {
+          readonly provider?:
+            string;
+        };
+      };
+
+    assert.equal(
+      travel.evidence?.provider,
+      "google-routes",
+    );
+  },
+);
+
+test(
   "does not instant-price End of Tenancy",
   async () => {
     const request =

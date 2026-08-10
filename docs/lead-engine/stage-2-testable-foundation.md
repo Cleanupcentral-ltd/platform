@@ -10,6 +10,9 @@ Status: **implemented; founder MFA enrolment and live-session verification remai
 - A defence-in-depth founder policy requires both `app_metadata.role = founder` and Auth Assurance Level 2.
 - Protected `GET /api/ops/leads/health` endpoint validates the Supabase session through `/auth/v1/user`, then verifies issuer, audience, expiry, subject, founder role, non-anonymous status, and MFA (`aal2`).
 - Approved Lead Engine feature flags exist and default to `false`.
+- The founder-console origin is additive and feature-gated, so enabling the
+  temporary console does not replace the public website's existing CORS
+  allow-list.
 - A separate founder operations console is implemented for
   `app.cleanupcentral.com/ops/leads`; it does not alter the public Wix site.
 - The console supports password sign-in, password recovery returning to the
@@ -23,7 +26,7 @@ Status: **implemented; founder MFA enrolment and live-session verification remai
 |---|---|
 | Backend type-check | Passed |
 | Backend build | Passed |
-| Backend test suite | 206 passed; 0 failed |
+| Backend test suite | 208 passed; 0 failed |
 | Feature flag off | Protected route returns 404 |
 | Missing/invalid session | 401 |
 | Founder without MFA | 403 `MFA_REQUIRED` |

@@ -1,6 +1,6 @@
 # Lead Engine Lite — Stage 2 Testable Foundation
 
-Status: **implemented; founder MFA enrolment and live-session verification remain open**
+Status: **complete and verified**
 
 ## Scope delivered
 
@@ -44,19 +44,25 @@ Status: **implemented; founder MFA enrolment and live-session verification remai
 | Operations console production build | Passed |
 | Operations console production dependency audit | 0 vulnerabilities |
 | Temporary founder console deployment | Render commit `29aa064e`; live |
+| Founder password recovery and sign-in | Passed using the Clean Up Central Outlook founder account |
+| Verified founder TOTP factor | Exactly 1 verified TOTP factor |
+| Real founder MFA session | Supabase TOTP challenge and verification returned 200 at 22:39 BST |
+| Production protected readiness check | `GET /api/ops/leads/health` returned 200 for the real founder `aal2` session |
+| Founder console confirmation | Displayed “Founder access and MFA are verified.” |
 
 The performance advisor reported only expected informational `unused_index` notices because the new tables contain no production data.
 
-## Open acceptance item
+## Stage closure
 
-The Supabase project currently has two confirmed password users and exactly one
-user with `app_metadata.role = founder`. The founder role is assigned to the
-Clean Up Central Outlook account; the earlier Gmail account no longer has it.
-No verified MFA factor exists. Password recovery is deployed, but the current
-Supabase built-in email rate limit must clear before the founder can set the new
-password. Stage 2 cannot be closed until the Clean Up Central founder account
-resets the password, enrols MFA and the protected endpoint is verified with the
-resulting real `aal2` session.
+Stage 2 was closed on 10 August 2026 after the Clean Up Central Outlook founder
+account completed password recovery, password sign-in and TOTP enrolment. The
+database contains exactly one verified TOTP factor for the founder account.
+Supabase Auth recorded successful TOTP challenge and verification, and Render
+recorded the resulting authenticated
+`GET /api/ops/leads/health` request returning 200.
+
+Search, Companies House, Outlook drafting and export remain disabled. Stage 3
+may begin without reopening the completed Stage 2 foundation.
 
 ## Safe rollback
 

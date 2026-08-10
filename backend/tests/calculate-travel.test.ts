@@ -32,7 +32,7 @@ test(
               distanceMeters:
                 10_000,
               durationSeconds:
-                600,
+                900,
             },
             {
               originPostcode:
@@ -44,7 +44,7 @@ test(
               distanceMeters:
                 20_000,
               durationSeconds:
-                900,
+                600,
             },
           ];
         },
@@ -81,7 +81,12 @@ test(
 
     assert.equal(
       result.originPostcode,
-      "BR1 5HP",
+      "RM10 8BE",
+    );
+
+    assert.equal(
+      result.distanceMiles,
+      20_000 / 1_609.344,
     );
 
     assert.equal(

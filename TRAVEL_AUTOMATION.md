@@ -4,14 +4,16 @@ Maintenance ID: `CUC-B1-MAINT-001`
 
 ## Current state
 
-The implementation is ready for review behind `TRAVEL_AUTO_ENABLED=false`. The existing manual-review behaviour remains active while the flag is off, when Google Routes is not configured, when the provider fails, when no route exists, or when the shorter route is above 30 miles.
+The implementation is ready for review behind `TRAVEL_AUTO_ENABLED=false`. The existing manual-review behaviour remains active while the flag is off, when Google Routes is not configured, when the provider fails, when no valid timed route exists, or when the selected fastest route is above 30 miles.
 
 Production activation is not complete until the live-provider and rollout evidence below has been verified.
 
 ## Approved rule
 
 - Calculate one-way driving distance from `BR1 5HP` and `RM10 8BE`.
-- Select the shorter valid route.
+- Select the valid route with the shortest journey duration.
+- If durations are equal, select the route with the shorter driving distance, then use approved origin order as the final deterministic tie-break.
+- Apply the travel fee to the driving distance of the selected fastest route.
 - Use the provider distance without rounding to choose the band:
   - 0–10 miles inclusive: £0
   - above 10–20 miles inclusive: £10
@@ -26,7 +28,7 @@ The pricing authority remains `specifications/CUC_Phase_0_Rules_and_Database_Blu
 - `GoogleRoutesMatrixProvider` is the only Google-specific component.
 - The adapter calls Routes API `computeRouteMatrix` once with two origins, one destination, `DRIVE`, and `TRAFFIC_UNAWARE`.
 - The field mask is limited to `originIndex,destinationIndex,status,condition,distanceMeters,duration`.
-- Domain code selects the valid route and applies the existing Phase 0 travel bands.
+- Domain code selects the fastest valid route by duration and applies the existing Phase 0 travel bands to that route's distance.
 - `POST /api/travel/estimate` returns only the public fee decision. It does not return the selected operating origin, provider evidence, or API key.
 - Quote submission independently recalculates travel server-side when the flag is enabled. It does not trust the browser calculation.
 - Selected origin, unrounded miles, timestamp, route elements and provider name are retained in the existing quote pricing snapshot. No unverified Wix collection field was added.

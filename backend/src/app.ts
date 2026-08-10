@@ -15,6 +15,10 @@ import {
 } from "./adapters/google/google-routes-matrix.js";
 
 import {
+  SupabaseFounderAuthService,
+} from "./adapters/supabase/supabase-founder-auth.js";
+
+import {
   createWixContactEnquiryRepository,
 } from "./adapters/wix/create-wix-contact-enquiry-repository.js";
 
@@ -85,6 +89,10 @@ import {
 } from "./http/routes/health.js";
 
 import {
+  registerLeadEngineRoutes,
+} from "./http/routes/lead-engine.js";
+
+import {
   registerQuoteAttachmentContentParsers,
   registerQuoteAttachmentRoutes,
 } from "./http/routes/quote-attachments.js";
@@ -100,6 +108,10 @@ import {
 import type {
   NotificationRecipient,
 } from "./ports/notifications.js";
+
+import type {
+  FounderAuthService,
+} from "./ports/founder-auth.js";
 
 import type {
   QuoteRepositories,
@@ -126,6 +138,12 @@ export interface BuildAppOptions {
 
   readonly travelCalculationService?:
     TravelCalculationService;
+
+  readonly leadEngineUiEnabled?:
+    boolean;
+
+  readonly founderAuthService?:
+    FounderAuthService;
 }
 
 function getAllowedOrigins(): string[] {
@@ -135,7 +153,7 @@ function getAllowedOrigins(): string[] {
     .filter(Boolean);
 }
 
-function requiredNotificationValue(
+function requiredEnvironmentValue(
   value: string | undefined,
   name: string,
 ): string {
@@ -226,6 +244,7 @@ export async function buildApp(
     ],
 
     allowedHeaders: [
+      "Authorization",
       "Content-Type",
       "X-Submission-Id",
       "X-File-Name",
@@ -245,6 +264,31 @@ export async function buildApp(
   await app.register(
     healthRoutes,
   );
+
+  const leadEngineUiEnabled =
+    options.leadEngineUiEnabled ??
+    env.LEAD_ENGINE_UI_V1;
+
+  if (leadEngineUiEnabled) {
+    registerLeadEngineRoutes(app, {
+      founderAuthService:
+        options.founderAuthService ??
+        new SupabaseFounderAuthService({
+          supabaseUrl:
+            requiredEnvironmentValue(
+              env.SUPABASE_URL,
+              "SUPABASE_URL",
+            ),
+          publishableKey:
+            requiredEnvironmentValue(
+              env.SUPABASE_PUBLISHABLE_KEY,
+              "SUPABASE_PUBLISHABLE_KEY",
+            ),
+          timeoutMs:
+            env.SUPABASE_AUTH_TIMEOUT_MS,
+        }),
+    });
+  }
 
   const travelCalculationService =
     options
@@ -297,7 +341,7 @@ export async function buildApp(
 
               customerReplyTo: {
                 email:
-                  requiredNotificationValue(
+                  requiredEnvironmentValue(
                     env.CUSTOMER_REPLY_TO_EMAIL,
                     "CUSTOMER_REPLY_TO_EMAIL",
                   ),
@@ -313,7 +357,7 @@ export async function buildApp(
             delivery:
               new ResendNotificationDelivery({
                 apiKey:
-                  requiredNotificationValue(
+                  requiredEnvironmentValue(
                     env.RESEND_API_KEY,
                     "RESEND_API_KEY",
                   ),
@@ -323,7 +367,7 @@ export async function buildApp(
 
                 from: {
                   email:
-                    requiredNotificationValue(
+                    requiredEnvironmentValue(
                       env.NOTIFICATION_FROM_EMAIL,
                       "NOTIFICATION_FROM_EMAIL",
                     ),

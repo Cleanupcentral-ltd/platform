@@ -41,6 +41,8 @@ export const SECTOR_SEARCH_TERMS:
       "community halls and event venues",
     estate_letting_agents:
       "estate agents and letting agents",
+    university_accommodation:
+      "university accommodation and halls of residence",
     other_commercial_spaces:
       "commercial spaces",
   };

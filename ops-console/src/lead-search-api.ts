@@ -23,6 +23,12 @@ export const LEAD_SECTOR_OPTIONS = [
   },
   {
     value:
+      "university_accommodation",
+    label:
+      "University accommodation",
+  },
+  {
+    value:
       "other_commercial_spaces",
     label:
       "Other commercial spaces",
@@ -31,6 +37,20 @@ export const LEAD_SECTOR_OPTIONS = [
 
 export type LeadSector =
   (typeof LEAD_SECTOR_OPTIONS)[number]["value"];
+
+export const ALL_LEAD_SECTORS =
+  "all_approved_sectors" as const;
+
+export const LEAD_SEARCH_SECTOR_OPTIONS = [
+  {
+    value: ALL_LEAD_SECTORS,
+    label: "All approved sectors",
+  },
+  ...LEAD_SECTOR_OPTIONS,
+] as const;
+
+export type LeadSearchSector =
+  (typeof LEAD_SEARCH_SECTOR_OPTIONS)[number]["value"];
 
 export interface LeadSearchResult {
   readonly businessName: string;
@@ -59,6 +79,19 @@ export interface LeadSearchInput {
   readonly postcode: string;
   readonly radiusMiles: number;
   readonly sector: LeadSector;
+}
+
+export interface LeadSearchSelectionInput {
+  readonly postcode: string;
+  readonly radiusMiles: number;
+  readonly sector: LeadSearchSector;
+}
+
+export interface LeadSearchViewOutcome {
+  readonly resultCount: number;
+  readonly createdCount: number;
+  readonly results:
+    readonly LeadSearchResult[];
 }
 
 export interface ManualLeadInput {
@@ -138,6 +171,67 @@ export async function searchLeads(
       fetchFunction,
     );
   return response.search;
+}
+
+export async function searchLeadSelection(
+  backendUrl: string,
+  accessToken: string,
+  input: LeadSearchSelectionInput,
+  fetchFunction: typeof fetch = fetch,
+): Promise<LeadSearchViewOutcome> {
+  if (input.sector !== ALL_LEAD_SECTORS) {
+    return searchLeads(
+      backendUrl,
+      accessToken,
+      {
+        ...input,
+        sector: input.sector,
+      },
+      fetchFunction,
+    );
+  }
+
+  const outcomes = await Promise.all(
+    LEAD_SECTOR_OPTIONS.map(
+      ({ value }) =>
+        searchLeads(
+          backendUrl,
+          accessToken,
+          {
+            postcode: input.postcode,
+            radiusMiles:
+              input.radiusMiles,
+            sector: value,
+          },
+          fetchFunction,
+        ),
+    ),
+  );
+  const uniqueResults =
+    new Map<string, LeadSearchResult>();
+
+  for (const outcome of outcomes) {
+    for (const result of outcome.results) {
+      if (!uniqueResults.has(
+        result.sourceUrl,
+      )) {
+        uniqueResults.set(
+          result.sourceUrl,
+          result,
+        );
+      }
+    }
+  }
+
+  return {
+    resultCount: uniqueResults.size,
+    createdCount: outcomes.reduce(
+      (total, outcome) =>
+        total + outcome.createdCount,
+      0,
+    ),
+    results: [...uniqueResults.values()],
+  };
 }
 
 export async function captureManualLead(

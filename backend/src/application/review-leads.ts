@@ -79,6 +79,7 @@ const CONTROLLED_FACT_VALUES:
       "offices_coworking",
       "community_halls_event_venues",
       "estate_letting_agents",
+      "university_accommodation",
       "other_commercial_spaces",
     ],
     business_status: [

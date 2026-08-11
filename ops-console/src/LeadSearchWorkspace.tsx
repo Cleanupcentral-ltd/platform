@@ -5,9 +5,11 @@ import {
 
 import {
   captureManualLead,
+  LEAD_SEARCH_SECTOR_OPTIONS,
   LEAD_SECTOR_OPTIONS,
-  searchLeads,
-  type LeadSearchOutcome,
+  searchLeadSelection,
+  type LeadSearchSector,
+  type LeadSearchViewOutcome,
   type LeadSector,
 } from "./lead-search-api";
 
@@ -50,11 +52,11 @@ export function LeadSearchWorkspace({
   const [radiusMiles, setRadiusMiles] =
     useState("5");
   const [sector, setSector] =
-    useState<LeadSector>(
+    useState<LeadSearchSector>(
       "short_let_serviced_accommodation",
     );
   const [outcome, setOutcome] =
-    useState<LeadSearchOutcome | null>(
+    useState<LeadSearchViewOutcome | null>(
       null,
     );
   const [searching, setSearching] =
@@ -75,7 +77,7 @@ export function LeadSearchWorkspace({
     setOutcome(null);
     try {
       setOutcome(
-        await searchLeads(
+        await searchLeadSelection(
           backendUrl,
           accessToken,
           {
@@ -223,11 +225,11 @@ export function LeadSearchWorkspace({
             onChange={(event) =>
               setSector(
                 event.target.value as
-                  LeadSector,
+                  LeadSearchSector,
               )
             }
           >
-            {LEAD_SECTOR_OPTIONS.map(
+            {LEAD_SEARCH_SECTOR_OPTIONS.map(
               (option) => (
                 <option
                   key={option.value}

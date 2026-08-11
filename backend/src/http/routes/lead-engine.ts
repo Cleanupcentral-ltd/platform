@@ -166,7 +166,7 @@ const assessmentRequestSchema =
   z.strictObject({});
 
 const SEARCH_RATE_LIMIT = {
-  max: 5,
+  max: 7,
   timeWindow: "1 minute",
   groupId: "lead-search",
 } as const;

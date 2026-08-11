@@ -12,6 +12,11 @@ import {
 } from "../../application/search-leads.js";
 
 import {
+  LeadReviewError,
+  type LeadReviewService,
+} from "../../application/review-leads.js";
+
+import {
   FounderAuthError,
   type FounderAuthService,
 } from "../../ports/founder-auth.js";
@@ -19,6 +24,11 @@ import {
 import {
   LEAD_SECTORS,
 } from "../../ports/lead-search.js";
+
+import {
+  LEAD_EVIDENCE_SOURCE_TYPES,
+  LEAD_VERIFICATION_FACTS,
+} from "../../ports/lead-review.js";
 
 import {
   HttpError,
@@ -33,6 +43,9 @@ export interface LeadEngineRouteDependencies {
 
   readonly leadSearchService:
     LeadSearchService | null;
+
+  readonly leadReviewService?:
+    LeadReviewService | null;
 }
 
 const UK_POSTCODE =
@@ -108,6 +121,50 @@ const manualRequestSchema =
     contactFormUrl: nullableUrl,
   });
 
+const prospectParamsSchema =
+  z.object({
+    prospectId: z.string().uuid(),
+  });
+
+const evidenceParamsSchema =
+  z.object({
+    prospectId: z.string().uuid(),
+    evidenceId: z.string().uuid(),
+  });
+
+const addEvidenceRequestSchema =
+  z.strictObject({
+    sourceType: z.enum(
+      LEAD_EVIDENCE_SOURCE_TYPES,
+    ),
+    sourceUrl: z.string()
+      .trim()
+      .url()
+      .max(2_000),
+    factName: z.enum(
+      LEAD_VERIFICATION_FACTS,
+    ),
+    factValue: z.string()
+      .trim()
+      .min(1)
+      .max(500),
+    sourceExcerpt:
+      nullableText(500),
+  });
+
+const evidenceDecisionRequestSchema =
+  z.strictObject({
+    decision: z.enum([
+      "verified",
+      "rejected",
+    ]),
+    reviewNote:
+      nullableText(500),
+  });
+
+const assessmentRequestSchema =
+  z.strictObject({});
+
 const SEARCH_RATE_LIMIT = {
   max: 5,
   timeWindow: "1 minute",
@@ -118,6 +175,12 @@ const MANUAL_RATE_LIMIT = {
   max: 20,
   timeWindow: "1 minute",
   groupId: "manual-lead-capture",
+} as const;
+
+const REVIEW_RATE_LIMIT = {
+  max: 30,
+  timeWindow: "1 minute",
+  groupId: "lead-review",
 } as const;
 
 function readBearerToken(
@@ -284,6 +347,66 @@ async function runSearchOperation<T>(
   }
 }
 
+function mapLeadReviewError(
+  error: LeadReviewError,
+): HttpError {
+  switch (error.failure) {
+    case "not_found":
+      return new HttpError({
+        code: "LEAD_NOT_FOUND",
+        message:
+          "The requested prospect or evidence record was not found.",
+        statusCode: 404,
+      });
+    case "invalid_evidence":
+      return new HttpError({
+        code: "INVALID_LEAD_EVIDENCE",
+        message:
+          "Enter a supported fact from an HTTPS first-party or Companies House source.",
+        statusCode: 400,
+      });
+    case "repository_unavailable":
+      return new HttpError({
+        code:
+          "LEAD_REVIEW_STORE_UNAVAILABLE",
+        message:
+          "Prospect review is temporarily unavailable. No review change has been accepted.",
+        statusCode: 503,
+      });
+  }
+}
+
+async function runReviewOperation<T>(
+  operation: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (
+      error instanceof LeadReviewError
+    ) {
+      throw mapLeadReviewError(error);
+    }
+    throw error;
+  }
+}
+
+function requireJson(
+  request: FastifyRequest,
+  message: string,
+): void {
+  if (
+    readMediaType(request) !==
+    "application/json"
+  ) {
+    throw new HttpError({
+      code: "UNSUPPORTED_MEDIA_TYPE",
+      message,
+      statusCode: 415,
+    });
+  }
+}
+
 export function registerLeadEngineRoutes(
   app: FastifyInstance,
   dependencies:
@@ -325,11 +448,309 @@ export function registerLeadEngineRoutes(
             manualCapture:
               dependencies
                 .leadSearchEnabled,
+            reviewAndScoring:
+              dependencies
+                .leadReviewService !==
+                null &&
+              dependencies
+                .leadReviewService !==
+                undefined,
+            outlookDrafts: false,
           },
           requestId: request.id,
         });
     },
   );
+
+  if (
+    dependencies.leadReviewService !==
+      null &&
+    dependencies.leadReviewService !==
+      undefined
+  ) {
+    const reviewService =
+      dependencies.leadReviewService;
+
+    app.get(
+      "/api/ops/leads/prospects",
+      {
+        config: {
+          rateLimit:
+            REVIEW_RATE_LIMIT,
+        },
+      },
+      async (
+        request,
+        reply,
+      ): Promise<FastifyReply> => {
+        await authenticateFounder(
+          request,
+          dependencies
+            .founderAuthService,
+        );
+        const prospects =
+          await runReviewOperation(
+            () => reviewService
+              .listProspects(),
+          );
+        return reply
+          .header(
+            "Cache-Control",
+            "no-store",
+          )
+          .status(200)
+          .type("application/json")
+          .send({
+            success: true,
+            prospects,
+            requestId: request.id,
+          });
+      },
+    );
+
+    app.get(
+      "/api/ops/leads/prospects/:prospectId",
+      {
+        config: {
+          rateLimit:
+            REVIEW_RATE_LIMIT,
+        },
+      },
+      async (
+        request,
+        reply,
+      ): Promise<FastifyReply> => {
+        await authenticateFounder(
+          request,
+          dependencies
+            .founderAuthService,
+        );
+        const params =
+          prospectParamsSchema
+            .safeParse(request.params);
+        if (!params.success) {
+          throw new HttpError({
+            code: "VALIDATION_ERROR",
+            message:
+              "Enter a valid prospect reference.",
+            statusCode: 400,
+          });
+        }
+        const prospect =
+          await runReviewOperation(
+            () => reviewService
+              .getProspect(
+                params.data
+                  .prospectId,
+              ),
+          );
+        return reply
+          .header(
+            "Cache-Control",
+            "no-store",
+          )
+          .status(200)
+          .type("application/json")
+          .send({
+            success: true,
+            prospect,
+            requestId: request.id,
+          });
+      },
+    );
+
+    app.post(
+      "/api/ops/leads/prospects/:prospectId/evidence",
+      {
+        bodyLimit: 16 * 1024,
+        config: {
+          rateLimit:
+            REVIEW_RATE_LIMIT,
+        },
+      },
+      async (
+        request,
+        reply,
+      ): Promise<FastifyReply> => {
+        const founder =
+          await authenticateFounder(
+            request,
+            dependencies
+              .founderAuthService,
+          );
+        requireJson(
+          request,
+          "Verification evidence must use application/json.",
+        );
+        const params =
+          prospectParamsSchema
+            .safeParse(request.params);
+        const body =
+          addEvidenceRequestSchema
+            .safeParse(request.body);
+        if (
+          !params.success ||
+          !body.success
+        ) {
+          throw new HttpError({
+            code: "VALIDATION_ERROR",
+            message:
+              "Enter a supported fact from a first-party or Companies House source.",
+            statusCode: 400,
+          });
+        }
+        const result =
+          await runReviewOperation(
+            () => reviewService
+              .addEvidence(
+                founder.userId,
+                params.data
+                  .prospectId,
+                body.data,
+              ),
+          );
+        return reply
+          .header(
+            "Cache-Control",
+            "no-store",
+          )
+          .status(201)
+          .type("application/json")
+          .send({
+            success: true,
+            verification: result,
+            requestId: request.id,
+          });
+      },
+    );
+
+    app.post(
+      "/api/ops/leads/prospects/:prospectId/evidence/:evidenceId/decision",
+      {
+        bodyLimit: 8 * 1024,
+        config: {
+          rateLimit:
+            REVIEW_RATE_LIMIT,
+        },
+      },
+      async (
+        request,
+        reply,
+      ): Promise<FastifyReply> => {
+        const founder =
+          await authenticateFounder(
+            request,
+            dependencies
+              .founderAuthService,
+          );
+        requireJson(
+          request,
+          "Evidence decisions must use application/json.",
+        );
+        const params =
+          evidenceParamsSchema
+            .safeParse(request.params);
+        const body =
+          evidenceDecisionRequestSchema
+            .safeParse(request.body);
+        if (
+          !params.success ||
+          !body.success
+        ) {
+          throw new HttpError({
+            code: "VALIDATION_ERROR",
+            message:
+              "Choose verified or rejected for a valid evidence record.",
+            statusCode: 400,
+          });
+        }
+        await runReviewOperation(
+          () => reviewService
+            .decideEvidence(
+              founder.userId,
+              params.data.prospectId,
+              params.data.evidenceId,
+              body.data,
+            ),
+        );
+        return reply
+          .header(
+            "Cache-Control",
+            "no-store",
+          )
+          .status(200)
+          .type("application/json")
+          .send({
+            success: true,
+            decision:
+              body.data.decision,
+            requestId: request.id,
+          });
+      },
+    );
+
+    app.post(
+      "/api/ops/leads/prospects/:prospectId/assessments",
+      {
+        bodyLimit: 1 * 1024,
+        config: {
+          rateLimit:
+            REVIEW_RATE_LIMIT,
+        },
+      },
+      async (
+        request,
+        reply,
+      ): Promise<FastifyReply> => {
+        const founder =
+          await authenticateFounder(
+            request,
+            dependencies
+              .founderAuthService,
+          );
+        requireJson(
+          request,
+          "Assessments must use application/json.",
+        );
+        const params =
+          prospectParamsSchema
+            .safeParse(request.params);
+        const body =
+          assessmentRequestSchema
+            .safeParse(request.body);
+        if (
+          !params.success ||
+          !body.success
+        ) {
+          throw new HttpError({
+            code: "VALIDATION_ERROR",
+            message:
+              "Enter a valid prospect reference without client-supplied scoring data.",
+            statusCode: 400,
+          });
+        }
+        const assessment =
+          await runReviewOperation(
+            () => reviewService.assess(
+              founder.userId,
+              params.data.prospectId,
+            ),
+          );
+        return reply
+          .header(
+            "Cache-Control",
+            "no-store",
+          )
+          .status(201)
+          .type("application/json")
+          .send({
+            success: true,
+            assessment,
+            requestId: request.id,
+          });
+      },
+    );
+  }
 
   if (
     dependencies.leadSearchService ===

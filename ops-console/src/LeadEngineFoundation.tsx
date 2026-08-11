@@ -45,12 +45,15 @@ interface FoundationResponse {
   readonly capabilities?: {
     readonly search?: unknown;
     readonly manualCapture?: unknown;
+    readonly reviewAndScoring?: unknown;
+    readonly outlookDrafts?: unknown;
   };
 }
 
 interface Capabilities {
   readonly search: boolean;
   readonly manualCapture: boolean;
+  readonly reviewAndScoring: boolean;
 }
 
 function messageFrom(error: unknown): string {
@@ -78,6 +81,7 @@ export function LeadEngineFoundation() {
     useState<Capabilities>({
       search: false,
       manualCapture: false,
+      reviewAndScoring: false,
     });
 
   const client = useMemo<SupabaseClient | null>(() => {
@@ -144,6 +148,9 @@ export function LeadEngineFoundation() {
       manualCapture:
         body.capabilities
           ?.manualCapture === true,
+      reviewAndScoring:
+        body.capabilities
+          ?.reviewAndScoring === true,
     });
     setAccessToken(
       session.access_token,
@@ -399,6 +406,7 @@ export function LeadEngineFoundation() {
     setCapabilities({
       search: false,
       manualCapture: false,
+      reviewAndScoring: false,
     });
     setScreen("signed_out");
   }
@@ -420,7 +428,10 @@ export function LeadEngineFoundation() {
       <section
         className={
           screen === "ready" &&
-          capabilities.search
+          (
+            capabilities.search ||
+            capabilities.reviewAndScoring
+          )
             ? "card card-wide"
             : "card"
         }
@@ -615,6 +626,10 @@ export function LeadEngineFoundation() {
                     accessToken
                   }
                   onSignOut={signOut}
+                  reviewEnabled={
+                    capabilities
+                      .reviewAndScoring
+                  }
                 />
               )
             : (

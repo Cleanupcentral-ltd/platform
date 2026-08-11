@@ -27,7 +27,7 @@ test(
                 {
                   id: "inside-place",
                   displayName: {
-                    text: "Nearby Office",
+                    text: "Nearby University Hall",
                   },
                   formattedAddress:
                     "1 High Street, Bromley BR1 1AA",
@@ -51,7 +51,7 @@ test(
                 {
                   id: "outside-place",
                   displayName: {
-                    text: "Distant Office",
+                    text: "Distant University Hall",
                   },
                   location: {
                     latitude: 52,
@@ -66,7 +66,7 @@ test(
     const results =
       await provider.search({
         sector:
-          "offices_coworking",
+          "university_accommodation",
         center: {
           latitude: 51.4,
           longitude: 0,
@@ -103,7 +103,7 @@ test(
     };
     assert.equal(
       body.textQuery,
-      "offices and coworking spaces",
+      "university accommodation and halls of residence",
     );
     assert.equal(body.pageSize, 20);
     assert.ok(

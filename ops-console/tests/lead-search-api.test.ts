@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  ALL_LEAD_SECTORS,
   captureManualLead,
+  LEAD_SECTOR_OPTIONS,
+  searchLeadSelection,
   searchLeads,
 } from "../src/lead-search-api.ts";
 
@@ -60,6 +63,73 @@ test(
       false,
     );
     assert.equal(result.resultCount, 0);
+  },
+);
+
+test(
+  "all-sector search runs every approved sector and de-duplicates the combined view",
+  async () => {
+    const requestedSectors: string[] = [];
+    const result =
+      await searchLeadSelection(
+        "https://backend.example",
+        "founder-aal2-token",
+        {
+          postcode: "BR1 5HP",
+          radiusMiles: 5,
+          sector: ALL_LEAD_SECTORS,
+        },
+        (async (_input, init) => {
+          const body = JSON.parse(
+            String(init?.body),
+          ) as {
+            readonly sector: string;
+          };
+          requestedSectors.push(
+            body.sector,
+          );
+          return Response.json({
+            success: true,
+            search: {
+              searchRunId:
+                `${body.sector}-run`,
+              postcode: "BR1 5HP",
+              sector: body.sector,
+              radiusMiles: 5,
+              resultCount: 1,
+              createdCount:
+                requestedSectors.length === 1
+                  ? 1
+                  : 0,
+              results: [{
+                businessName:
+                  "Shared Prospect",
+                formattedAddress:
+                  "1 High Street",
+                primaryPostcode:
+                  "BR1 1AA",
+                websiteUrl: null,
+                phone: null,
+                sourceUrl:
+                  "https://maps.google.com/?cid=shared",
+                distanceMiles: 1,
+                evidenceStatus:
+                  "unverified",
+              }],
+            },
+          });
+        }) as typeof fetch,
+      );
+
+    assert.deepEqual(
+      requestedSectors,
+      LEAD_SECTOR_OPTIONS.map(
+        ({ value }) => value,
+      ),
+    );
+    assert.equal(result.resultCount, 1);
+    assert.equal(result.createdCount, 1);
+    assert.equal(result.results.length, 1);
   },
 );
 

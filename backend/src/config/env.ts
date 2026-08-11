@@ -342,6 +342,36 @@ const environmentSchema = z
           }
         }
       }
+
+      if (value.LEAD_COMPANIES_HOUSE_V1) {
+        const leadReviewRequired = [
+          [
+            "SUPABASE_URL",
+            value.SUPABASE_URL,
+          ],
+          [
+            "SUPABASE_SECRET_KEY",
+            value.SUPABASE_SECRET_KEY,
+          ],
+        ] as const;
+
+        for (
+          const [field, fieldValue] of
+            leadReviewRequired
+        ) {
+          if (
+            fieldValue === undefined ||
+            fieldValue.length === 0
+          ) {
+            context.addIssue({
+              code: "custom",
+              path: [field],
+              message:
+                `${field} is required when lead review and scoring are enabled.`,
+            });
+          }
+        }
+      }
     },
   );
 

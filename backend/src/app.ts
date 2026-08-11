@@ -31,6 +31,10 @@ import {
 } from "./adapters/supabase/supabase-lead-search-repository.js";
 
 import {
+  SupabaseLeadReviewRepository,
+} from "./adapters/supabase/supabase-lead-review-repository.js";
+
+import {
   createWixContactEnquiryRepository,
 } from "./adapters/wix/create-wix-contact-enquiry-repository.js";
 
@@ -66,6 +70,11 @@ import {
   createLeadSearchService,
   type LeadSearchService,
 } from "./application/search-leads.js";
+
+import {
+  createLeadReviewService,
+  type LeadReviewService,
+} from "./application/review-leads.js";
 
 import {
   createContactEnquiryPersistenceService,
@@ -162,8 +171,14 @@ export interface BuildAppOptions {
   readonly leadSearchEnabled?:
     boolean;
 
+  readonly leadReviewEnabled?:
+    boolean;
+
   readonly leadSearchService?:
     LeadSearchService;
+
+  readonly leadReviewService?:
+    LeadReviewService;
 
   readonly founderAuthService?:
     FounderAuthService;
@@ -253,6 +268,14 @@ export async function buildApp(
   const leadSearchEnabled =
     options.leadSearchEnabled ??
     env.LEAD_SEARCH_GOOGLE_V1;
+
+  const leadReviewEnabled =
+    options.leadReviewEnabled ??
+    (
+      options.leadReviewService !==
+        undefined ||
+      env.LEAD_COMPANIES_HOUSE_V1
+    );
 
   const app = Fastify({
     bodyLimit: 1_048_576,
@@ -357,6 +380,27 @@ export async function buildApp(
           })
         : null;
 
+    const leadReviewService =
+      leadReviewEnabled
+        ? options.leadReviewService ??
+          createLeadReviewService(
+            new SupabaseLeadReviewRepository({
+              supabaseUrl:
+                requiredEnvironmentValue(
+                  env.SUPABASE_URL,
+                  "SUPABASE_URL",
+                ),
+              secretKey:
+                requiredEnvironmentValue(
+                  env.SUPABASE_SECRET_KEY,
+                  "SUPABASE_SECRET_KEY",
+                ),
+              timeoutMs:
+                env.SUPABASE_DATA_TIMEOUT_MS,
+            }),
+          )
+        : null;
+
     registerLeadEngineRoutes(app, {
       founderAuthService:
         options.founderAuthService ??
@@ -376,6 +420,7 @@ export async function buildApp(
         }),
       leadSearchEnabled,
       leadSearchService,
+      leadReviewService,
     });
   }
 

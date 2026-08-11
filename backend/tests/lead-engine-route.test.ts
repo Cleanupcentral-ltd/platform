@@ -12,6 +12,14 @@ import type {
   LeadSearchService,
 } from "../src/application/search-leads.js";
 
+import {
+  LeadReviewError,
+} from "../src/application/review-leads.js";
+
+import type {
+  LeadReviewService,
+} from "../src/application/review-leads.js";
+
 const USER_ID =
   "79b42d3d-78be-42fc-9d91-5d97566d2ed0";
 
@@ -82,6 +90,91 @@ const leadSearchService:
       };
     },
   };
+
+const leadReviewService:
+  LeadReviewService = {
+    async listProspects() {
+      return [{
+        id:
+          "11111111-1111-4111-8111-111111111111",
+        businessName:
+          "Example Workspace",
+        sector: "offices_coworking",
+        primaryPostcode: "BR1 1AA",
+        websiteUrl:
+          "https://example.com/",
+        createdAt:
+          "2026-08-11T10:00:00.000Z",
+        evidenceCounts: {
+          unverified: 2,
+          verified: 0,
+          rejected: 0,
+        },
+        latestAssessment: null,
+      }];
+    },
+    async getProspect(prospectId) {
+      return {
+        id: prospectId,
+        businessName:
+          "Example Workspace",
+        sector: "offices_coworking",
+        primaryPostcode: "BR1 1AA",
+        websiteUrl:
+          "https://example.com/",
+        companyNumber: null,
+        createdAt:
+          "2026-08-11T10:00:00.000Z",
+        hasSearchProvenance: true,
+        hasActiveSuppression: false,
+        evidence: [],
+        contacts: [],
+        latestAssessment: null,
+      };
+    },
+    async addEvidence() {
+      return {
+        evidenceId:
+          "33333333-3333-4333-8333-333333333333",
+      };
+    },
+    async decideEvidence() {},
+    async assess(
+      _founderId,
+      prospectId,
+    ) {
+      return {
+        id:
+          "44444444-4444-4444-8444-444444444444",
+        totalScore: 2,
+        rulesVersion:
+          "cuc-lel-0-10-v1",
+        eligibilityResult:
+          "research_required",
+        scoreBreakdown: {},
+        blockers: [
+          "missing_verified_identity",
+        ],
+        rationale:
+          "Research required.",
+        evidenceIds: [],
+        assessedAt:
+          "2026-08-11T12:00:00.000Z",
+      };
+    },
+  };
+
+function createRejectingReviewService():
+  LeadReviewService {
+  return {
+    ...leadReviewService,
+    async addEvidence() {
+      throw new LeadReviewError(
+        "invalid_evidence",
+      );
+    },
+  };
+}
 
 test(
   "Lead Engine route does not exist when its feature flag is off",
@@ -198,6 +291,197 @@ test(
         .results[0]
         .evidenceStatus,
       "unverified",
+    );
+  },
+);
+
+test(
+  "founder can list persisted prospects for Stage 4 review",
+  async (context) => {
+    const app = await buildApp({
+      leadEngineUiEnabled: true,
+      leadSearchEnabled: false,
+      founderAuthService:
+        founderService,
+      leadReviewService,
+    });
+    context.after(
+      async () => app.close(),
+    );
+
+    const response =
+      await app.inject({
+        method: "GET",
+        url:
+          "/api/ops/leads/prospects",
+        headers: {
+          authorization:
+            "Bearer test-token",
+        },
+      });
+
+    assert.equal(
+      response.statusCode,
+      200,
+    );
+    assert.equal(
+      response.json().prospects[0]
+        .businessName,
+      "Example Workspace",
+    );
+  },
+);
+
+test(
+  "Stage 4 review routes stay absent when their rollout flag is off",
+  async (context) => {
+    const app = await buildApp({
+      leadEngineUiEnabled: true,
+      leadSearchEnabled: false,
+      leadReviewEnabled: false,
+      founderAuthService:
+        founderService,
+      leadReviewService,
+    });
+    context.after(
+      async () => app.close(),
+    );
+
+    const response =
+      await app.inject({
+        method: "GET",
+        url:
+          "/api/ops/leads/prospects",
+        headers: {
+          authorization:
+            "Bearer test-token",
+        },
+      });
+
+    assert.equal(
+      response.statusCode,
+      404,
+    );
+  },
+);
+
+test(
+  "Stage 4 accepts only controlled HTTPS verification evidence",
+  async (context) => {
+    const app = await buildApp({
+      leadEngineUiEnabled: true,
+      leadSearchEnabled: false,
+      founderAuthService:
+        founderService,
+      leadReviewService:
+        createRejectingReviewService(),
+    });
+    context.after(
+      async () => app.close(),
+    );
+
+    const response =
+      await app.inject({
+        method: "POST",
+        url:
+          "/api/ops/leads/prospects/11111111-1111-4111-8111-111111111111/evidence",
+        headers: {
+          authorization:
+            "Bearer test-token",
+          "content-type":
+            "application/json",
+        },
+        payload: {
+          sourceType:
+            "first_party_website",
+          sourceUrl:
+            "http://example.com/about",
+          factName: "business_name",
+          factValue:
+            "Example Workspace",
+        },
+      });
+
+    assert.equal(
+      response.statusCode,
+      400,
+    );
+    assert.equal(
+      response.json().error.code,
+      "INVALID_LEAD_EVIDENCE",
+    );
+  },
+);
+
+test(
+  "founder can create a versioned assessment while Outlook routes stay absent",
+  async (context) => {
+    const app = await buildApp({
+      leadEngineUiEnabled: true,
+      leadSearchEnabled: false,
+      founderAuthService:
+        founderService,
+      leadReviewService,
+    });
+    context.after(
+      async () => app.close(),
+    );
+
+    const assessment =
+      await app.inject({
+        method: "POST",
+        url:
+          "/api/ops/leads/prospects/11111111-1111-4111-8111-111111111111/assessments",
+        headers: {
+          authorization:
+            "Bearer test-token",
+          "content-type":
+            "application/json",
+        },
+        payload: {},
+      });
+    assert.equal(
+      assessment.statusCode,
+      201,
+    );
+    assert.equal(
+      assessment.json().assessment
+        .rulesVersion,
+      "cuc-lel-0-10-v1",
+    );
+
+    const outlook = await app.inject({
+      method: "POST",
+      url:
+        "/api/ops/leads/prospects/11111111-1111-4111-8111-111111111111/outlook-drafts",
+      headers: {
+        authorization:
+          "Bearer test-token",
+        "content-type":
+          "application/json",
+      },
+      payload: {},
+    });
+    assert.equal(outlook.statusCode, 404);
+
+    const clientScored =
+      await app.inject({
+        method: "POST",
+        url:
+          "/api/ops/leads/prospects/11111111-1111-4111-8111-111111111111/assessments",
+        headers: {
+          authorization:
+            "Bearer test-token",
+          "content-type":
+            "application/json",
+        },
+        payload: {
+          totalScore: 10,
+        },
+      });
+    assert.equal(
+      clientScored.statusCode,
+      400,
     );
   },
 );

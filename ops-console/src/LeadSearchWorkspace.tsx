@@ -11,11 +11,16 @@ import {
   type LeadSector,
 } from "./lead-search-api";
 
+import {
+  ProspectReviewWorkspace,
+} from "./ProspectReviewWorkspace";
+
 interface LeadSearchWorkspaceProps {
   readonly backendUrl: string;
   readonly accessToken: string;
   readonly onSignOut: () =>
     Promise<void>;
+  readonly reviewEnabled?: boolean;
 }
 
 function errorMessage(
@@ -38,6 +43,7 @@ export function LeadSearchWorkspace({
   backendUrl,
   accessToken,
   onSignOut,
+  reviewEnabled = false,
 }: LeadSearchWorkspaceProps) {
   const [postcode, setPostcode] =
     useState("");
@@ -432,6 +438,13 @@ export function LeadSearchWorkspace({
           </p>
         )}
       </details>
+
+      {reviewEnabled && (
+        <ProspectReviewWorkspace
+          backendUrl={backendUrl}
+          accessToken={accessToken}
+        />
+      )}
     </div>
   );
 }

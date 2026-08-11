@@ -116,6 +116,12 @@ button.secondary {
   background: #ffffff;
 }
 
+button.danger {
+  border-color: #a43b3b;
+  color: #8a2525;
+  background: #ffffff;
+}
+
 .qr {
   width: min(100%, 280px);
   margin-inline: auto;
@@ -239,6 +245,16 @@ h3 {
   font-weight: 700;
 }
 
+.status-verified {
+  color: #184b28;
+  font-weight: 700;
+}
+
+.status-rejected {
+  color: #8a2525;
+  font-weight: 700;
+}
+
 .result-links {
   display: flex;
   gap: 14px;
@@ -273,6 +289,106 @@ h3 {
   grid-column: 1 / -1;
 }
 
+.notice {
+  margin: 0;
+  padding: 12px;
+  border-left: 4px solid #7a4b00;
+  background: #fff6df;
+}
+
+.prospect-review {
+  margin-top: 16px;
+  padding-top: 24px;
+  border-top: 1px solid #d5ded6;
+}
+
+.review-layout {
+  display: grid;
+  grid-template-columns:
+    repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.review-panel {
+  align-content: start;
+  padding: 18px;
+  border: 1px solid #d5ded6;
+  border-radius: 12px;
+  background: #f8faf8;
+}
+
+.assessment-summary {
+  padding: 14px;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.score-line {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.score-line strong {
+  font-size: 1.7rem;
+}
+
+.dimension-row {
+  display: grid;
+  grid-template-columns: 44px 1fr;
+  gap: 10px;
+  padding-top: 9px;
+  border-top: 1px solid #e2e8e3;
+}
+
+.blocker-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 14px 14px 14px 32px;
+  border-radius: 8px;
+  color: #7b1d1d;
+  background: #fdeaea;
+}
+
+.evidence-list {
+  display: grid;
+  gap: 10px;
+}
+
+.evidence-item {
+  display: flex;
+  gap: 20px;
+  align-items: start;
+  justify-content: space-between;
+  padding: 14px;
+  border: 1px solid #d5ded6;
+  border-radius: 10px;
+}
+
+.evidence-item p {
+  margin: 5px 0;
+  overflow-wrap: anywhere;
+}
+
+.evidence-item a {
+  color: #215e33;
+}
+
+.evidence-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: end;
+}
+
+.small-button {
+  min-height: 36px;
+  padding: 6px 10px;
+}
+
 @media (max-width: 760px) {
   .workspace-heading,
   .results-summary {
@@ -284,8 +400,14 @@ h3 {
   }
 
   .search-form,
-  .manual-form {
+  .manual-form,
+  .review-layout {
     grid-template-columns: 1fr;
+  }
+
+  .evidence-item,
+  .score-line {
+    display: grid;
   }
 
   .wide-field {

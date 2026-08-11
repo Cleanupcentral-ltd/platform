@@ -1,6 +1,6 @@
 # Lead Engine Lite — Stage 3 Testable Search
 
-Status: **implemented and locally verified; controlled production verification remains open**
+Status: **complete — locally verified and closed through controlled production acceptance on 2026-08-11**
 
 ## Stage objective
 
@@ -53,7 +53,7 @@ pilot.
   function. Only the backend `service_role` may execute it.
 - The Google key and Supabase secret key are backend-only. Neither is placed in
   the operations-console build.
-- `LEAD_SEARCH_GOOGLE_V1=false` remains the safe production default.
+- `LEAD_SEARCH_GOOGLE_V1=true` is enabled for founder-only controlled use. Setting it to `false` remains the immediate safe rollback.
 
 ## Acceptance evidence collected
 
@@ -73,30 +73,39 @@ pilot.
 | Duplicate provider result, evidence and contact | Passed in rollback transaction |
 | Browser function privileges | `anon=false`, `authenticated=false` |
 | Backend function privilege | `service_role=true` |
-| Test data in production | 0 search runs; 0 prospects |
+| Controlled production data | 2 completed search runs; 21 prospects; 206 evidence records; 22 contacts |
 
 Supabase security advice contains the pre-existing warning that leaked-password
 protection is disabled. The migration introduced no new database security warning.
-Performance advice contains only expected unused-index notices while the Stage 2
-tables remain empty.
+Performance advice contains only expected unused-index notices immediately after the limited controlled pilot data was created.
 
-## Open production acceptance
+## Controlled production acceptance — complete
 
-Stage 3 must not be declared complete until all of the following are evidenced:
+| Acceptance item | Verified evidence |
+| --- | --- |
+| Private schema exposure | `lead_engine` exposed to the Supabase Data API while `anon` and `authenticated` retain no schema usage |
+| Server credentials | Backend-only Supabase secret and Google Places API (New) key configured in Render |
+| Safe-disabled deployment | Merge commit `d5eb12967db4ff06bdf766ffecb65e4c862b99d2` deployed successfully before activation |
+| Controlled activation | Render deploy `dep-d9t5io2fngtc73cpnmug` became live with `LEAD_SEARCH_GOOGLE_V1=true` |
+| Founder access | Founder account and MFA verified in the deployed operations console |
+| Automated search | `BR1 1AA`, 5 miles, estate and letting agents returned 20 in-radius prospects with source links |
+| Persisted search | Search run `6c8eb4b4-8450-4e04-91e6-f7961d1505c0` completed with 20 results |
+| Evidence state | All 180 provider evidence records from the first run began as `unverified` |
+| Duplicate prevention | Repeating the same search created a second run but kept the prospect count at 20 |
+| Manual fallback | Community House Halls captured from the London Borough of Bromley public directory |
+| Manual persistence | Prospect `74508664-f11c-47cc-a923-22ce65dffa5a`, six source-linked evidence records and two contacts persisted as `unverified` |
+| Backend regression | 218/218 tests, TypeScript checks and production build passed |
+| Console regression | 11/11 tests, TypeScript checks and production build passed |
+| Provider usefulness | Founder approved the controlled Google results as commercially useful enough for the first pilot on 2026-08-11 |
 
-1. Add `lead_engine` to the Supabase Data API exposed schemas without granting
-   `anon` or `authenticated` schema access.
-2. Add the backend-only `SUPABASE_SECRET_KEY` and a Google key restricted to
-   Places API (New) to the Render backend service.
-3. Deploy the reviewed code while `LEAD_SEARCH_GOOGLE_V1=false` and verify the
-   quote, travel and Stage 2 founder flows remain healthy.
-4. Enable `LEAD_SEARCH_GOOGLE_V1=true` for a controlled founder test.
-5. Complete one automated search and verify the returned source links, exact
-   radius, unverified evidence and persisted search run.
-6. Complete one manual capture and verify its source evidence is persisted.
-7. Confirm a repeated provider result does not create a duplicate prospect.
-8. Record Render, Supabase and founder-console evidence, then decide whether the
-   provider terms are useful enough for the first pilot.
+## Stage closure
+
+- Closure status: **complete**
+- Closed by: **Amirah**
+- Closed on: **2026-08-11**
+- Search, evidence capture, exact provider dedupe and manual fallback are accepted.
+- Qualification, scoring, Companies House verification and Outlook drafting remain disabled and move to later controlled stages.
+- The current results view reports the number of new prospects at run level. Card-level new badges and new-first sorting are a non-blocking usability improvement and are not represented as implemented.
 
 ## Manual fallback
 

@@ -15,6 +15,7 @@ Companies House enrichment and Outlook drafts remain outside this stage.
 - Offices and coworking spaces
 - Community halls and event venues
 - Estate and letting agents
+- University accommodation
 - Other commercial spaces
 
 The Google Places search terms are versioned in code as:
@@ -25,6 +26,7 @@ The Google Places search terms are versioned in code as:
 | Offices and coworking spaces | `offices and coworking spaces` |
 | Community halls and event venues | `community halls and event venues` |
 | Estate and letting agents | `estate agents and letting agents` |
+| University accommodation | `university accommodation and halls of residence` |
 | Other commercial spaces | `commercial spaces` |
 
 These terms are a testable provider configuration, not a new Clean Up Central
@@ -37,8 +39,12 @@ pilot.
   verified MFA.
 - `POST /api/ops/leads/manual` provides the manual fallback and requires a public
   source URL.
-- Requests accept only the five approved sectors, a UK postcode and a radius from
+- Requests accept only the six approved sectors, a UK postcode and a radius from
   0.1 to 30 miles.
+- The console's `All approved sectors` option runs all six controlled searches
+  and de-duplicates the combined view; `all` is never stored as a prospect sector.
+- The founder-only search limit permits one complete six-sector search plus one
+  individual search per minute.
 - Postcodes.io supplies the search centre; Google Places Text Search supplies up
   to 20 candidates.
 - The backend applies its own Haversine radius check because Google Text Search

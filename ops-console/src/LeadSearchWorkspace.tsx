@@ -174,6 +174,14 @@ export function LeadSearchWorkspace({
           <p>
             Search public business data by UK postcode, radius and approved pilot sector.
           </p>
+          {reviewEnabled && (
+            <a
+              className="review-jump"
+              href="#prospect-review"
+            >
+              Review and score prospects
+            </a>
+          )}
         </div>
         <button
           type="button"

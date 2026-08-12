@@ -114,3 +114,36 @@ test(
     }
   },
 );
+
+test(
+  "Supabase lead repository remains compatible until the automatic-assessment migration is applied",
+  async () => {
+    const repository =
+      new SupabaseLeadSearchRepository({
+        supabaseUrl:
+          "https://example.supabase.co",
+        secretKey:
+          "sb_secret_private",
+        timeoutMs: 1_000,
+        fetchFunction:
+          (async () => Response.json([{
+            result_count: 1,
+            created_count: 1,
+          }])) as typeof fetch,
+      });
+
+    const outcome =
+      await repository.completeSearch({
+        searchRunId: SEARCH_RUN_ID,
+        sector:
+          "offices_coworking",
+        results: [],
+      });
+
+    assert.deepEqual(outcome, {
+      resultCount: 1,
+      createdCount: 1,
+      createdProspectIds: [],
+    });
+  },
+);

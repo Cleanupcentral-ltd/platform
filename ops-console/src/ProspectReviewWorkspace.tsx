@@ -50,7 +50,6 @@ const FACT_OPTIONS: readonly {
 const COMPANIES_HOUSE_FACTS =
   new Set<VerificationFactName>([
     "business_name",
-    "approved_sector",
     "business_status",
     "subscriber_type",
     "company_number",

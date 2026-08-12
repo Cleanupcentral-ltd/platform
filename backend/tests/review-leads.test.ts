@@ -308,6 +308,39 @@ test(
 );
 
 test(
+  "Companies House evidence cannot assign a Clean Up Central pilot sector",
+  async () => {
+    const service =
+      createLeadReviewService(
+        repository({}),
+      );
+
+    await assert.rejects(
+      service.addEvidence(
+        FOUNDER_ID,
+        PROSPECT_ID,
+        {
+          sourceType:
+            "companies_house",
+          sourceUrl:
+            "https://find-and-update.company-information.service.gov.uk/company/12345678",
+          factName:
+            "approved_sector",
+          factValue:
+            "offices_coworking",
+          sourceExcerpt: null,
+        },
+      ),
+      (error: unknown) =>
+        error instanceof
+          LeadReviewError &&
+        error.failure ===
+          "invalid_evidence",
+    );
+  },
+);
+
+test(
   "assessment is calculated server-side and stored as a versioned snapshot",
   async () => {
     const captures: {

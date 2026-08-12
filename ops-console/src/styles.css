@@ -300,6 +300,11 @@ h3 {
   margin-top: 16px;
   padding-top: 24px;
   border-top: 1px solid #d5ded6;
+  scroll-margin-top: 16px;
+}
+
+.review-jump {
+  display: none;
 }
 
 .review-layout {
@@ -397,6 +402,21 @@ h3 {
 
   .sign-out {
     width: 100%;
+  }
+
+  .review-jump {
+    display: inline-flex;
+    width: 100%;
+    min-height: 48px;
+    align-items: center;
+    justify-content: center;
+    padding: 11px 18px;
+    border: 1px solid #215e33;
+    border-radius: 10px;
+    color: #215e33;
+    background: #ffffff;
+    font-weight: 750;
+    text-align: center;
   }
 
   .search-form,

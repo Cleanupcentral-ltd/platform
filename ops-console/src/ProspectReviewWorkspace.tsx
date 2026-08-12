@@ -343,7 +343,10 @@ export function ProspectReviewWorkspace({
       : FACT_OPTIONS;
 
   return (
-    <section className="prospect-review stack">
+    <section
+      className="prospect-review stack"
+      id="prospect-review"
+    >
       <div className="results-summary">
         <div>
           <h2>Verify and score prospects</h2>

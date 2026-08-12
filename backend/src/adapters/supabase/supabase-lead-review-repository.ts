@@ -187,6 +187,8 @@ implements LeadReviewRepository {
             headers: {
               accept: "application/json",
               apikey: this.secretKey,
+              authorization:
+                `Bearer ${this.secretKey}`,
               "accept-profile":
                 "lead_engine",
               "content-profile":

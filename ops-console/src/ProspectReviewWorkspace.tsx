@@ -244,7 +244,7 @@ export function ProspectReviewWorkspace({
     setError(null);
     setMessage(null);
     try {
-      await addVerificationEvidence(
+      const result = await addVerificationEvidence(
         backendUrl,
         accessToken,
         review.id,
@@ -261,7 +261,10 @@ export function ProspectReviewWorkspace({
         },
       );
       setMessage(
-        "Verified evidence was saved with its source.",
+        result.automaticAssessment.status ===
+          "updated"
+          ? "Verified evidence was saved and the assessment updated automatically."
+          : "Verified evidence was saved. Automatic assessment is pending; use the manual recalculation fallback.",
       );
       setFactValue("");
       event.currentTarget.reset();
@@ -285,7 +288,7 @@ export function ProspectReviewWorkspace({
     setError(null);
     setMessage(null);
     try {
-      await decideEvidence(
+      const result = await decideEvidence(
         backendUrl,
         accessToken,
         review.id,
@@ -293,7 +296,9 @@ export function ProspectReviewWorkspace({
         decision,
       );
       setMessage(
-        `Evidence marked ${decision}.`,
+        result.status === "updated"
+          ? `Evidence marked ${decision} and the assessment updated automatically.`
+          : `Evidence marked ${decision}. Automatic assessment is pending; use the manual recalculation fallback.`,
       );
       await Promise.all([
         loadReview(review.id),
@@ -351,7 +356,7 @@ export function ProspectReviewWorkspace({
         <div>
           <h2>Verify and score prospects</h2>
           <p>
-            Scores use only founder-reviewed evidence. A high score never overrides a blocker.
+            Scores are calculated when prospects are captured and update after evidence review. They use only founder-reviewed evidence, and a high score never overrides a blocker.
           </p>
         </div>
         <button
@@ -471,7 +476,9 @@ export function ProspectReviewWorkspace({
               onClick={() => void assess()}
               disabled={working}
             >
-              Calculate and save 0–10 assessment
+              {review.latestAssessment === null
+                ? "Calculate and save 0–10 assessment"
+                : "Recalculate 0–10 assessment"}
             </button>
           </section>
 

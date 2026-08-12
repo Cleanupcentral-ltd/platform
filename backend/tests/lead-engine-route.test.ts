@@ -53,6 +53,11 @@ const leadSearchService:
           input.radiusMiles,
         resultCount: 1,
         createdCount: 1,
+        automaticAssessment: {
+          requestedCount: 1,
+          completedCount: 1,
+          pendingCount: 0,
+        },
         results: [{
           businessName:
             "Example Workspace",
@@ -83,6 +88,11 @@ const leadSearchService:
       return {
         resultCount: 1,
         createdCount: 1,
+        automaticAssessment: {
+          requestedCount: 1,
+          completedCount: 1,
+          pendingCount: 0,
+        },
         businessName:
           input.businessName,
         evidenceStatus:
@@ -136,9 +146,18 @@ const leadReviewService:
       return {
         evidenceId:
           "33333333-3333-4333-8333-333333333333",
+        automaticAssessment: {
+          status: "updated",
+          assessment: null,
+        },
       };
     },
-    async decideEvidence() {},
+    async decideEvidence() {
+      return {
+        status: "updated",
+        assessment: null,
+      };
+    },
     async assess(
       _founderId,
       prospectId,

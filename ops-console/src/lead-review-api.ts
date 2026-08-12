@@ -73,6 +73,18 @@ export interface ProspectAssessment {
   readonly assessedAt: string;
 }
 
+export interface AutomaticAssessmentResult {
+  readonly status: "updated" | "pending";
+  readonly assessment:
+    ProspectAssessment | null;
+}
+
+export interface VerificationSaveResult {
+  readonly evidenceId: string;
+  readonly automaticAssessment:
+    AutomaticAssessmentResult;
+}
+
 export interface ProspectReview {
   readonly id: string;
   readonly businessName: string;
@@ -201,11 +213,13 @@ export async function addVerificationEvidence(
   prospectId: string,
   input: AddVerificationEvidenceInput,
   fetchFunction: typeof fetch = fetch,
-): Promise<string> {
+): Promise<VerificationSaveResult> {
   const response =
     await requestJson<{
       readonly verification: {
         readonly evidenceId: string;
+        readonly automaticAssessment:
+          AutomaticAssessmentResult;
       };
     }>(
       `${baseUrl(backendUrl)}/api/ops/leads/prospects/${encodeURIComponent(prospectId)}/evidence`,
@@ -220,7 +234,7 @@ export async function addVerificationEvidence(
       },
       fetchFunction,
     );
-  return response.verification.evidenceId;
+  return response.verification;
 }
 
 export async function decideEvidence(
@@ -230,8 +244,11 @@ export async function decideEvidence(
   evidenceId: string,
   decision: "verified" | "rejected",
   fetchFunction: typeof fetch = fetch,
-): Promise<void> {
-  await requestJson(
+): Promise<AutomaticAssessmentResult> {
+  const response = await requestJson<{
+    readonly automaticAssessment:
+      AutomaticAssessmentResult;
+  }>(
     `${baseUrl(backendUrl)}/api/ops/leads/prospects/${encodeURIComponent(prospectId)}/evidence/${encodeURIComponent(evidenceId)}/decision`,
     accessToken,
     {
@@ -247,6 +264,7 @@ export async function decideEvidence(
     },
     fetchFunction,
   );
+  return response.automaticAssessment;
 }
 
 export async function assessProspect(

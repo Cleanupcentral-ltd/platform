@@ -338,6 +338,27 @@ export async function buildApp(
   );
 
   if (leadEngineUiEnabled) {
+    const leadReviewService =
+      leadReviewEnabled
+        ? options.leadReviewService ??
+          createLeadReviewService(
+            new SupabaseLeadReviewRepository({
+              supabaseUrl:
+                requiredEnvironmentValue(
+                  env.SUPABASE_URL,
+                  "SUPABASE_URL",
+                ),
+              secretKey:
+                requiredEnvironmentValue(
+                  env.SUPABASE_SECRET_KEY,
+                  "SUPABASE_SECRET_KEY",
+                ),
+              timeoutMs:
+                env.SUPABASE_DATA_TIMEOUT_MS,
+            }),
+          )
+        : null;
+
     const leadSearchService =
       leadSearchEnabled
         ? options.leadSearchService ??
@@ -377,28 +398,9 @@ export async function buildApp(
                   timeoutMs:
                     env.SUPABASE_DATA_TIMEOUT_MS,
                 }),
+              assessmentService:
+                leadReviewService,
           })
-        : null;
-
-    const leadReviewService =
-      leadReviewEnabled
-        ? options.leadReviewService ??
-          createLeadReviewService(
-            new SupabaseLeadReviewRepository({
-              supabaseUrl:
-                requiredEnvironmentValue(
-                  env.SUPABASE_URL,
-                  "SUPABASE_URL",
-                ),
-              secretKey:
-                requiredEnvironmentValue(
-                  env.SUPABASE_SECRET_KEY,
-                  "SUPABASE_SECRET_KEY",
-                ),
-              timeoutMs:
-                env.SUPABASE_DATA_TIMEOUT_MS,
-            }),
-          )
         : null;
 
     registerLeadEngineRoutes(app, {

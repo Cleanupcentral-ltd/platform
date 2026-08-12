@@ -15,11 +15,15 @@ const USER_ID =
   "79b42d3d-78be-42fc-9d91-5d97566d2ed0";
 const SEARCH_RUN_ID =
   "1f8a558b-f3b6-453b-b201-6d57323d0663";
+const PROSPECT_ID =
+  "11111111-1111-4111-8111-111111111111";
 
 function repository(
   capture:
     (input: CaptureLeadResultsInput) =>
       void,
+  createdProspectIds:
+    readonly string[] = [PROSPECT_ID],
 ): LeadSearchRepository {
   return {
     async startSearch() {
@@ -31,7 +35,8 @@ function repository(
         resultCount:
           input.results.length,
         createdCount:
-          input.results.length,
+          createdProspectIds.length,
+        createdProspectIds,
       };
     },
     async failSearch() {},
@@ -43,6 +48,7 @@ test(
   async () => {
     const captures:
       CaptureLeadResultsInput[] = [];
+    const assessed: string[] = [];
     const service =
       createLeadSearchService({
         enabled: true,
@@ -89,6 +95,19 @@ test(
             captures.push(input);
           },
         ),
+        assessmentService: {
+          async assess(
+            founderId,
+            prospectId,
+          ) {
+            assert.equal(
+              founderId,
+              USER_ID,
+            );
+            assessed.push(prospectId);
+            return {} as never;
+          },
+        },
       });
 
     const result =
@@ -130,6 +149,18 @@ test(
             evidence.normalizedContactValue ===
               "02000000000",
         ),
+    );
+    assert.deepEqual(
+      assessed,
+      [PROSPECT_ID],
+    );
+    assert.deepEqual(
+      result.automaticAssessment,
+      {
+        requestedCount: 1,
+        completedCount: 1,
+        pendingCount: 0,
+      },
     );
   },
 );
@@ -204,6 +235,69 @@ test(
             evidence.normalizedContactValue ===
               "hello@venue.example",
         ),
+    );
+  },
+);
+
+test(
+  "a scoring outage never rolls back a successfully captured prospect",
+  async () => {
+    const service =
+      createLeadSearchService({
+        enabled: true,
+        postcodeLocator: {
+          async locate() {
+            throw new Error(
+              "not called",
+            );
+          },
+        },
+        searchProvider: {
+          async search() {
+            throw new Error(
+              "not called",
+            );
+          },
+        },
+        repository: repository(
+          () => {},
+        ),
+        assessmentService: {
+          async assess() {
+            throw new Error(
+              "temporary assessment failure",
+            );
+          },
+        },
+      });
+
+    const result =
+      await service.captureManual(
+        USER_ID,
+        {
+          businessName:
+            "Manual Venue",
+          sector:
+            "community_halls_event_venues",
+          sourceUrl:
+            "https://venue.example/about",
+          formattedAddress: null,
+          primaryPostcode: null,
+          websiteUrl: null,
+          phone: null,
+          email: null,
+          contactFormUrl: null,
+        },
+      );
+
+    assert.equal(result.createdCount, 1);
+    assert.deepEqual(
+      result.automaticAssessment,
+      {
+        requestedCount: 1,
+        completedCount: 0,
+        pendingCount: 1,
+      },
     );
   },
 );

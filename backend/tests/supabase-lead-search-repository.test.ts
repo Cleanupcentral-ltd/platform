@@ -34,9 +34,12 @@ test(
               ? Response.json([
                   { id: SEARCH_RUN_ID },
                 ])
-              : Response.json([{
+                : Response.json([{
                   result_count: 1,
                   created_count: 1,
+                  created_prospect_ids: [
+                    "11111111-1111-4111-8111-111111111111",
+                  ],
                 }]);
           }) as typeof fetch,
       });
@@ -71,6 +74,9 @@ test(
     assert.deepEqual(outcome, {
       resultCount: 1,
       createdCount: 1,
+      createdProspectIds: [
+        "11111111-1111-4111-8111-111111111111",
+      ],
     });
     assert.equal(
       requests[0]?.url,

@@ -44,6 +44,12 @@ export interface DecideLeadEvidenceRequest {
   readonly reviewNote: string | null;
 }
 
+export interface AutomaticAssessmentResult {
+  readonly status: "updated" | "pending";
+  readonly assessment:
+    LeadAssessmentRecord | null;
+}
+
 export interface LeadReviewService {
   listProspects(): Promise<
     readonly LeadProspectSummary[]
@@ -57,14 +63,18 @@ export interface LeadReviewService {
     founderId: string,
     prospectId: string,
     input: AddLeadEvidenceInput,
-  ): Promise<{ readonly evidenceId: string }>;
+  ): Promise<{
+    readonly evidenceId: string;
+    readonly automaticAssessment:
+      AutomaticAssessmentResult;
+  }>;
 
   decideEvidence(
     founderId: string,
     prospectId: string,
     evidenceId: string,
     input: DecideLeadEvidenceRequest,
-  ): Promise<void>;
+  ): Promise<AutomaticAssessmentResult>;
 
   assess(
     founderId: string,
@@ -203,6 +213,64 @@ export function createLeadReviewService(
     return result;
   }
 
+  async function saveAssessment(
+    founderId: string,
+    prospectId: string,
+  ): Promise<LeadAssessmentRecord> {
+    const current =
+      await prospect(prospectId);
+    const calculated =
+      calculateLeadAssessment(
+        current,
+      );
+    try {
+      return await repository
+        .saveAssessment({
+          prospectId,
+          founderId,
+          totalScore:
+            calculated.totalScore,
+          rulesVersion:
+            calculated.rulesVersion,
+          eligibilityResult:
+            calculated.eligibilityResult,
+          scoreBreakdown:
+            calculated.scoreBreakdown,
+          blockers:
+            calculated.blockers,
+          rationale:
+            calculated.rationale,
+          evidenceIds:
+            calculated.evidenceIds,
+        });
+    } catch {
+      throw new LeadReviewError(
+        "repository_unavailable",
+      );
+    }
+  }
+
+  async function automaticAssessment(
+    founderId: string,
+    prospectId: string,
+  ): Promise<AutomaticAssessmentResult> {
+    try {
+      return {
+        status: "updated",
+        assessment:
+          await saveAssessment(
+            founderId,
+            prospectId,
+          ),
+      };
+    } catch {
+      return {
+        status: "pending",
+        assessment: null,
+      };
+    }
+  }
+
   return {
     async listProspects() {
       try {
@@ -260,33 +328,41 @@ export function createLeadReviewService(
           ? null
           : factValue.toLowerCase();
 
+      let evidenceId: string;
       try {
-        const evidenceId =
-          await repository
-            .addVerifiedEvidence({
-              prospectId,
-              founderId,
-              sourceType:
-                input.sourceType,
-              sourceUrl,
-              factName:
-                input.factName,
-              factValue,
-              sourceExcerpt:
-                input.sourceExcerpt,
-              contentSha256:
-                sha256(
-                  `${sourceUrl}\n${input.factName}\n${factValue}`,
-                ),
-              contactType,
-              normalizedContactValue,
-            });
-        return { evidenceId };
+        evidenceId = await repository
+          .addVerifiedEvidence({
+            prospectId,
+            founderId,
+            sourceType:
+              input.sourceType,
+            sourceUrl,
+            factName:
+              input.factName,
+            factValue,
+            sourceExcerpt:
+              input.sourceExcerpt,
+            contentSha256:
+              sha256(
+                `${sourceUrl}\n${input.factName}\n${factValue}`,
+              ),
+            contactType,
+            normalizedContactValue,
+          });
       } catch {
         throw new LeadReviewError(
           "repository_unavailable",
         );
       }
+
+      return {
+        evidenceId,
+        automaticAssessment:
+          await automaticAssessment(
+            founderId,
+            prospectId,
+          ),
+      };
     },
 
     async decideEvidence(
@@ -322,43 +398,21 @@ export function createLeadReviewService(
           "repository_unavailable",
         );
       }
+
+      return automaticAssessment(
+        founderId,
+        prospectId,
+      );
     },
 
     async assess(
       founderId,
       prospectId,
     ) {
-      const current =
-        await prospect(prospectId);
-      const calculated =
-        calculateLeadAssessment(
-          current,
-        );
-      try {
-        return await repository
-          .saveAssessment({
-            prospectId,
-            founderId,
-            totalScore:
-              calculated.totalScore,
-            rulesVersion:
-              calculated.rulesVersion,
-            eligibilityResult:
-              calculated.eligibilityResult,
-            scoreBreakdown:
-              calculated.scoreBreakdown,
-            blockers:
-              calculated.blockers,
-            rationale:
-              calculated.rationale,
-            evidenceIds:
-              calculated.evidenceIds,
-          });
-      } catch {
-        throw new LeadReviewError(
-          "repository_unavailable",
-        );
-      }
+      return saveAssessment(
+        founderId,
+        prospectId,
+      );
     },
   };
 }

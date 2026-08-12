@@ -111,7 +111,6 @@ const CONTROLLED_FACT_VALUES:
 const COMPANIES_HOUSE_FACTS =
   new Set<LeadVerificationFact>([
     "business_name",
-    "approved_sector",
     "business_status",
     "subscriber_type",
     "company_number",

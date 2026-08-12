@@ -53,6 +53,12 @@ function repository(
       captures.evidence = input;
       return "33333333-3333-4333-8333-333333333333";
     },
+    async findProspectByCompanyNumber() {
+      return null;
+    },
+    async recordCompaniesHouseVerification() {
+      return [];
+    },
     async decideEvidence() {},
     async saveAssessment(input) {
       captures.assessment = input;
@@ -289,6 +295,39 @@ test(
           factName: "public_email",
           factValue:
             "hello@example.com",
+          sourceExcerpt: null,
+        },
+      ),
+      (error: unknown) =>
+        error instanceof
+          LeadReviewError &&
+        error.failure ===
+          "invalid_evidence",
+    );
+  },
+);
+
+test(
+  "Companies House evidence cannot assign a Clean Up Central pilot sector",
+  async () => {
+    const service =
+      createLeadReviewService(
+        repository({}),
+      );
+
+    await assert.rejects(
+      service.addEvidence(
+        FOUNDER_ID,
+        PROSPECT_ID,
+        {
+          sourceType:
+            "companies_house",
+          sourceUrl:
+            "https://find-and-update.company-information.service.gov.uk/company/12345678",
+          factName:
+            "approved_sector",
+          factValue:
+            "offices_coworking",
           sourceExcerpt: null,
         },
       ),

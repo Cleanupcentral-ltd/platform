@@ -151,6 +151,25 @@ export interface SaveLeadAssessmentInput {
   readonly evidenceIds: readonly string[];
 }
 
+export interface CompaniesHouseVerifiedFact {
+  readonly factName:
+    | "business_name"
+    | "business_status"
+    | "subscriber_type"
+    | "company_number";
+  readonly factValue: string;
+  readonly sourceExcerpt: string;
+  readonly contentSha256: string;
+}
+
+export interface RecordCompaniesHouseVerificationInput {
+  readonly prospectId: string;
+  readonly founderId: string;
+  readonly sourceUrl: string;
+  readonly facts:
+    readonly CompaniesHouseVerifiedFact[];
+}
+
 export interface LeadReviewRepository {
   listProspects(
     limit: number,
@@ -163,6 +182,18 @@ export interface LeadReviewRepository {
   addVerifiedEvidence(
     input: AddVerifiedLeadEvidenceInput,
   ): Promise<string>;
+
+  findProspectByCompanyNumber(
+    companyNumber: string,
+  ): Promise<{
+    readonly id: string;
+    readonly businessName: string;
+  } | null>;
+
+  recordCompaniesHouseVerification(
+    input:
+      RecordCompaniesHouseVerificationInput,
+  ): Promise<readonly string[]>;
 
   decideEvidence(
     input: DecideLeadEvidenceInput,

@@ -14,6 +14,9 @@ import {
   decideEvidence,
   getProspect,
   listProspects,
+  searchCompaniesHouseMatches,
+  verifyCompaniesHouseMatch,
+  type CompaniesHouseMatch,
   type ProspectReview,
   type ProspectSummary,
   type VerificationFactName,
@@ -23,6 +26,8 @@ import {
 interface ProspectReviewWorkspaceProps {
   readonly backendUrl: string;
   readonly accessToken: string;
+  readonly companiesHouseEnabled?:
+    boolean;
 }
 
 const FACT_OPTIONS: readonly {
@@ -45,7 +50,6 @@ const FACT_OPTIONS: readonly {
 const COMPANIES_HOUSE_FACTS =
   new Set<VerificationFactName>([
     "business_name",
-    "approved_sector",
     "business_status",
     "subscriber_type",
     "company_number",
@@ -144,6 +148,7 @@ function dimensionEntries(
 export function ProspectReviewWorkspace({
   backendUrl,
   accessToken,
+  companiesHouseEnabled = false,
 }: ProspectReviewWorkspaceProps) {
   const [prospects, setProspects] =
     useState<readonly ProspectSummary[]>([]);
@@ -169,6 +174,15 @@ export function ProspectReviewWorkspace({
     );
   const [factValue, setFactValue] =
     useState("");
+  const [companyQuery, setCompanyQuery] =
+    useState("");
+  const [companyMatches, setCompanyMatches] =
+    useState<
+      readonly CompaniesHouseMatch[]
+    >([]);
+  const [companySearchComplete,
+    setCompanySearchComplete] =
+      useState(false);
 
   async function refreshQueue() {
     setLoading(true);
@@ -202,13 +216,17 @@ export function ProspectReviewWorkspace({
     setError(null);
     setMessage(null);
     try {
-      setReview(
-        await getProspect(
+      const loaded = await getProspect(
           backendUrl,
           accessToken,
           prospectId,
-        ),
+        );
+      setReview(loaded);
+      setCompanyQuery(
+        loaded.businessName,
       );
+      setCompanyMatches([]);
+      setCompanySearchComplete(false);
     } catch (caught) {
       setError(messageFrom(caught));
     } finally {
@@ -324,6 +342,64 @@ export function ProspectReviewWorkspace({
       );
       setMessage(
         `Assessment saved: ${result.totalScore}/10 — ${result.eligibilityResult === "eligible" ? "eligible" : "research required"}.`,
+      );
+      await Promise.all([
+        loadReview(review.id),
+        refreshQueue(),
+      ]);
+    } catch (caught) {
+      setError(messageFrom(caught));
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  async function searchCompaniesHouse(
+    event: FormEvent<HTMLFormElement>,
+  ) {
+    event.preventDefault();
+    if (review === null) return;
+    setWorking(true);
+    setError(null);
+    setMessage(null);
+    setCompanySearchComplete(false);
+    try {
+      setCompanyMatches(
+        await searchCompaniesHouseMatches(
+          backendUrl,
+          accessToken,
+          review.id,
+          companyQuery,
+        ),
+      );
+      setCompanySearchComplete(true);
+    } catch (caught) {
+      setError(messageFrom(caught));
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  async function confirmCompaniesHouse(
+    companyNumber: string,
+  ) {
+    if (review === null) return;
+    setWorking(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const result =
+        await verifyCompaniesHouseMatch(
+          backendUrl,
+          accessToken,
+          review.id,
+          companyNumber,
+        );
+      setMessage(
+        result.automaticAssessment.status ===
+          "updated"
+          ? `${result.companyName} was confirmed from Companies House and the assessment updated automatically.`
+          : `${result.companyName} was confirmed from Companies House. Automatic assessment is pending; use the manual recalculation fallback.`,
       );
       await Promise.all([
         loadReview(review.id),
@@ -482,8 +558,103 @@ export function ProspectReviewWorkspace({
             </button>
           </section>
 
-          <section className="review-panel stack">
-            <h3>Add verified evidence</h3>
+          <div className="stack">
+            {companiesHouseEnabled && (
+              <section className="review-panel stack">
+                <h3>
+                  Companies House-assisted verification
+                </h3>
+                <p>
+                  Search the official register, compare the result, then confirm only an exact match.
+                </p>
+                <form
+                  className="stack"
+                  onSubmit={searchCompaniesHouse}
+                >
+                  <label>
+                    Company name or number
+                    <input
+                      value={companyQuery}
+                      onChange={(event) =>
+                        setCompanyQuery(
+                          event.target.value,
+                        )
+                      }
+                      minLength={2}
+                      maxLength={200}
+                      required
+                    />
+                  </label>
+                  <button
+                    type="submit"
+                    disabled={working}
+                  >
+                    Search Companies House
+                  </button>
+                </form>
+
+                {companySearchComplete &&
+                  companyMatches.length === 0 && (
+                    <p>
+                      No Companies House matches were returned. Use the manual verification form below.
+                    </p>
+                  )}
+
+                {companyMatches.length > 0 && (
+                  <div className="company-match-list">
+                    {companyMatches.map(
+                      (match) => (
+                        <article
+                          className="company-match"
+                          key={
+                            match.companyNumber
+                          }
+                        >
+                          <div>
+                            <strong>
+                              {match.companyName}
+                            </strong>
+                            <p>
+                              {match.companyNumber} · {match.companyStatus} · {match.companyType}
+                            </p>
+                            <p>
+                              Registered office: {match.registeredOfficeAddress.formatted ?? "not returned"}
+                            </p>
+                            <a
+                              href={
+                                match.officialUrl
+                              }
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              Open official record
+                            </a>
+                          </div>
+                          <button
+                            type="button"
+                            disabled={working}
+                            onClick={() =>
+                              void confirmCompaniesHouse(
+                                match.companyNumber,
+                              )
+                            }
+                          >
+                            Confirm this exact company
+                          </button>
+                        </article>
+                      ),
+                    )}
+                  </div>
+                )}
+
+                <p className="registered-office-note">
+                  Registered-office details are shown only for matching. They are not saved as the trading address, and SIC codes do not set the prospect sector.
+                </p>
+              </section>
+            )}
+
+            <section className="review-panel stack">
+              <h3>Add verified evidence</h3>
             <p>
               Review one public page, then record only the atomic fact you can support.
             </p>
@@ -615,7 +786,8 @@ export function ProspectReviewWorkspace({
                 Save verified evidence
               </button>
             </form>
-          </section>
+            </section>
+          </div>
         </div>
       )}
 

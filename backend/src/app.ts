@@ -19,6 +19,10 @@ import {
 } from "./adapters/google/google-places-lead-search.js";
 
 import {
+  CompaniesHouseClient,
+} from "./adapters/companies-house/companies-house-client.js";
+
+import {
   PostcodesIoLocator,
 } from "./adapters/postcodes-io/postcodes-io-locator.js";
 
@@ -75,6 +79,11 @@ import {
   createLeadReviewService,
   type LeadReviewService,
 } from "./application/review-leads.js";
+
+import {
+  createCompaniesHouseVerificationService,
+  type CompaniesHouseVerificationService,
+} from "./application/verify-companies-house.js";
 
 import {
   createContactEnquiryPersistenceService,
@@ -179,6 +188,9 @@ export interface BuildAppOptions {
 
   readonly leadReviewService?:
     LeadReviewService;
+
+  readonly companiesHouseVerificationService?:
+    CompaniesHouseVerificationService;
 
   readonly founderAuthService?:
     FounderAuthService;
@@ -338,26 +350,58 @@ export async function buildApp(
   );
 
   if (leadEngineUiEnabled) {
+    let defaultLeadReviewRepository:
+      SupabaseLeadReviewRepository | null =
+        null;
+    const leadReviewRepository =
+      (): SupabaseLeadReviewRepository => {
+        defaultLeadReviewRepository ??=
+          new SupabaseLeadReviewRepository({
+            supabaseUrl:
+              requiredEnvironmentValue(
+                env.SUPABASE_URL,
+                "SUPABASE_URL",
+              ),
+            secretKey:
+              requiredEnvironmentValue(
+                env.SUPABASE_SECRET_KEY,
+                "SUPABASE_SECRET_KEY",
+              ),
+            timeoutMs:
+              env.SUPABASE_DATA_TIMEOUT_MS,
+          });
+        return defaultLeadReviewRepository;
+      };
+
     const leadReviewService =
       leadReviewEnabled
         ? options.leadReviewService ??
           createLeadReviewService(
-            new SupabaseLeadReviewRepository({
-              supabaseUrl:
-                requiredEnvironmentValue(
-                  env.SUPABASE_URL,
-                  "SUPABASE_URL",
-                ),
-              secretKey:
-                requiredEnvironmentValue(
-                  env.SUPABASE_SECRET_KEY,
-                  "SUPABASE_SECRET_KEY",
-                ),
-              timeoutMs:
-                env.SUPABASE_DATA_TIMEOUT_MS,
-            }),
+            leadReviewRepository(),
           )
         : null;
+
+    const companiesHouseVerificationService =
+      options
+        .companiesHouseVerificationService ??
+      (
+        leadReviewService !== null &&
+        env.COMPANIES_HOUSE_API_KEY !==
+          undefined
+          ? createCompaniesHouseVerificationService(
+              leadReviewRepository(),
+              leadReviewService,
+              new CompaniesHouseClient({
+                apiKey:
+                  env.COMPANIES_HOUSE_API_KEY,
+                apiBaseUrl:
+                  env.COMPANIES_HOUSE_API_BASE_URL,
+                timeoutMs:
+                  env.COMPANIES_HOUSE_TIMEOUT_MS,
+              }),
+            )
+          : null
+      );
 
     const leadSearchService =
       leadSearchEnabled
@@ -423,6 +467,7 @@ export async function buildApp(
       leadSearchEnabled,
       leadSearchService,
       leadReviewService,
+      companiesHouseVerificationService,
     });
   }
 

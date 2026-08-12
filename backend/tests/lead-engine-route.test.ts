@@ -20,6 +20,10 @@ import type {
   LeadReviewService,
 } from "../src/application/review-leads.js";
 
+import type {
+  CompaniesHouseVerificationService,
+} from "../src/application/verify-companies-house.js";
+
 const USER_ID =
   "79b42d3d-78be-42fc-9d91-5d97566d2ed0";
 
@@ -179,6 +183,65 @@ const leadReviewService:
         evidenceIds: [],
         assessedAt:
           "2026-08-11T12:00:00.000Z",
+      };
+    },
+  };
+
+const companiesHouseVerificationService:
+  CompaniesHouseVerificationService = {
+    async search(prospectId, query) {
+      assert.equal(
+        prospectId,
+        "11111111-1111-4111-8111-111111111111",
+      );
+      assert.equal(
+        query,
+        "Example Workspace",
+      );
+      return [{
+        companyName:
+          "EXAMPLE WORKSPACE LTD",
+        companyNumber: "01234567",
+        companyStatus: "active",
+        companyType: "ltd",
+        registeredOfficeAddress: {
+          formatted:
+            "1 High Street, BR1 1AA",
+          postcode: "BR1 1AA",
+        },
+        dateOfCreation:
+          "2020-01-01",
+        officialUrl:
+          "https://find-and-update.company-information.service.gov.uk/company/01234567",
+      }];
+    },
+    async verify(
+      founderId,
+      prospectId,
+      companyNumber,
+    ) {
+      assert.equal(founderId, USER_ID);
+      assert.equal(
+        prospectId,
+        "11111111-1111-4111-8111-111111111111",
+      );
+      assert.equal(
+        companyNumber,
+        "01234567",
+      );
+      return {
+        companyName:
+          "EXAMPLE WORKSPACE LTD",
+        companyNumber: "01234567",
+        businessStatus: "active",
+        subscriberType: "corporate",
+        evidenceIds: [
+          "33333333-3333-4333-8333-333333333333",
+        ],
+        automaticAssessment: {
+          status: "updated",
+          assessment: null,
+        },
       };
     },
   };
@@ -762,6 +825,126 @@ test(
         "access-control-allow-headers"
       ] ?? "",
       /authorization/i,
+    );
+  },
+);
+
+test(
+  "founder can search Companies House candidates without accepting evidence",
+  async (context) => {
+    const app = await buildApp({
+      leadEngineUiEnabled: true,
+      leadReviewEnabled: true,
+      founderAuthService:
+        founderService,
+      leadReviewService,
+      companiesHouseVerificationService,
+    });
+
+    context.after(
+      async () => app.close(),
+    );
+
+    const response = await app.inject({
+      method: "GET",
+      url:
+        "/api/ops/leads/prospects/11111111-1111-4111-8111-111111111111/companies-house/matches?q=Example%20Workspace",
+      headers: {
+        authorization:
+          "Bearer test-token",
+      },
+    });
+
+    assert.equal(
+      response.statusCode,
+      200,
+    );
+    assert.equal(
+      response.json().matches[0]
+        .companyNumber,
+      "01234567",
+    );
+  },
+);
+
+test(
+  "founder confirmation sends only the selected Companies House number",
+  async (context) => {
+    const app = await buildApp({
+      leadEngineUiEnabled: true,
+      leadReviewEnabled: true,
+      founderAuthService:
+        founderService,
+      leadReviewService,
+      companiesHouseVerificationService,
+    });
+
+    context.after(
+      async () => app.close(),
+    );
+
+    const response = await app.inject({
+      method: "POST",
+      url:
+        "/api/ops/leads/prospects/11111111-1111-4111-8111-111111111111/companies-house/verification",
+      headers: {
+        authorization:
+          "Bearer test-token",
+        "content-type":
+          "application/json",
+      },
+      payload: {
+        companyNumber: "01234567",
+      },
+    });
+
+    assert.equal(
+      response.statusCode,
+      201,
+    );
+    assert.equal(
+      response.json().verification
+        .subscriberType,
+      "corporate",
+    );
+  },
+);
+
+test(
+  "Companies House confirmation rejects client-supplied company facts",
+  async (context) => {
+    const app = await buildApp({
+      leadEngineUiEnabled: true,
+      leadReviewEnabled: true,
+      founderAuthService:
+        founderService,
+      leadReviewService,
+      companiesHouseVerificationService,
+    });
+
+    context.after(
+      async () => app.close(),
+    );
+
+    const response = await app.inject({
+      method: "POST",
+      url:
+        "/api/ops/leads/prospects/11111111-1111-4111-8111-111111111111/companies-house/verification",
+      headers: {
+        authorization:
+          "Bearer test-token",
+        "content-type":
+          "application/json",
+      },
+      payload: {
+        companyNumber: "01234567",
+        companyStatus: "active",
+      },
+    });
+
+    assert.equal(
+      response.statusCode,
+      400,
     );
   },
 );

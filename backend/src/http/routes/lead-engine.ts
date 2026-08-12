@@ -17,6 +17,11 @@ import {
 } from "../../application/review-leads.js";
 
 import {
+  CompaniesHouseVerificationError,
+  type CompaniesHouseVerificationService,
+} from "../../application/verify-companies-house.js";
+
+import {
   FounderAuthError,
   type FounderAuthService,
 } from "../../ports/founder-auth.js";
@@ -46,6 +51,9 @@ export interface LeadEngineRouteDependencies {
 
   readonly leadReviewService?:
     LeadReviewService | null;
+
+  readonly companiesHouseVerificationService?:
+    CompaniesHouseVerificationService | null;
 }
 
 const UK_POSTCODE =
@@ -165,6 +173,23 @@ const evidenceDecisionRequestSchema =
 const assessmentRequestSchema =
   z.strictObject({});
 
+const companiesHouseSearchQuerySchema =
+  z.object({
+    q: z.string()
+      .trim()
+      .min(2)
+      .max(200),
+  });
+
+const companiesHouseVerificationSchema =
+  z.strictObject({
+    companyNumber: z.string()
+      .trim()
+      .min(6)
+      .max(12)
+      .regex(/^[A-Za-z0-9\s]+$/),
+  });
+
 const SEARCH_RATE_LIMIT = {
   max: 7,
   timeWindow: "1 minute",
@@ -181,6 +206,13 @@ const REVIEW_RATE_LIMIT = {
   max: 30,
   timeWindow: "1 minute",
   groupId: "lead-review",
+} as const;
+
+const COMPANIES_HOUSE_RATE_LIMIT = {
+  max: 10,
+  timeWindow: "1 minute",
+  groupId:
+    "companies-house-verification",
 } as const;
 
 function readBearerToken(
@@ -391,6 +423,81 @@ async function runReviewOperation<T>(
   }
 }
 
+function mapCompaniesHouseError(
+  error:
+    CompaniesHouseVerificationError,
+): HttpError {
+  switch (error.failure) {
+    case "invalid_query":
+      return new HttpError({
+        code:
+          "INVALID_COMPANIES_HOUSE_QUERY",
+        message:
+          "Enter a business name or Companies House number.",
+        statusCode: 400,
+      });
+    case "company_not_found":
+      return new HttpError({
+        code:
+          "COMPANIES_HOUSE_COMPANY_NOT_FOUND",
+        message:
+          "That Companies House company could not be found.",
+        statusCode: 404,
+      });
+    case "provider_rate_limited":
+      return new HttpError({
+        code:
+          "COMPANIES_HOUSE_RATE_LIMITED",
+        message:
+          "Companies House is temporarily rate limited. Try again shortly or use manual verification.",
+        statusCode: 503,
+      });
+    case "provider_unavailable":
+      return new HttpError({
+        code:
+          "COMPANIES_HOUSE_UNAVAILABLE",
+        message:
+          "Companies House is temporarily unavailable. Try again or use manual verification.",
+        statusCode: 503,
+      });
+    case "duplicate_company":
+      return new HttpError({
+        code:
+          "COMPANIES_HOUSE_DUPLICATE",
+        message:
+          "This Companies House number is already linked to another prospect. Review the existing prospect instead of creating a duplicate.",
+        statusCode: 409,
+      });
+    case "repository_unavailable":
+      return new HttpError({
+        code:
+          "LEAD_REVIEW_STORE_UNAVAILABLE",
+        message:
+          "Companies House verification could not be saved. No verification has been accepted.",
+        statusCode: 503,
+      });
+  }
+}
+
+async function runCompaniesHouseOperation<T>(
+  operation: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (
+      error instanceof
+        CompaniesHouseVerificationError
+    ) {
+      throw mapCompaniesHouseError(error);
+    }
+    if (error instanceof LeadReviewError) {
+      throw mapLeadReviewError(error);
+    }
+    throw error;
+  }
+}
+
 function requireJson(
   request: FastifyRequest,
   message: string,
@@ -454,6 +561,13 @@ export function registerLeadEngineRoutes(
                 null &&
               dependencies
                 .leadReviewService !==
+                undefined,
+            companiesHouseVerification:
+              dependencies
+                .companiesHouseVerificationService !==
+                null &&
+              dependencies
+                .companiesHouseVerificationService !==
                 undefined,
             outlookDrafts: false,
           },
@@ -748,6 +862,140 @@ export function registerLeadEngineRoutes(
           .send({
             success: true,
             assessment,
+            requestId: request.id,
+          });
+      },
+    );
+  }
+
+  if (
+    dependencies
+      .companiesHouseVerificationService !==
+      null &&
+    dependencies
+      .companiesHouseVerificationService !==
+      undefined
+  ) {
+    const companiesHouseService =
+      dependencies
+        .companiesHouseVerificationService;
+
+    app.get(
+      "/api/ops/leads/prospects/:prospectId/companies-house/matches",
+      {
+        config: {
+          rateLimit:
+            COMPANIES_HOUSE_RATE_LIMIT,
+        },
+      },
+      async (
+        request,
+        reply,
+      ): Promise<FastifyReply> => {
+        await authenticateFounder(
+          request,
+          dependencies
+            .founderAuthService,
+        );
+        const params =
+          prospectParamsSchema
+            .safeParse(request.params);
+        const query =
+          companiesHouseSearchQuerySchema
+            .safeParse(request.query);
+        if (
+          !params.success ||
+          !query.success
+        ) {
+          throw new HttpError({
+            code: "VALIDATION_ERROR",
+            message:
+              "Enter a valid prospect reference and company search query.",
+            statusCode: 400,
+          });
+        }
+        const matches =
+          await runCompaniesHouseOperation(
+            () => companiesHouseService
+              .search(
+                params.data.prospectId,
+                query.data.q,
+              ),
+          );
+        return reply
+          .header(
+            "Cache-Control",
+            "no-store",
+          )
+          .status(200)
+          .type("application/json")
+          .send({
+            success: true,
+            matches,
+            requestId: request.id,
+          });
+      },
+    );
+
+    app.post(
+      "/api/ops/leads/prospects/:prospectId/companies-house/verification",
+      {
+        bodyLimit: 4 * 1024,
+        config: {
+          rateLimit:
+            COMPANIES_HOUSE_RATE_LIMIT,
+        },
+      },
+      async (
+        request,
+        reply,
+      ): Promise<FastifyReply> => {
+        const founder =
+          await authenticateFounder(
+            request,
+            dependencies
+              .founderAuthService,
+          );
+        requireJson(
+          request,
+          "Companies House verification must use application/json.",
+        );
+        const params =
+          prospectParamsSchema
+            .safeParse(request.params);
+        const body =
+          companiesHouseVerificationSchema
+            .safeParse(request.body);
+        if (
+          !params.success ||
+          !body.success
+        ) {
+          throw new HttpError({
+            code: "VALIDATION_ERROR",
+            message:
+              "Choose one valid Companies House company number.",
+            statusCode: 400,
+          });
+        }
+        const verification =
+          await runCompaniesHouseOperation(
+            () => companiesHouseService
+              .verify(
+                founder.userId,
+                params.data.prospectId,
+                body.data.companyNumber,
+              ),
+          );
+        return reply
+          .header(
+            "Cache-Control",
+            "no-store",
+          )
+          .status(201)
+          .type("application/json")
+          .send({
+            success: true,
+            verification,
             requestId: request.id,
           });
       },

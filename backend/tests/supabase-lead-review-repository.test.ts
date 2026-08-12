@@ -63,7 +63,7 @@ test(
     );
     assert.equal(
       headers.get("authorization"),
-      null,
+      "Bearer sb_secret_private",
     );
     assert.equal(
       headers.get("content-profile"),

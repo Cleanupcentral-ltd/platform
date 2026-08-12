@@ -1,6 +1,10 @@
 import { createHash } from "node:crypto";
 
 import type {
+  LeadReviewService,
+} from "./review-leads.js";
+
+import type {
   CapturedLeadEvidence,
   CapturedLeadResult,
   LeadContactType,
@@ -52,6 +56,8 @@ export interface SearchLeadsOutcome {
   readonly radiusMiles: number;
   readonly resultCount: number;
   readonly createdCount: number;
+  readonly automaticAssessment:
+    AutomaticAssessmentSummary;
   readonly results:
     readonly SearchLeadSummary[];
 }
@@ -71,6 +77,8 @@ export interface CaptureManualLeadInput {
 export interface CaptureManualLeadOutcome {
   readonly resultCount: number;
   readonly createdCount: number;
+  readonly automaticAssessment:
+    AutomaticAssessmentSummary;
   readonly businessName: string;
   readonly evidenceStatus: "unverified";
 }
@@ -92,6 +100,70 @@ export interface CreateLeadSearchServiceOptions {
   readonly postcodeLocator: PostcodeLocator | null;
   readonly searchProvider: LeadSearchProvider | null;
   readonly repository: LeadSearchRepository | null;
+  readonly assessmentService?:
+    Pick<LeadReviewService, "assess"> | null;
+}
+
+export interface AutomaticAssessmentSummary {
+  readonly requestedCount: number;
+  readonly completedCount: number;
+  readonly pendingCount: number;
+}
+
+const ASSESSMENT_CONCURRENCY = 4;
+
+async function assessCapturedProspects(
+  founderId: string,
+  prospectIds: readonly string[],
+  service:
+    Pick<LeadReviewService, "assess"> | null | undefined,
+): Promise<AutomaticAssessmentSummary> {
+  if (prospectIds.length === 0) {
+    return {
+      requestedCount: 0,
+      completedCount: 0,
+      pendingCount: 0,
+    };
+  }
+
+  if (service === null || service === undefined) {
+    return {
+      requestedCount: prospectIds.length,
+      completedCount: 0,
+      pendingCount: prospectIds.length,
+    };
+  }
+
+  let completedCount = 0;
+  for (
+    let index = 0;
+    index < prospectIds.length;
+    index += ASSESSMENT_CONCURRENCY
+  ) {
+    const batch = prospectIds.slice(
+      index,
+      index + ASSESSMENT_CONCURRENCY,
+    );
+    const settled = await Promise.allSettled(
+      batch.map((prospectId) =>
+        service.assess(
+          founderId,
+          prospectId,
+        ),
+      ),
+    );
+    completedCount += settled.filter(
+      (result) =>
+        result.status === "fulfilled",
+    ).length;
+  }
+
+  return {
+    requestedCount: prospectIds.length,
+    completedCount,
+    pendingCount:
+      prospectIds.length - completedCount,
+  };
 }
 
 function sha256(value: string): string {
@@ -536,6 +608,13 @@ export function createLeadSearchService(
         );
       }
 
+      const automaticAssessment =
+        await assessCapturedProspects(
+          founderId,
+          persisted.createdProspectIds,
+          options.assessmentService,
+        );
+
       return {
         searchRunId,
         postcode:
@@ -547,6 +626,7 @@ export function createLeadSearchService(
           persisted.resultCount,
         createdCount:
           persisted.createdCount,
+        automaticAssessment,
         results:
           providerResults.map(
             (result) => ({
@@ -574,7 +654,7 @@ export function createLeadSearchService(
     },
 
     async captureManual(
-      _founderId,
+      founderId,
       input,
     ) {
       const { repository } =
@@ -596,8 +676,16 @@ export function createLeadSearchService(
         );
       }
 
+      const automaticAssessment =
+        await assessCapturedProspects(
+          founderId,
+          outcome.createdProspectIds,
+          options.assessmentService,
+        );
+
       return {
         ...outcome,
+        automaticAssessment,
         businessName:
           captured.businessName,
         evidenceStatus:

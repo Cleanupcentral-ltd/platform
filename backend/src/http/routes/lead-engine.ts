@@ -664,7 +664,8 @@ export function registerLeadEngineRoutes(
             statusCode: 400,
           });
         }
-        await runReviewOperation(
+        const automaticAssessment =
+          await runReviewOperation(
           () => reviewService
             .decideEvidence(
               founder.userId,
@@ -684,6 +685,7 @@ export function registerLeadEngineRoutes(
             success: true,
             decision:
               body.data.decision,
+            automaticAssessment,
             requestId: request.id,
           });
       },

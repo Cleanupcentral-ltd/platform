@@ -34,9 +34,12 @@ test(
               ? Response.json([
                   { id: SEARCH_RUN_ID },
                 ])
-              : Response.json([{
+                : Response.json([{
                   result_count: 1,
                   created_count: 1,
+                  created_prospect_ids: [
+                    "11111111-1111-4111-8111-111111111111",
+                  ],
                 }]);
           }) as typeof fetch,
       });
@@ -71,6 +74,9 @@ test(
     assert.deepEqual(outcome, {
       resultCount: 1,
       createdCount: 1,
+      createdProspectIds: [
+        "11111111-1111-4111-8111-111111111111",
+      ],
     });
     assert.equal(
       requests[0]?.url,
@@ -106,5 +112,38 @@ test(
         false,
       );
     }
+  },
+);
+
+test(
+  "Supabase lead repository remains compatible until the automatic-assessment migration is applied",
+  async () => {
+    const repository =
+      new SupabaseLeadSearchRepository({
+        supabaseUrl:
+          "https://example.supabase.co",
+        secretKey:
+          "sb_secret_private",
+        timeoutMs: 1_000,
+        fetchFunction:
+          (async () => Response.json([{
+            result_count: 1,
+            created_count: 1,
+          }])) as typeof fetch,
+      });
+
+    const outcome =
+      await repository.completeSearch({
+        searchRunId: SEARCH_RUN_ID,
+        sector:
+          "offices_coworking",
+        results: [],
+      });
+
+    assert.deepEqual(outcome, {
+      resultCount: 1,
+      createdCount: 1,
+      createdProspectIds: [],
+    });
   },
 );

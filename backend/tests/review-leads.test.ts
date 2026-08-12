@@ -83,13 +83,15 @@ test(
     const captures: {
       evidence?:
         AddVerifiedLeadEvidenceInput;
+      assessment?:
+        SaveLeadAssessmentInput;
     } = {};
     const service =
       createLeadReviewService(
         repository(captures),
       );
 
-    await service.addEvidence(
+    const result = await service.addEvidence(
       FOUNDER_ID,
       PROSPECT_ID,
       {
@@ -123,6 +125,114 @@ test(
       captures.evidence
         ?.contentSha256 ?? "",
       /^[0-9a-f]{64}$/,
+    );
+    assert.equal(
+      result.automaticAssessment.status,
+      "updated",
+    );
+    assert.equal(
+      captures.assessment?.prospectId,
+      PROSPECT_ID,
+    );
+  },
+);
+
+test(
+  "verified evidence stays saved when automatic recalculation is temporarily unavailable",
+  async () => {
+    const captures: {
+      evidence?:
+        AddVerifiedLeadEvidenceInput;
+    } = {};
+    const base = repository(captures);
+    const service =
+      createLeadReviewService({
+        ...base,
+        async saveAssessment() {
+          throw new Error(
+            "temporary scoring failure",
+          );
+        },
+      });
+
+    const result = await service.addEvidence(
+      FOUNDER_ID,
+      PROSPECT_ID,
+      {
+        sourceType:
+          "first_party_website",
+        sourceUrl:
+          "https://example.com/about",
+        factName: "business_name",
+        factValue:
+          "Example Business",
+        sourceExcerpt: null,
+      },
+    );
+
+    assert.ok(captures.evidence);
+    assert.deepEqual(
+      result.automaticAssessment,
+      {
+        status: "pending",
+        assessment: null,
+      },
+    );
+  },
+);
+
+test(
+  "founder evidence decisions automatically create a new versioned assessment",
+  async () => {
+    const captures: {
+      assessment?:
+        SaveLeadAssessmentInput;
+    } = {};
+    const evidenceId =
+      "33333333-3333-4333-8333-333333333333";
+    const base = repository(captures);
+    const service =
+      createLeadReviewService({
+        ...base,
+        async getProspect() {
+          return {
+            ...review,
+            evidence: [{
+              id: evidenceId,
+              sourceUrl:
+                "https://example.com/about",
+              sourceType:
+                "first_party_website",
+              fieldName:
+                "business_name",
+              fieldValue:
+                "Example Business",
+              sourceExcerpt: null,
+              verificationStatus:
+                "unverified",
+              capturedAt:
+                "2026-08-11T10:00:00.000Z",
+              verifiedAt: null,
+            }],
+          };
+        },
+      });
+
+    const result =
+      await service.decideEvidence(
+        FOUNDER_ID,
+        PROSPECT_ID,
+        evidenceId,
+        {
+          decision: "rejected",
+          reviewNote: null,
+        },
+      );
+
+    assert.equal(result.status, "updated");
+    assert.equal(
+      captures.assessment?.founderId,
+      FOUNDER_ID,
     );
   },
 );

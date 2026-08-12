@@ -23,6 +23,9 @@ const captureResponseSchema =
         z.number().int().min(0),
       created_count:
         z.number().int().min(0),
+      created_prospect_ids:
+        z.array(z.string().uuid())
+          .default([]),
     }),
   ).length(1);
 
@@ -214,6 +217,9 @@ implements LeadSearchRepository {
       createdCount:
         parsed.data[0]!
           .created_count,
+      createdProspectIds:
+        parsed.data[0]!
+          .created_prospect_ids,
     };
   }
 
@@ -238,4 +244,3 @@ implements LeadSearchRepository {
     );
   }
 }
-

@@ -108,6 +108,8 @@ export interface CaptureLeadResultsInput {
 export interface CaptureLeadResultsOutcome {
   readonly resultCount: number;
   readonly createdCount: number;
+  readonly createdProspectIds:
+    readonly string[];
 }
 
 export interface LeadSearchRepository {

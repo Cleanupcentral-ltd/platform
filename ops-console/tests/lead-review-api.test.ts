@@ -48,7 +48,7 @@ test(
   "first-party verification sends one atomic fact and its source",
   async () => {
     let requestBody = "";
-    const evidenceId =
+    const result =
       await addVerificationEvidence(
         "https://backend.example",
         "founder-aal2-token",
@@ -73,6 +73,10 @@ test(
               verification: {
                 evidenceId:
                   "33333333-3333-4333-8333-333333333333",
+                automaticAssessment: {
+                  status: "updated",
+                  assessment: null,
+                },
               },
             },
             { status: 201 },
@@ -94,8 +98,12 @@ test(
       "https://example.com/about",
     );
     assert.equal(
-      evidenceId,
+      result.evidenceId,
       "33333333-3333-4333-8333-333333333333",
+    );
+    assert.equal(
+      result.automaticAssessment.status,
+      "updated",
     );
   },
 );

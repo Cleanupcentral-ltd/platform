@@ -53,6 +53,12 @@ function repository(
       captures.evidence = input;
       return "33333333-3333-4333-8333-333333333333";
     },
+    async findProspectByCompanyNumber() {
+      return null;
+    },
+    async recordCompaniesHouseVerification() {
+      return [];
+    },
     async decideEvidence() {},
     async saveAssessment(input) {
       captures.assessment = input;

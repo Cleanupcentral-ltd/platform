@@ -85,6 +85,33 @@ export interface VerificationSaveResult {
     AutomaticAssessmentResult;
 }
 
+export interface CompaniesHouseMatch {
+  readonly companyName: string;
+  readonly companyNumber: string;
+  readonly companyStatus: string;
+  readonly companyType: string;
+  readonly registeredOfficeAddress: {
+    readonly formatted: string | null;
+    readonly postcode: string | null;
+  };
+  readonly dateOfCreation: string | null;
+  readonly officialUrl: string;
+}
+
+export interface CompaniesHouseVerificationResult {
+  readonly companyName: string;
+  readonly companyNumber: string;
+  readonly businessStatus:
+    "active" | "inactive";
+  readonly subscriberType:
+    "corporate" | "partnership" |
+    "unknown";
+  readonly evidenceIds:
+    readonly string[];
+  readonly automaticAssessment:
+    AutomaticAssessmentResult;
+}
+
 export interface ProspectReview {
   readonly id: string;
   readonly businessName: string;
@@ -291,4 +318,51 @@ export async function assessProspect(
       fetchFunction,
     );
   return response.assessment;
+}
+
+export async function searchCompaniesHouseMatches(
+  backendUrl: string,
+  accessToken: string,
+  prospectId: string,
+  query: string,
+  fetchFunction: typeof fetch = fetch,
+): Promise<readonly CompaniesHouseMatch[]> {
+  const response = await requestJson<{
+    readonly matches:
+      readonly CompaniesHouseMatch[];
+  }>(
+    `${baseUrl(backendUrl)}/api/ops/leads/prospects/${encodeURIComponent(prospectId)}/companies-house/matches?q=${encodeURIComponent(query)}`,
+    accessToken,
+    { method: "GET" },
+    fetchFunction,
+  );
+  return response.matches;
+}
+
+export async function verifyCompaniesHouseMatch(
+  backendUrl: string,
+  accessToken: string,
+  prospectId: string,
+  companyNumber: string,
+  fetchFunction: typeof fetch = fetch,
+): Promise<CompaniesHouseVerificationResult> {
+  const response = await requestJson<{
+    readonly verification:
+      CompaniesHouseVerificationResult;
+  }>(
+    `${baseUrl(backendUrl)}/api/ops/leads/prospects/${encodeURIComponent(prospectId)}/companies-house/verification`,
+    accessToken,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type":
+          "application/json",
+      },
+      body: JSON.stringify({
+        companyNumber,
+      }),
+    },
+    fetchFunction,
+  );
+  return response.verification;
 }

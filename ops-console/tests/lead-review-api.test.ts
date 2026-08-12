@@ -5,6 +5,8 @@ import {
   addVerificationEvidence,
   assessProspect,
   listProspects,
+  searchCompaniesHouseMatches,
+  verifyCompaniesHouseMatch,
 } from "../src/lead-review-api.ts";
 
 const PROSPECT_ID =
@@ -41,6 +43,101 @@ test(
       "Bearer founder-aal2-token",
     );
     assert.deepEqual(result, []);
+  },
+);
+
+test(
+  "Companies House candidate search sends only the founder query",
+  async () => {
+    let requestUrl = "";
+    const matches =
+      await searchCompaniesHouseMatches(
+        "https://backend.example",
+        "founder-aal2-token",
+        PROSPECT_ID,
+        "Example & Co",
+        (async (input) => {
+          requestUrl = String(input);
+          return Response.json({
+            success: true,
+            matches: [{
+              companyName:
+                "EXAMPLE & CO LTD",
+              companyNumber:
+                "01234567",
+              companyStatus:
+                "active",
+              companyType: "ltd",
+              registeredOfficeAddress: {
+                formatted:
+                  "1 High Street",
+                postcode: "BR1 1AA",
+              },
+              dateOfCreation:
+                "2020-01-01",
+              officialUrl:
+                "https://find-and-update.company-information.service.gov.uk/company/01234567",
+            }],
+          });
+        }) as typeof fetch,
+      );
+
+    assert.match(
+      requestUrl,
+      /companies-house\/matches\?q=Example%20%26%20Co$/,
+    );
+    assert.equal(
+      matches[0]?.companyNumber,
+      "01234567",
+    );
+  },
+);
+
+test(
+  "Companies House confirmation sends only the selected company number",
+  async () => {
+    let requestBody = "";
+    const result =
+      await verifyCompaniesHouseMatch(
+        "https://backend.example",
+        "founder-aal2-token",
+        PROSPECT_ID,
+        "01234567",
+        (async (_input, init) => {
+          requestBody =
+            String(init?.body);
+          return Response.json(
+            {
+              success: true,
+              verification: {
+                companyName:
+                  "EXAMPLE COMPANY LTD",
+                companyNumber:
+                  "01234567",
+                businessStatus:
+                  "active",
+                subscriberType:
+                  "corporate",
+                evidenceIds: [],
+                automaticAssessment: {
+                  status: "updated",
+                  assessment: null,
+                },
+              },
+            },
+            { status: 201 },
+          );
+        }) as typeof fetch,
+      );
+
+    assert.deepEqual(
+      JSON.parse(requestBody),
+      { companyNumber: "01234567" },
+    );
+    assert.equal(
+      result.subscriberType,
+      "corporate",
+    );
   },
 );
 

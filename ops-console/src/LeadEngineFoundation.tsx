@@ -46,6 +46,8 @@ interface FoundationResponse {
     readonly search?: unknown;
     readonly manualCapture?: unknown;
     readonly reviewAndScoring?: unknown;
+    readonly companiesHouseVerification?:
+      unknown;
     readonly outlookDrafts?: unknown;
   };
 }
@@ -54,6 +56,8 @@ interface Capabilities {
   readonly search: boolean;
   readonly manualCapture: boolean;
   readonly reviewAndScoring: boolean;
+  readonly companiesHouseVerification:
+    boolean;
 }
 
 function messageFrom(error: unknown): string {
@@ -82,6 +86,7 @@ export function LeadEngineFoundation() {
       search: false,
       manualCapture: false,
       reviewAndScoring: false,
+      companiesHouseVerification: false,
     });
 
   const client = useMemo<SupabaseClient | null>(() => {
@@ -151,6 +156,10 @@ export function LeadEngineFoundation() {
       reviewAndScoring:
         body.capabilities
           ?.reviewAndScoring === true,
+      companiesHouseVerification:
+        body.capabilities
+          ?.companiesHouseVerification ===
+        true,
     });
     setAccessToken(
       session.access_token,
@@ -407,6 +416,7 @@ export function LeadEngineFoundation() {
       search: false,
       manualCapture: false,
       reviewAndScoring: false,
+      companiesHouseVerification: false,
     });
     setScreen("signed_out");
   }
@@ -629,6 +639,10 @@ export function LeadEngineFoundation() {
                   reviewEnabled={
                     capabilities
                       .reviewAndScoring
+                  }
+                  companiesHouseEnabled={
+                    capabilities
+                      .companiesHouseVerification
                   }
                 />
               )

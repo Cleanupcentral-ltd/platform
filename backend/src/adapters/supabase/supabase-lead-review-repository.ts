@@ -8,6 +8,7 @@ import type {
   LeadProspectReview,
   LeadProspectSummary,
   LeadReviewRepository,
+  RecordCompaniesHouseVerificationInput,
   SaveLeadAssessmentInput,
 } from "../../ports/lead-review.js";
 
@@ -102,6 +103,14 @@ const evidenceIdResponseSchema =
   z.array(
     z.object({
       evidence_id: z.string().uuid(),
+    }),
+  ).length(1);
+
+const evidenceIdsResponseSchema =
+  z.array(
+    z.object({
+      evidence_ids:
+        z.array(z.string().uuid()),
     }),
   ).length(1);
 
@@ -452,6 +461,67 @@ implements LeadReviewRepository {
       },
     );
     return result[0]!.evidence_id;
+  }
+
+  async findProspectByCompanyNumber(
+    companyNumber: string,
+  ): Promise<{
+    readonly id: string;
+    readonly businessName: string;
+  } | null> {
+    const result = await this.json(
+      `/prospects?company_number=eq.${encodeURIComponent(companyNumber)}&select=id,business_name&limit=1`,
+      z.array(z.object({
+        id: z.string().uuid(),
+        business_name: z.string(),
+      })),
+    );
+    const row = result[0];
+    return row === undefined
+      ? null
+      : {
+          id: row.id,
+          businessName:
+            row.business_name,
+        };
+  }
+
+  async recordCompaniesHouseVerification(
+    input:
+      RecordCompaniesHouseVerificationInput,
+  ): Promise<readonly string[]> {
+    const result = await this.json(
+      "/rpc/record_companies_house_verification",
+      evidenceIdsResponseSchema,
+      {
+        method: "POST",
+        headers: {
+          "content-type":
+            "application/json",
+        },
+        body: JSON.stringify({
+          p_prospect_id:
+            input.prospectId,
+          p_founder_id:
+            input.founderId,
+          p_source_url:
+            input.sourceUrl,
+          p_facts: input.facts.map(
+            (fact) => ({
+              field_name:
+                fact.factName,
+              field_value:
+                fact.factValue,
+              source_excerpt:
+                fact.sourceExcerpt,
+              content_sha256:
+                fact.contentSha256,
+            }),
+          ),
+        }),
+      },
+    );
+    return result[0]!.evidence_ids;
   }
 
   async decideEvidence(

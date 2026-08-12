@@ -23,6 +23,8 @@ interface LeadSearchWorkspaceProps {
   readonly onSignOut: () =>
     Promise<void>;
   readonly reviewEnabled?: boolean;
+  readonly companiesHouseEnabled?:
+    boolean;
 }
 
 function errorMessage(
@@ -46,6 +48,7 @@ export function LeadSearchWorkspace({
   accessToken,
   onSignOut,
   reviewEnabled = false,
+  companiesHouseEnabled = false,
 }: LeadSearchWorkspaceProps) {
   const [postcode, setPostcode] =
     useState("");
@@ -453,6 +456,9 @@ export function LeadSearchWorkspace({
         <ProspectReviewWorkspace
           backendUrl={backendUrl}
           accessToken={accessToken}
+          companiesHouseEnabled={
+            companiesHouseEnabled
+          }
         />
       )}
     </div>

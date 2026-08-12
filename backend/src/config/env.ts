@@ -176,6 +176,28 @@ const environmentSchema = z
             value === "true",
         ),
 
+    COMPANIES_HOUSE_API_KEY:
+      z.string()
+        .trim()
+        .min(1)
+        .optional(),
+
+    COMPANIES_HOUSE_API_BASE_URL:
+      z.string()
+        .trim()
+        .url()
+        .default(
+          "https://api.company-information.service.gov.uk",
+        ),
+
+    COMPANIES_HOUSE_TIMEOUT_MS:
+      z.coerce
+        .number()
+        .int()
+        .min(1_000)
+        .max(15_000)
+        .default(8_000),
+
     LEAD_OUTLOOK_DRAFT_V1:
       z.enum(["true", "false"])
         .default("false")

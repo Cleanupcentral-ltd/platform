@@ -29,6 +29,8 @@ interface LeadSearchWorkspaceProps {
     boolean;
   readonly automaticQualificationEnabled?:
     boolean;
+  readonly outlookDraftEnabled?:
+    boolean;
 }
 
 function errorMessage(
@@ -55,6 +57,7 @@ export function LeadSearchWorkspace({
   companiesHouseEnabled = false,
   companyEnrichmentEnabled = false,
   automaticQualificationEnabled = false,
+  outlookDraftEnabled = false,
 }: LeadSearchWorkspaceProps) {
   const [postcode, setPostcode] =
     useState("");
@@ -470,6 +473,9 @@ export function LeadSearchWorkspace({
           }
           automaticQualificationEnabled={
             automaticQualificationEnabled
+          }
+          outlookDraftEnabled={
+            outlookDraftEnabled
           }
         />
       )}

@@ -109,7 +109,9 @@ export interface CompleteAutomaticQualificationInput {
 }
 
 export interface AutomaticQualificationRepository {
-  activate(): Promise<number>;
+  activate(
+    totalLimit: number | null,
+  ): Promise<number>;
 
   claimQualificationJobs(
     limit: number,

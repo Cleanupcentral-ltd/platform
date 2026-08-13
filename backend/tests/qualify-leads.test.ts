@@ -148,6 +148,7 @@ test(
         },
         batchSize: 5,
         leaseSeconds: 180,
+        activationTotalLimit: 1,
       });
 
     const batch = await service.runBatch();
@@ -203,6 +204,7 @@ test(
         },
         batchSize: 5,
         leaseSeconds: 180,
+        activationTotalLimit: 1,
       });
 
     await service.runBatch();

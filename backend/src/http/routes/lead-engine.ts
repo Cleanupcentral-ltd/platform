@@ -26,6 +26,11 @@ import type {
 } from "../../application/enrich-companies.js";
 
 import {
+  OutreachError,
+  type OutreachService,
+} from "../../application/outreach.js";
+
+import {
   FounderAuthError,
   type FounderAuthService,
 } from "../../ports/founder-auth.js";
@@ -66,6 +71,15 @@ export interface LeadEngineRouteDependencies {
 
   readonly automaticQualificationEnabled?:
     boolean;
+
+  readonly outlookDraftEnabled?:
+    boolean;
+
+  readonly outreachService?:
+    OutreachService | null;
+
+  readonly outlookCallbackRedirectUrl?:
+    string | null;
 }
 
 const UK_POSTCODE =
@@ -190,6 +204,51 @@ const prospectViewRequestSchema =
     viewed: z.boolean(),
   });
 
+const outlookPreviewRequestSchema =
+  z.strictObject({
+    contactId: z.string()
+      .uuid()
+      .nullable()
+      .optional()
+      .default(null),
+  });
+
+const outlookDraftRequestSchema =
+  z.strictObject({
+    contactId: z.string().uuid(),
+    previewSha256: z.string()
+      .regex(/^[0-9a-f]{64}$/),
+  });
+
+const outlookCallbackQuerySchema =
+  z.object({
+    code: z.string().min(1).max(8_000),
+    state: z.string().min(20).max(500),
+  });
+
+const outreachActivityRequestSchema =
+  z.strictObject({
+    activityType: z.enum([
+      "contacted",
+      "replied",
+      "follow_up_scheduled",
+      "outcome",
+    ]),
+    outcome: z.enum([
+      "won",
+      "lost",
+      "not_now",
+      "not_interested",
+      "do_not_contact",
+    ]).nullable().optional().default(null),
+    notes: nullableText(1_000),
+    followUpAt: z.string()
+      .datetime({ offset: true })
+      .nullable()
+      .optional()
+      .default(null),
+  });
+
 const companiesHouseSearchQuerySchema =
   z.object({
     q: z.string()
@@ -230,6 +289,12 @@ const COMPANIES_HOUSE_RATE_LIMIT = {
   timeWindow: "1 minute",
   groupId:
     "companies-house-verification",
+} as const;
+
+const OUTLOOK_RATE_LIMIT = {
+  max: 10,
+  timeWindow: "1 minute",
+  groupId: "outlook-drafts",
 } as const;
 
 function readBearerToken(
@@ -515,6 +580,82 @@ async function runCompaniesHouseOperation<T>(
   }
 }
 
+function mapOutreachError(
+  error: OutreachError,
+): HttpError {
+  switch (error.failure) {
+    case "not_found":
+      return new HttpError({
+        code: "LEAD_NOT_FOUND",
+        message:
+          "The requested prospect was not found.",
+        statusCode: 404,
+      });
+    case "not_eligible":
+      return new HttpError({
+        code: "OUTREACH_NOT_ELIGIBLE",
+        message:
+          "This prospect is not currently in Ready for outreach. Resolve every evidence, subscriber and suppression blocker first.",
+        statusCode: 409,
+      });
+    case "unsupported_contact":
+      return new HttpError({
+        code: "OUTREACH_CONTACT_UNSUPPORTED",
+        message:
+          "Choose a verified generic business email. Personal addresses and contact forms cannot create an Outlook draft.",
+        statusCode: 400,
+      });
+    case "stale_preview":
+      return new HttpError({
+        code: "OUTREACH_PREVIEW_CHANGED",
+        message:
+          "The evidence or draft preview changed. Review the refreshed preview before approving it.",
+        statusCode: 409,
+      });
+    case "not_connected":
+      return new HttpError({
+        code: "OUTLOOK_NOT_CONNECTED",
+        message:
+          "Connect the founder Outlook mailbox before creating a draft.",
+        statusCode: 409,
+      });
+    case "invalid_activity":
+      return new HttpError({
+        code: "INVALID_OUTREACH_ACTIVITY",
+        message:
+          "The activity is not valid for the prospect's current outreach stage.",
+        statusCode: 400,
+      });
+    case "provider_unavailable":
+      return new HttpError({
+        code: "OUTLOOK_UNAVAILABLE",
+        message:
+          "Outlook is temporarily unavailable. No email was sent; retry draft creation later.",
+        statusCode: 503,
+      });
+    case "repository_unavailable":
+      return new HttpError({
+        code: "OUTREACH_STORE_UNAVAILABLE",
+        message:
+          "Outreach tracking is temporarily unavailable. No email was sent.",
+        statusCode: 503,
+      });
+  }
+}
+
+async function runOutreachOperation<T>(
+  operation: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (error instanceof OutreachError) {
+      throw mapOutreachError(error);
+    }
+    throw error;
+  }
+}
+
 function requireJson(
   request: FastifyRequest,
   message: string,
@@ -600,12 +741,349 @@ export function registerLeadEngineRoutes(
                 .companyEnrichmentService !== null &&
               dependencies
                 .companyEnrichmentService !== undefined,
-            outlookDrafts: false,
+            outlookDrafts:
+              dependencies
+                .outlookDraftEnabled === true &&
+              dependencies
+                .outreachService !== null &&
+              dependencies
+                .outreachService !== undefined,
           },
           requestId: request.id,
         });
     },
   );
+
+  if (
+    dependencies.outlookDraftEnabled ===
+      true &&
+    dependencies.outreachService !==
+      null &&
+    dependencies.outreachService !==
+      undefined
+  ) {
+    const outreachService =
+      dependencies.outreachService;
+
+    app.get(
+      "/api/ops/leads/outlook/callback",
+      {
+        // The OAuth authorization code is carried in the
+        // query string. Suppress Fastify's automatic URL
+        // logging for this route so it never reaches logs.
+        logLevel: "silent",
+        config: {
+          rateLimit: OUTLOOK_RATE_LIMIT,
+        },
+      },
+      async (
+        request,
+        reply,
+      ): Promise<FastifyReply> => {
+        const query =
+          outlookCallbackQuerySchema
+            .safeParse(request.query);
+        const redirectBase =
+          dependencies
+            .outlookCallbackRedirectUrl;
+        if (
+          !query.success ||
+          redirectBase === null ||
+          redirectBase === undefined
+        ) {
+          throw new HttpError({
+            code: "INVALID_OUTLOOK_CALLBACK",
+            message:
+              "The Outlook connection callback is invalid or incomplete.",
+            statusCode: 400,
+          });
+        }
+        try {
+          await outreachService
+            .completeAuthorization(
+              query.data.code,
+              query.data.state,
+            );
+          return reply.redirect(
+            `${redirectBase}?outlook=connected`,
+          );
+        } catch {
+          return reply.redirect(
+            `${redirectBase}?outlook=error`,
+          );
+        }
+      },
+    );
+
+    app.post(
+      "/api/ops/leads/outlook/connect",
+      {
+        bodyLimit: 1 * 1024,
+        config: {
+          rateLimit: OUTLOOK_RATE_LIMIT,
+        },
+      },
+      async (
+        request,
+        reply,
+      ): Promise<FastifyReply> => {
+        const founder =
+          await authenticateFounder(
+            request,
+            dependencies
+              .founderAuthService,
+          );
+        requireJson(
+          request,
+          "Outlook connection requests must use application/json.",
+        );
+        const body = assessmentRequestSchema
+          .safeParse(request.body);
+        if (!body.success) {
+          throw new HttpError({
+            code: "VALIDATION_ERROR",
+            message:
+              "The Outlook connection request must not include client-supplied permissions.",
+            statusCode: 400,
+          });
+        }
+        const authorizationUrl =
+          await runOutreachOperation(
+            () => outreachService
+              .createAuthorizationUrl(
+                founder.userId,
+              ),
+          );
+        return reply
+          .header("Cache-Control", "no-store")
+          .status(200)
+          .type("application/json")
+          .send({
+            success: true,
+            authorizationUrl,
+            permissions: [
+              "Mail.ReadWrite",
+            ],
+            sendingPermitted: false,
+            requestId: request.id,
+          });
+      },
+    );
+
+    app.get(
+      "/api/ops/leads/prospects/:prospectId/outreach",
+      {
+        config: {
+          rateLimit: OUTLOOK_RATE_LIMIT,
+        },
+      },
+      async (
+        request,
+        reply,
+      ): Promise<FastifyReply> => {
+        const founder =
+          await authenticateFounder(
+            request,
+            dependencies
+              .founderAuthService,
+          );
+        const params = prospectParamsSchema
+          .safeParse(request.params);
+        if (!params.success) {
+          throw new HttpError({
+            code: "VALIDATION_ERROR",
+            message:
+              "Enter a valid prospect reference.",
+            statusCode: 400,
+          });
+        }
+        const outreach =
+          await runOutreachOperation(
+            () => outreachService
+              .getWorkspace(
+                founder.userId,
+                params.data.prospectId,
+              ),
+          );
+        return reply
+          .header("Cache-Control", "no-store")
+          .status(200)
+          .type("application/json")
+          .send({
+            success: true,
+            outreach,
+            requestId: request.id,
+          });
+      },
+    );
+
+    app.post(
+      "/api/ops/leads/prospects/:prospectId/outlook-draft-preview",
+      {
+        bodyLimit: 4 * 1024,
+        config: {
+          rateLimit: OUTLOOK_RATE_LIMIT,
+        },
+      },
+      async (
+        request,
+        reply,
+      ): Promise<FastifyReply> => {
+        const founder =
+          await authenticateFounder(
+            request,
+            dependencies
+              .founderAuthService,
+          );
+        requireJson(
+          request,
+          "Outlook draft previews must use application/json.",
+        );
+        const params = prospectParamsSchema
+          .safeParse(request.params);
+        const body = outlookPreviewRequestSchema
+          .safeParse(request.body);
+        if (!params.success || !body.success) {
+          throw new HttpError({
+            code: "VALIDATION_ERROR",
+            message:
+              "Choose a valid verified contact without supplying draft content.",
+            statusCode: 400,
+          });
+        }
+        const preview =
+          await runOutreachOperation(
+            () => outreachService
+              .previewDraft(
+                founder.userId,
+                params.data.prospectId,
+                body.data.contactId,
+              ),
+          );
+        return reply
+          .header("Cache-Control", "no-store")
+          .status(200)
+          .type("application/json")
+          .send({
+            success: true,
+            preview,
+            requestId: request.id,
+          });
+      },
+    );
+
+    app.post(
+      "/api/ops/leads/prospects/:prospectId/outlook-drafts",
+      {
+        bodyLimit: 4 * 1024,
+        config: {
+          rateLimit: OUTLOOK_RATE_LIMIT,
+        },
+      },
+      async (
+        request,
+        reply,
+      ): Promise<FastifyReply> => {
+        const founder =
+          await authenticateFounder(
+            request,
+            dependencies
+              .founderAuthService,
+          );
+        requireJson(
+          request,
+          "Outlook draft approval must use application/json.",
+        );
+        const params = prospectParamsSchema
+          .safeParse(request.params);
+        const body = outlookDraftRequestSchema
+          .safeParse(request.body);
+        if (!params.success || !body.success) {
+          throw new HttpError({
+            code: "VALIDATION_ERROR",
+            message:
+              "Approve the exact current preview and verified contact.",
+            statusCode: 400,
+          });
+        }
+        const draft =
+          await runOutreachOperation(
+            () => outreachService
+              .createDraft(
+                founder.userId,
+                params.data.prospectId,
+                body.data.contactId,
+                body.data.previewSha256,
+              ),
+          );
+        return reply
+          .header("Cache-Control", "no-store")
+          .status(201)
+          .type("application/json")
+          .send({
+            success: true,
+            draft,
+            sent: false,
+            requestId: request.id,
+          });
+      },
+    );
+
+    app.post(
+      "/api/ops/leads/prospects/:prospectId/outreach-activities",
+      {
+        bodyLimit: 8 * 1024,
+        config: {
+          rateLimit: OUTLOOK_RATE_LIMIT,
+        },
+      },
+      async (
+        request,
+        reply,
+      ): Promise<FastifyReply> => {
+        const founder =
+          await authenticateFounder(
+            request,
+            dependencies
+              .founderAuthService,
+          );
+        requireJson(
+          request,
+          "Outreach activities must use application/json.",
+        );
+        const params = prospectParamsSchema
+          .safeParse(request.params);
+        const body = outreachActivityRequestSchema
+          .safeParse(request.body);
+        if (!params.success || !body.success) {
+          throw new HttpError({
+            code: "VALIDATION_ERROR",
+            message:
+              "Enter a valid outreach activity.",
+            statusCode: 400,
+          });
+        }
+        const activity =
+          await runOutreachOperation(
+            () => outreachService
+              .recordActivity(
+                founder.userId,
+                params.data.prospectId,
+                body.data,
+              ),
+          );
+        return reply
+          .header("Cache-Control", "no-store")
+          .status(201)
+          .type("application/json")
+          .send({
+            success: true,
+            activity,
+            requestId: request.id,
+          });
+      },
+    );
+  }
 
   if (
     dependencies.leadReviewService !==

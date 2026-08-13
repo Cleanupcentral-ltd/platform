@@ -4,7 +4,10 @@ import test from "node:test";
 import {
   addVerificationEvidence,
   assessProspect,
+  beginOutlookConnection,
+  createOutlookDraft,
   listProspects,
+  previewOutlookDraft,
   retryCompanyEnrichment,
   searchCompaniesHouseMatches,
   updateProspectViewState,
@@ -324,6 +327,121 @@ test(
     assert.equal(
       result.rulesVersion,
       "cuc-lel-0-10-v1",
+    );
+  },
+);
+
+test(
+  "Outlook connection rejects any backend response that permits sending",
+  async () => {
+    await assert.rejects(
+      beginOutlookConnection(
+        "https://backend.example",
+        "founder-aal2-token",
+        (async () => Response.json({
+          authorizationUrl:
+            "https://login.microsoftonline.com/authorize",
+          permissions: [
+            "Mail.ReadWrite",
+            "Mail.Send",
+          ],
+          sendingPermitted: true,
+        })) as typeof fetch,
+      ),
+      /unsupported Outlook send permission/,
+    );
+  },
+);
+
+test(
+  "Outlook draft approval sends only the verified contact and exact preview hash",
+  async () => {
+    let previewBody = "";
+    const preview = await previewOutlookDraft(
+      "https://backend.example",
+      "founder-aal2-token",
+      PROSPECT_ID,
+      null,
+      (async (_input, init) => {
+        previewBody = String(init?.body);
+        return Response.json({
+          preview: {
+            prospectId: PROSPECT_ID,
+            businessName:
+              "Example Business",
+            templateId:
+              "initial_outreach_v1",
+            contactId:
+              "33333333-3333-4333-8333-333333333333",
+            recipientEmail:
+              "hello@example.com",
+            availableRecipients: [],
+            subject:
+              "Cleaning support",
+            body: "Hello",
+            evidence: [],
+            previewSha256:
+              "a".repeat(64),
+          },
+        });
+      }) as typeof fetch,
+    );
+    assert.deepEqual(
+      JSON.parse(previewBody),
+      { contactId: null },
+    );
+
+    let approvalBody = "";
+    await createOutlookDraft(
+      "https://backend.example",
+      "founder-aal2-token",
+      PROSPECT_ID,
+      preview.contactId,
+      preview.previewSha256,
+      (async (_input, init) => {
+        approvalBody = String(init?.body);
+        return Response.json(
+          {
+            sent: false,
+            draft: {
+              id:
+                "55555555-5555-4555-8555-555555555555",
+              prospectId: PROSPECT_ID,
+              contactId:
+                preview.contactId,
+              recipientEmail:
+                "hello@example.com",
+              subject:
+                "Cleaning support",
+              body: "Hello",
+              templateId:
+                "initial_outreach_v1",
+              previewSha256:
+                preview.previewSha256,
+              evidenceIds: [],
+              status: "drafted",
+              outlookDraftId:
+                "graph-draft-id",
+              outlookWebUrl: null,
+              lastErrorCode: null,
+              createdAt:
+                "2026-08-13T12:00:00.000Z",
+              updatedAt:
+                "2026-08-13T12:00:00.000Z",
+            },
+          },
+          { status: 201 },
+        );
+      }) as typeof fetch,
+    );
+    assert.deepEqual(
+      JSON.parse(approvalBody),
+      {
+        contactId:
+          preview.contactId,
+        previewSha256:
+          preview.previewSha256,
+      },
     );
   },
 );

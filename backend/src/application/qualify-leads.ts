@@ -44,6 +44,8 @@ export interface AutomaticQualificationServiceOptions {
       "assess" | "getProspect">;
   readonly batchSize: number;
   readonly leaseSeconds: number;
+  readonly activationTotalLimit:
+    number | null;
 }
 
 type Outcome =
@@ -352,7 +354,9 @@ export function createAutomaticQualificationService(
 
   return {
     async runBatch() {
-      await options.repository.activate();
+      await options.repository.activate(
+        options.activationTotalLimit,
+      );
       const jobs = await options.repository.claimQualificationJobs(
         options.batchSize,
         options.leaseSeconds,

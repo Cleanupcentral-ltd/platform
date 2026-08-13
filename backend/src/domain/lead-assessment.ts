@@ -5,6 +5,10 @@ import type {
   LeadProspectReview,
 } from "../ports/lead-review.js";
 
+import {
+  isGenericBusinessEmail,
+} from "./business-email.js";
+
 export const LEAD_SCORING_VERSION =
   "cuc-lel-0-10-v1.1";
 
@@ -264,29 +268,46 @@ function scaleScore(
 function contactabilityScore(
   prospect: LeadProspectReview,
 ): DimensionScore {
-  const persistentEvidenceIdSet =
-    new Set(
-      persistentEvidence(
-        prospect,
-      ).map((item) => item.id),
-    );
+  const evidenceById = new Map(
+    persistentEvidence(prospect).map(
+      (item) => [item.id, item],
+    ),
+  );
   const verifiedContacts =
     prospect.contacts.filter(
       (item) =>
         item.verificationStatus ===
           "verified" &&
-        persistentEvidenceIdSet.has(
+        evidenceById.has(
           item.sourceEvidenceId,
         ),
     );
   const emails = verifiedContacts.filter(
-    (item) =>
-      item.contactType === "email",
+    (item) => {
+      const source = evidenceById.get(
+        item.sourceEvidenceId,
+      );
+      return item.contactType === "email" &&
+      source?.sourceType ===
+        "first_party_website" &&
+      source.fieldName === "public_email" &&
+      isGenericBusinessEmail(
+        item.normalizedValue,
+      );
+    },
   );
   const forms = verifiedContacts.filter(
-    (item) =>
-      item.contactType ===
-        "contact_form",
+    (item) => {
+      const source = evidenceById.get(
+        item.sourceEvidenceId,
+      );
+      return item.contactType ===
+        "contact_form" &&
+        source?.sourceType ===
+          "first_party_website" &&
+        source.fieldName ===
+          "contact_form_url";
+    },
   );
   const subscriberType = normalizedFact(
     persistentEvidence(

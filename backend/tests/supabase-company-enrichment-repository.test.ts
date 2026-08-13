@@ -155,6 +155,34 @@ test(
 );
 
 test(
+  "automatic qualification activation preserves the configured total canary limit",
+  async () => {
+    let requestBody: unknown;
+    const repository =
+      new SupabaseCompanyEnrichmentRepository({
+        supabaseUrl:
+          "https://project.supabase.co",
+        secretKey: "sb_secret_private",
+        timeoutMs: 1_000,
+        fetchFunction: (async (_input, init) => {
+          requestBody = JSON.parse(
+            String(init?.body),
+          );
+          return Response.json(1);
+        }) as typeof fetch,
+      });
+
+    assert.equal(
+      await repository.activate(1),
+      1,
+    );
+    assert.deepEqual(requestBody, {
+      p_total_limit: 1,
+    });
+  },
+);
+
+test(
   "automatic research records exact source evidence through one private RPC",
   async () => {
     let requestUrl = "";

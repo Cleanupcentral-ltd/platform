@@ -179,6 +179,77 @@ export interface ProspectReview {
     CompanyEnrichmentRecord | null;
 }
 
+export interface OutlookDraftRecord {
+  readonly id: string;
+  readonly prospectId: string;
+  readonly contactId: string;
+  readonly recipientEmail: string;
+  readonly subject: string;
+  readonly body: string;
+  readonly templateId: string;
+  readonly previewSha256: string;
+  readonly evidenceIds: readonly string[];
+  readonly status:
+    | "pending"
+    | "drafted"
+    | "failed"
+    | "contacted"
+    | "replied"
+    | "closed";
+  readonly outlookDraftId: string | null;
+  readonly outlookWebUrl: string | null;
+  readonly lastErrorCode: string | null;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+export interface OutreachActivity {
+  readonly id: string;
+  readonly activityType:
+    | "outlook_draft_created"
+    | "contacted"
+    | "replied"
+    | "follow_up_scheduled"
+    | "outcome";
+  readonly outcome: string | null;
+  readonly notes: string | null;
+  readonly followUpAt: string | null;
+  readonly createdAt: string;
+}
+
+export interface OutreachWorkspace {
+  readonly connection: {
+    readonly connected: boolean;
+    readonly mailboxEmail: string | null;
+    readonly connectedAt: string | null;
+  };
+  readonly latestDraft:
+    OutlookDraftRecord | null;
+  readonly activities:
+    readonly OutreachActivity[];
+}
+
+export interface OutlookDraftPreview {
+  readonly prospectId: string;
+  readonly businessName: string;
+  readonly templateId: string;
+  readonly contactId: string;
+  readonly recipientEmail: string;
+  readonly availableRecipients: readonly {
+    readonly contactId: string;
+    readonly email: string;
+  }[];
+  readonly subject: string;
+  readonly body: string;
+  readonly evidence: readonly {
+    readonly id: string;
+    readonly factName: string;
+    readonly factValue: string;
+    readonly sourceUrl: string;
+  }[];
+  readonly previewSha256: string;
+}
+
 export interface AddVerificationEvidenceInput {
   readonly sourceType:
     VerificationSourceType;
@@ -456,4 +527,156 @@ export async function retryCompanyEnrichment(
     },
     fetchFunction,
   );
+}
+
+export async function getOutreachWorkspace(
+  backendUrl: string,
+  accessToken: string,
+  prospectId: string,
+  fetchFunction: typeof fetch = fetch,
+): Promise<OutreachWorkspace> {
+  const response = await requestJson<{
+    readonly outreach:
+      OutreachWorkspace;
+  }>(
+    `${baseUrl(backendUrl)}/api/ops/leads/prospects/${encodeURIComponent(prospectId)}/outreach`,
+    accessToken,
+    { method: "GET" },
+    fetchFunction,
+  );
+  return response.outreach;
+}
+
+export async function beginOutlookConnection(
+  backendUrl: string,
+  accessToken: string,
+  fetchFunction: typeof fetch = fetch,
+): Promise<string> {
+  const response = await requestJson<{
+    readonly authorizationUrl: string;
+    readonly permissions:
+      readonly string[];
+    readonly sendingPermitted: boolean;
+  }>(
+    `${baseUrl(backendUrl)}/api/ops/leads/outlook/connect`,
+    accessToken,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type":
+          "application/json",
+      },
+      body: "{}",
+    },
+    fetchFunction,
+  );
+  if (
+    response.sendingPermitted ||
+    response.permissions.some(
+      (permission) =>
+        permission.toLowerCase() ===
+          "mail.send",
+    )
+  ) {
+    throw new Error(
+      "The backend requested an unsupported Outlook send permission.",
+    );
+  }
+  return response.authorizationUrl;
+}
+
+export async function previewOutlookDraft(
+  backendUrl: string,
+  accessToken: string,
+  prospectId: string,
+  contactId: string | null,
+  fetchFunction: typeof fetch = fetch,
+): Promise<OutlookDraftPreview> {
+  const response = await requestJson<{
+    readonly preview:
+      OutlookDraftPreview;
+  }>(
+    `${baseUrl(backendUrl)}/api/ops/leads/prospects/${encodeURIComponent(prospectId)}/outlook-draft-preview`,
+    accessToken,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type":
+          "application/json",
+      },
+      body: JSON.stringify({ contactId }),
+    },
+    fetchFunction,
+  );
+  return response.preview;
+}
+
+export async function createOutlookDraft(
+  backendUrl: string,
+  accessToken: string,
+  prospectId: string,
+  contactId: string,
+  previewSha256: string,
+  fetchFunction: typeof fetch = fetch,
+): Promise<OutlookDraftRecord> {
+  const response = await requestJson<{
+    readonly draft: OutlookDraftRecord;
+    readonly sent: boolean;
+  }>(
+    `${baseUrl(backendUrl)}/api/ops/leads/prospects/${encodeURIComponent(prospectId)}/outlook-drafts`,
+    accessToken,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type":
+          "application/json",
+      },
+      body: JSON.stringify({
+        contactId,
+        previewSha256,
+      }),
+    },
+    fetchFunction,
+  );
+  if (response.sent) {
+    throw new Error(
+      "The draft endpoint returned an unsupported sent state.",
+    );
+  }
+  return response.draft;
+}
+
+export async function recordOutreachActivity(
+  backendUrl: string,
+  accessToken: string,
+  prospectId: string,
+  input: {
+    readonly activityType:
+      | "contacted"
+      | "replied"
+      | "follow_up_scheduled"
+      | "outcome";
+    readonly outcome: string | null;
+    readonly notes: string | null;
+    readonly followUpAt: string | null;
+  },
+  fetchFunction: typeof fetch = fetch,
+): Promise<OutreachActivity> {
+  const response = await requestJson<{
+    readonly activity:
+      OutreachActivity;
+  }>(
+    `${baseUrl(backendUrl)}/api/ops/leads/prospects/${encodeURIComponent(prospectId)}/outreach-activities`,
+    accessToken,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type":
+          "application/json",
+      },
+      body: JSON.stringify(input),
+    },
+    fetchFunction,
+  );
+  return response.activity;
 }

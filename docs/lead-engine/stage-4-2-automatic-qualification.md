@@ -9,7 +9,8 @@ After a postcode, radius and approved-sector search, Lead Engine Lite researches
 - `excluded` — an active suppression or verified inactive status blocks the prospect; or
 - `processing` — bounded research is queued or a transient retry is pending.
 
-The default console view is **Ready for outreach**. Outlook drafting and all sending remain disabled in this stage.
+The default console view is **Ready for outreach**. Outlook drafting is a
+separate Stage 4 flag and all sending remains outside the application.
 
 ## Founder journey
 
@@ -85,6 +86,7 @@ The researcher is deterministic; it does not generate facts with an AI model.
 LEAD_COMPANIES_HOUSE_V1=true
 LEAD_AUTO_COMPANY_ENRICHMENT_V1=true
 LEAD_AUTOMATIC_QUALIFICATION_V1=false
+LEAD_AUTOMATIC_QUALIFICATION_ROLLOUT=canary
 LEAD_COMPANY_ENRICHMENT_INTERVAL_MS=60000
 LEAD_COMPANY_ENRICHMENT_BATCH_SIZE=5
 LEAD_COMPANY_ENRICHMENT_LEASE_SECONDS=180
@@ -97,12 +99,18 @@ LEAD_WEBSITE_REQUEST_RETRIES=1
 Rollout order:
 
 1. Merge and deploy the code with `LEAD_AUTOMATIC_QUALIFICATION_V1=false`.
-2. Apply `20260813143000_automatic_qualification.sql`.
+2. Apply `20260813143000_automatic_qualification.sql` and the additive
+   `20260813180000_controlled_automatic_qualification_rollout.sql` amendment.
 3. Verify Stage 4.1 and manual review still work with Stage 4.2 disabled.
-4. Set `LEAD_AUTOMATIC_QUALIFICATION_V1=true` and redeploy the backend.
+4. Keep `LEAD_AUTOMATIC_QUALIFICATION_ROLLOUT=canary`, set
+   `LEAD_AUTOMATIC_QUALIFICATION_V1=true` and redeploy the backend.
 5. Confirm protected health reports `automaticQualification: true`.
 6. Confirm the founder console defaults to **Ready for outreach**.
-7. Run controlled production cases for ready, founder decision, excluded, processing/retry, institutional verification and duplicate protection.
+7. Confirm exactly one business in total is admitted across repeated worker
+   cycles and restarts; review its sources and queue result.
+8. After separate founder expansion approval, change the rollout to `all` and
+   run controlled production cases for ready, founder decision, excluded,
+   processing/retry, institutional verification and duplicate protection.
 
 Rollback is to set `LEAD_AUTOMATIC_QUALIFICATION_V1=false` and redeploy. The additive columns, evidence and queue history remain; Stage 4.1 continues using its existing flag and worker.
 
@@ -147,7 +155,8 @@ The migration and merge require explicit founder approval. The migration must pr
 12. Suppression always produces `excluded`, regardless of score.
 13. The four queues are available and **Ready for outreach** is the default.
 14. Stage 3 search, deduplication, manual capture, Stage 4 scoring, Stage 4.1 Companies House assistance and manual retry do not regress.
-15. Outlook drafting and sending remain disabled.
+15. Stage 4.2 does not create or send email; Outlook drafting remains governed
+    by its separate Stage 4 feature flag.
 
 ## Verification evidence
 
@@ -155,13 +164,16 @@ Evidence must be recorded against the exact release commit.
 
 - Backend source and tests type-check: passed locally.
 - Backend production build: passed locally.
-- Full backend test suite: 269 passed, 0 failed.
+- Full backend test suite after the Stage 4 integration: 283 passed, 0 failed.
 - Founder console type-check: passed locally.
 - Founder console unit tests: 22 passed, 0 failed.
 - Founder console production build: passed locally.
 - Additive migration static/security review: passed; queue claims use `FOR UPDATE SKIP LOCKED`, a partial index and attempt-bound leases. New RPCs are `security invoker`, use an empty search path, revoke browser execution and grant only `service_role`. Existing table RLS and force-RLS remain in place.
 - Production migration list and the exact existing evidence constraint were inspected read-only; Stage 4.2 is not applied.
-- Production migration and advisory checks: not started; require founder approval after PR review.
+- Controlled-rollout migration and its database acceptance suite passed against
+  the production schema inside a rolled-back transaction; no change was
+  persisted. Production application and advisory checks still require founder
+  approval after PR review.
 - Production feature enablement and controlled founder acceptance: not started.
 
 Stage 4.2 is not complete until the migration, feature flag and production acceptance evidence have been verified.

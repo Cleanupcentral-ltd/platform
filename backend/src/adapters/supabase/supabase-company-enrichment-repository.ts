@@ -212,7 +212,9 @@ implements CompanyEnrichmentRepository,
     );
   }
 
-  async activate(): Promise<number> {
+  async activate(
+    totalLimit: number | null,
+  ): Promise<number> {
     const response = await this.request(
       "/rpc/activate_automatic_qualification_v1",
       {
@@ -220,7 +222,9 @@ implements CompanyEnrichmentRepository,
         headers: {
           "content-type": "application/json",
         },
-        body: "{}",
+        body: JSON.stringify({
+          p_total_limit: totalLimit,
+        }),
       },
     );
     const parsed = z.number().int().min(0)

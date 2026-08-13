@@ -190,6 +190,10 @@ const environmentSchema = z
           (value) => value === "true",
         ),
 
+    LEAD_AUTOMATIC_QUALIFICATION_ROLLOUT:
+      z.enum(["canary", "all"])
+        .default("canary"),
+
     LEAD_COMPANY_ENRICHMENT_INTERVAL_MS:
       z.coerce.number().int()
         .min(15_000)
@@ -261,6 +265,76 @@ const environmentSchema = z
           (value) =>
             value === "true",
         ),
+
+    MICROSOFT_CLIENT_ID:
+      z.string()
+        .trim()
+        .uuid()
+        .optional(),
+
+    MICROSOFT_CLIENT_SECRET:
+      z.string()
+        .trim()
+        .min(1)
+        .optional(),
+
+    MICROSOFT_TENANT_ID:
+      z.string()
+        .trim()
+        .min(1)
+        .default("consumers"),
+
+    MICROSOFT_REDIRECT_URI:
+      z.string()
+        .trim()
+        .url()
+        .optional(),
+
+    MICROSOFT_GRAPH_API_BASE_URL:
+      z.string()
+        .trim()
+        .url()
+        .default(
+          "https://graph.microsoft.com/v1.0",
+        ),
+
+    MICROSOFT_LOGIN_BASE_URL:
+      z.string()
+        .trim()
+        .url()
+        .default(
+          "https://login.microsoftonline.com",
+        ),
+
+    OUTLOOK_TOKEN_ENCRYPTION_KEY:
+      z.string()
+        .trim()
+        .min(43)
+        .optional(),
+
+    OUTLOOK_GRAPH_TIMEOUT_MS:
+      z.coerce.number().int()
+        .min(1_000)
+        .max(30_000)
+        .default(10_000),
+
+    OUTREACH_PRIVACY_URL:
+      z.string()
+        .trim()
+        .url()
+        .refine(
+          (value) =>
+            value.startsWith("https://"),
+          "OUTREACH_PRIVACY_URL must use HTTPS.",
+        )
+        .optional(),
+
+    OUTREACH_OPTOUT_TEXT:
+      z.string()
+        .trim()
+        .min(1)
+        .max(500)
+        .optional(),
 
     LEAD_EXPORT_V1:
       z.enum(["true", "false"])
@@ -461,6 +535,72 @@ const environmentSchema = z
           message:
             "Automatic company enrichment requires Companies House verification to be enabled.",
         });
+      }
+
+      if (
+        value.LEAD_OUTLOOK_DRAFT_V1 &&
+        !value.LEAD_AUTOMATIC_QUALIFICATION_V1
+      ) {
+        context.addIssue({
+          code: "custom",
+          path: ["LEAD_OUTLOOK_DRAFT_V1"],
+          message:
+            "Outlook drafting requires automatic qualification to be enabled.",
+        });
+      }
+
+      if (value.LEAD_OUTLOOK_DRAFT_V1) {
+        const outlookRequired = [
+          [
+            "MICROSOFT_CLIENT_ID",
+            value.MICROSOFT_CLIENT_ID,
+          ],
+          [
+            "MICROSOFT_CLIENT_SECRET",
+            value.MICROSOFT_CLIENT_SECRET,
+          ],
+          [
+            "MICROSOFT_REDIRECT_URI",
+            value.MICROSOFT_REDIRECT_URI,
+          ],
+          [
+            "OUTLOOK_TOKEN_ENCRYPTION_KEY",
+            value.OUTLOOK_TOKEN_ENCRYPTION_KEY,
+          ],
+          [
+            "OUTREACH_PRIVACY_URL",
+            value.OUTREACH_PRIVACY_URL,
+          ],
+          [
+            "OUTREACH_OPTOUT_TEXT",
+            value.OUTREACH_OPTOUT_TEXT,
+          ],
+          [
+            "SUPABASE_URL",
+            value.SUPABASE_URL,
+          ],
+          [
+            "SUPABASE_SECRET_KEY",
+            value.SUPABASE_SECRET_KEY,
+          ],
+        ] as const;
+
+        for (
+          const [field, fieldValue] of
+            outlookRequired
+        ) {
+          if (
+            fieldValue === undefined ||
+            fieldValue.length === 0
+          ) {
+            context.addIssue({
+              code: "custom",
+              path: [field],
+              message:
+                `${field} is required when Outlook drafting is enabled.`,
+            });
+          }
+        }
       }
 
       if (

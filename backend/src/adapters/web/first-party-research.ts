@@ -146,6 +146,29 @@ const RECURRING_NEED_PATTERNS = [
   /\bopen\s+(?:seven|7)\s+days\b/i,
 ] as const;
 
+const METADATA_FIELDS = new Set([
+  "description",
+  "og:description",
+  "og:site_name",
+  "og:title",
+  "twitter:description",
+  "twitter:title",
+]);
+
+const JSON_LD_FIELDS = new Set([
+  "addressLocality",
+  "addressRegion",
+  "alternateName",
+  "description",
+  "email",
+  "legalName",
+  "name",
+  "postalCode",
+  "streetAddress",
+  "telephone",
+  "url",
+]);
+
 function sha256(value: string): string {
   return createHash("sha256")
     .update(value)
@@ -206,12 +229,87 @@ function decodeHtml(value: string): string {
     .replace(/&gt;/gi, ">");
 }
 
+function htmlAttribute(tag: string, name: string): string | null {
+  const quoted = tag.match(new RegExp(
+    `\\b${name}\\s*=\\s*(["'])([\\s\\S]*?)\\1`,
+    "i",
+  ));
+  return quoted?.[2] === undefined
+    ? null
+    : decodeHtml(quoted[2]).trim();
+}
+
+function collectJsonLdStrings(
+  value: unknown,
+  output: string[],
+  depth = 0,
+): void {
+  if (depth > 8 || output.length >= 80) return;
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      collectJsonLdStrings(item, output, depth + 1);
+    }
+    return;
+  }
+  if (value === null || typeof value !== "object") return;
+  for (const [key, item] of Object.entries(value)) {
+    if (
+      JSON_LD_FIELDS.has(key) &&
+      typeof item === "string" &&
+      item.trim().length > 0
+    ) output.push(item.trim());
+    if (item !== null && typeof item === "object") {
+      collectJsonLdStrings(item, output, depth + 1);
+    }
+    if (output.length >= 80) return;
+  }
+}
+
+function metadataText(html: string): string {
+  const values: string[] = [];
+  const title = html.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i)?.[1];
+  if (title !== undefined) values.push(title.replace(/<[^>]+>/g, " "));
+
+  for (const match of html.matchAll(/<meta\b[^>]*>/gi)) {
+    const tag = match[0];
+    const key = (
+      htmlAttribute(tag, "name") ?? htmlAttribute(tag, "property")
+    )?.toLowerCase();
+    const content = htmlAttribute(tag, "content");
+    if (key !== undefined && METADATA_FIELDS.has(key) && content !== null) {
+      values.push(content);
+    }
+  }
+
+  for (const match of html.matchAll(
+    /<script\b([^>]*)>([\s\S]*?)<\/script>/gi,
+  )) {
+    const type = htmlAttribute(`<script ${match[1] ?? ""}>`, "type")
+      ?.toLowerCase();
+    if (type !== "application/ld+json") continue;
+    const body = match[2]?.trim();
+    if (body === undefined || body.length === 0) continue;
+    try {
+      collectJsonLdStrings(JSON.parse(body) as unknown, values);
+    } catch {
+      // Malformed or truncated JSON-LD cannot become evidence.
+    }
+  }
+
+  return decodeHtml(values.join(" "))
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function htmlText(html: string): string {
-  return decodeHtml(html
+  const visibleText = decodeHtml(html
     .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ")
     .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ")
     .replace(/<noscript\b[^>]*>[\s\S]*?<\/noscript>/gi, " ")
     .replace(/<[^>]+>/g, " "))
+    .replace(/\s+/g, " ")
+    .trim();
+  return `${visibleText} ${metadataText(html)}`
     .replace(/\s+/g, " ")
     .trim();
 }

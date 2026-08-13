@@ -52,6 +52,22 @@ interface LoadedPage {
 const PAGE_LINK_PATTERN =
   /(?:about|contact|legal|terms|privacy|imprint|governance|company[-_ ]?information|corporate[-_ ]?information|charity)/i;
 
+const LEGAL_FALLBACK_PATHS = [
+  "/terms",
+  "/terms-and-conditions",
+  "/website-terms-and-conditions",
+  "/legal",
+  "/privacy-policy",
+] as const;
+
+function legalFallbackLinks(
+  sourceUrl: URL,
+): readonly URL[] {
+  return LEGAL_FALLBACK_PATHS.map(
+    (path) => new URL(path, sourceUrl.origin),
+  );
+}
+
 const COMPANY_NUMBER_PATTERNS = [
   /\b(?:(?:companies\s+house|company|co\.?|registration)\s*)?(?:registration\s*)?(?:number|no\.?)\s*(?:is\s*)?[:#-]?\s*((?:[a-z]{2}\s*\d{6})|(?:\d{8}))\b/giu,
   /\bregistered\s+(?:in|under)\s+(?:england(?:\s+and\s+wales)?|scotland|northern\s+ireland)?\s*(?:as\s+)?(?:company\s*)?(?:number|no\.?)?\s*[:#-]?\s*((?:[a-z]{2}\s*\d{6})|(?:\d{8}))\b/giu,
@@ -677,6 +693,59 @@ implements FirstPartyResearchProvider {
         queue.push(...pageLinks(loaded.html, loaded.url));
       }
     }
+
+    if (
+      companyNumberAssertions(pages).length === 0 &&
+      pages.length < this.maximumPages
+    ) {
+      const firstPartyOrigin =
+        pages[0]?.url ?? start;
+      for (
+        const fallback of
+          legalFallbackLinks(firstPartyOrigin)
+      ) {
+        if (pages.length >= this.maximumPages) break;
+        if (visited.has(fallback.toString())) continue;
+
+        try {
+          const loaded =
+            await this.requestPage(fallback);
+          visited.add(fallback.toString());
+          visited.add(loaded.url.toString());
+
+          if (
+            loaded.url.origin !==
+              firstPartyOrigin.origin
+          ) {
+            continue;
+          }
+
+          pages.push(loaded);
+          if (
+            companyNumberAssertions(
+              [loaded],
+            ).length > 0
+          ) {
+            break;
+          }
+        } catch (error) {
+          visited.add(fallback.toString());
+          if (
+            error instanceof
+              FirstPartyResearchError &&
+            [
+              "temporarily_unavailable",
+              "unavailable",
+              "invalid_content",
+            ].includes(error.failure)
+          ) {
+            continue;
+          }
+          throw error;
+        }
+      }
+    }
+
     const identityPage = pages.find((page) =>
       identityMatch(businessName, page.text) !== null);
     if (identityPage === undefined) {

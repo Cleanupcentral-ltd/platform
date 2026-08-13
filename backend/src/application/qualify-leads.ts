@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import {
   FirstPartyResearchError,
 } from "../adapters/web/first-party-research.js";
@@ -75,6 +77,49 @@ function retryDelay(errorCode: string): number {
     : 60;
 }
 
+function sha256(value: string): string {
+  return createHash("sha256")
+    .update(value)
+    .digest("hex");
+}
+
+function normalizedPostcode(value: string): string {
+  return value
+    .toUpperCase()
+    .replace(/\s+/g, "");
+}
+
+function singlePremisesSupport(
+  research: FirstPartyResearchResult,
+  primaryPostcode: string | null,
+): FirstPartyResearchResult["facts"][number] | null {
+  if (
+    primaryPostcode === null ||
+    research.facts.some(
+      (fact) => fact.factName === "premises_scale",
+    )
+  ) return null;
+
+  const postcode = normalizedPostcode(primaryPostcode);
+  if (postcode.length < 5) return null;
+
+  const identitySources = new Set(
+    research.facts
+      .filter(
+        (fact) => fact.factName === "business_name",
+      )
+      .map((fact) => fact.sourceUrl),
+  );
+
+  return research.facts.find(
+    (fact) =>
+      identitySources.has(fact.sourceUrl) &&
+      normalizedPostcode(
+        fact.sourceExcerpt,
+      ).includes(postcode),
+  ) ?? null;
+}
+
 function isInstitutional(
   research: FirstPartyResearchResult | null,
 ): boolean {
@@ -139,6 +184,7 @@ export function createAutomaticQualificationService(
     job: AutomaticQualificationJob,
   ): Promise<Outcome> {
     let research: FirstPartyResearchResult | null = null;
+    let additionalVerifiedFactCount = 0;
     const reasons: string[] = [];
     if (job.websiteUrl === null) {
       reasons.push("no_first_party_website");
@@ -175,6 +221,44 @@ export function createAutomaticQualificationService(
         job.attemptCount,
         research.facts,
       );
+
+      if (
+        options.repository
+          .recordSinglePremises !== undefined
+      ) {
+        try {
+          const current =
+            await options.leadReviewService
+              .getProspect(job.prospectId);
+          const support = singlePremisesSupport(
+            research,
+            current.primaryPostcode,
+          );
+          if (support !== null) {
+            const evidenceIds =
+              await options.repository
+                .recordSinglePremises(
+                  job.prospectId,
+                  job.actorId,
+                  job.attemptCount,
+                  support.sourceUrl,
+                  support.sourceExcerpt,
+                  sha256(
+                    `${support.sourceUrl}
+premises_scale
+one_active_premises
+${support.sourceExcerpt}`,
+                  ),
+                );
+            if (evidenceIds.length > 0) {
+              additionalVerifiedFactCount = 1;
+            }
+          }
+        } catch {
+          // Premises verification is additive.
+          // The core qualification path must continue safely.
+        }
+      }
     }
 
     let enrichmentStatus:
@@ -335,7 +419,8 @@ export function createAutomaticQualificationService(
             organisationType:
               research.organisationType,
             verifiedFactCount:
-              research.facts.length,
+              research.facts.length +
+              additionalVerifiedFactCount,
           },
       discoveredCompanyNumber,
       sourceUrl: assertion?.sourceUrl ?? null,

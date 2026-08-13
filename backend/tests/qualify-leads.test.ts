@@ -220,3 +220,113 @@ test(
     );
   },
 );
+
+test(
+  "postcode cross-check records one active premises",
+  async () => {
+    const capture: {
+      complete?:
+        CompleteAutomaticQualificationInput;
+    } = {};
+    let premises:
+      | {
+          sourceUrl: string;
+          sourceExcerpt: string;
+          contentSha256: string;
+        }
+      | undefined;
+
+    const qualificationRepository:
+      AutomaticQualificationRepository = {
+        ...repository(capture),
+        async recordSinglePremises(
+          _prospectId,
+          _actorId,
+          _attemptCount,
+          sourceUrl,
+          sourceExcerpt,
+          contentSha256,
+        ) {
+          premises = {
+            sourceUrl,
+            sourceExcerpt,
+            contentSha256,
+          };
+          return [
+            "44444444-4444-4444-8444-444444444444",
+          ];
+        },
+      };
+
+    const service =
+      createAutomaticQualificationService({
+        repository: qualificationRepository,
+        firstPartyProvider: {
+          async research() {
+            return {
+              ...research,
+              facts: [{
+                sourceUrl:
+                  "https://example.ac.uk/accommodation",
+                factName: "business_name",
+                factValue:
+                  "Example University Halls",
+                sourceExcerpt:
+                  "Example University Halls, 1 College Road, London SE10 9ED.",
+                contentSha256:
+                  "a".repeat(64),
+                contactType: null,
+                normalizedContactValue: null,
+              }],
+            };
+          },
+        },
+        companiesHouseService: {
+          async search() {
+            return [];
+          },
+          async verify() {
+            throw new Error("not used");
+          },
+          async verifyAutomatically() {
+            throw new Error("not used");
+          },
+        },
+        leadReviewService: {
+          async assess() {
+            return assessment(
+              false,
+              ["score_below_ready_threshold"],
+            );
+          },
+          async getProspect() {
+            return prospect(false);
+          },
+        },
+        batchSize: 5,
+        leaseSeconds: 180,
+        activationTotalLimit: 1,
+      });
+
+    await service.runBatch();
+
+    assert.equal(
+      premises?.sourceUrl,
+      "https://example.ac.uk/accommodation",
+    );
+    assert.ok(
+      premises?.sourceExcerpt.includes(
+        "SE10 9ED",
+      ),
+    );
+    assert.match(
+      premises?.contentSha256 ?? "",
+      /^[0-9a-f]{64}$/,
+    );
+    assert.equal(
+      capture.complete?.researchSummary
+        .verifiedFactCount,
+      2,
+    );
+  },
+);

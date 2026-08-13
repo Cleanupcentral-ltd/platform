@@ -314,3 +314,70 @@ test(
     );
   },
 );
+
+test(
+  "score_below_ready_threshold regression: otherwise clear 6-point prospect remains research required",
+  () => {
+    const sameSource = "https://example.com/";
+    const records = [
+      evidence(
+        "10000000-0000-4000-8000-000000000021",
+        "first_party_website",
+        "business_name",
+        "Example Offices",
+      ),
+      evidence(
+        "10000000-0000-4000-8000-000000000022",
+        "first_party_website",
+        "approved_sector",
+        "offices_coworking",
+      ),
+      evidence(
+        "10000000-0000-4000-8000-000000000023",
+        "first_party_website",
+        "business_status",
+        "active",
+      ),
+      evidence(
+        "10000000-0000-4000-8000-000000000024",
+        "first_party_website",
+        "public_email",
+        "hello@example.com",
+      ),
+      evidence(
+        "10000000-0000-4000-8000-000000000025",
+        "first_party_website",
+        "subscriber_type",
+        "corporate",
+      ),
+    ].map((item) => ({
+      ...item,
+      sourceUrl: sameSource,
+    }));
+
+    const result = calculateLeadAssessment(
+      prospect({
+        evidence: records,
+        contacts: [{
+          id:
+            "20000000-0000-4000-8000-000000000021",
+          contactType: "email",
+          contactValue: "hello@example.com",
+          normalizedValue: "hello@example.com",
+          sourceEvidenceId: records[3]!.id,
+          verificationStatus: "verified",
+        }],
+      }),
+    );
+
+    assert.equal(result.totalScore, 6);
+    assert.equal(
+      result.eligibilityResult,
+      "research_required",
+    );
+    assert.deepEqual(
+      result.blockers,
+      ["score_below_ready_threshold"],
+    );
+  },
+);

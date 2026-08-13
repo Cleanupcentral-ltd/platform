@@ -315,6 +315,41 @@ implements CompanyEnrichmentRepository,
     return parsed.data[0]!.evidence_ids;
   }
 
+  async recordSinglePremises(
+    prospectId: string,
+    actorId: string,
+    attemptCount: number,
+    sourceUrl: string,
+    sourceExcerpt: string,
+    contentSha256: string,
+  ): Promise<readonly string[]> {
+    const response = await this.request(
+      "/rpc/record_automatic_single_premises",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          p_prospect_id: prospectId,
+          p_actor_id: actorId,
+          p_attempt_count: attemptCount,
+          p_source_url: sourceUrl,
+          p_source_excerpt: sourceExcerpt,
+          p_content_sha256: contentSha256,
+        }),
+      },
+    );
+    const parsed = evidenceIdsResponseSchema
+      .safeParse(await response.json());
+    if (!parsed.success) {
+      throw new Error(
+        "Single-premises research store returned an invalid response.",
+      );
+    }
+    return parsed.data[0]!.evidence_ids;
+  }
+
   async completeQualification(
     input: CompleteAutomaticQualificationInput,
   ): Promise<void> {

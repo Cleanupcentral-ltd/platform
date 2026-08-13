@@ -2,6 +2,10 @@ import type {
   CompaniesHouseCompanySummary,
 } from "./companies-house.js";
 
+import type {
+  QualificationQueueState,
+} from "./automatic-qualification.js";
+
 export const COMPANY_ENRICHMENT_STATUSES = [
   "pending",
   "processing",
@@ -36,6 +40,14 @@ export interface CompanyEnrichmentRecord {
   readonly attemptCount: number;
   readonly lastAttemptAt: string | null;
   readonly completedAt: string | null;
+  readonly qualificationState?:
+    QualificationQueueState;
+  readonly qualificationReasons?:
+    readonly string[];
+  readonly researchSummary?:
+    Readonly<Record<string, unknown>>;
+  readonly researchCompletedAt?:
+    string | null;
 }
 
 export interface CompleteCompanyEnrichmentInput {

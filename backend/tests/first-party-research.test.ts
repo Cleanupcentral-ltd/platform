@@ -89,6 +89,80 @@ test(
 );
 
 test(
+  "uses bounded metadata and JSON-LD as first-party evidence without executing scripts",
+  async () => {
+    const client = new FirstPartyResearchClient({
+      timeoutMs: 1_000,
+      maximumBytes: 20_000,
+      async resolveHost() {
+        return ["8.8.8.8"];
+      },
+      fetchFunction: (async () => html([
+        "<html><head>",
+        "<title>Regus Barking Jhumat House | Office Space</title>",
+        '<meta property="og:description" content="Flexible office space and coworking in Barking.">',
+        '<script type="application/ld+json">',
+        JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "LocalBusiness",
+          name: "Regus - Barking, Jhumat House",
+          description: "Serviced office space and coworking workspace.",
+          url: "https://example.com/location",
+          address: {
+            streetAddress: "160 London Road",
+            addressLocality: "Barking",
+            postalCode: "IG11 8BB",
+          },
+        }),
+        "</script></head><body><div id='app'></div></body></html>",
+      ].join(""))) as typeof fetch,
+    });
+
+    const result = await client.research(
+      "https://example.com/location",
+      "Regus - Barking, Jhumat House",
+      "offices_coworking",
+    );
+
+    assert.equal(result.reviewReasons.includes("website_identity_not_confirmed"), false);
+    assert.equal(result.organisationType, "commercial");
+    assert.ok(result.facts.some((fact) =>
+      fact.factName === "business_name" &&
+      fact.sourceExcerpt.includes("Regus")));
+    assert.ok(result.facts.some((fact) =>
+      fact.factName === "approved_sector" &&
+      fact.factValue === "offices_coworking"));
+  },
+);
+
+test(
+  "ignores unrelated executable script text when confirming identity",
+  async () => {
+    const client = new FirstPartyResearchClient({
+      timeoutMs: 1_000,
+      maximumBytes: 20_000,
+      async resolveHost() {
+        return ["8.8.8.8"];
+      },
+      fetchFunction: (async () => html([
+        "<html><head>",
+        "<script>window.fake = 'Expected Business office space';</script>",
+        "</head><body><h1>Different Company</h1></body></html>",
+      ].join(""))) as typeof fetch,
+    });
+
+    const result = await client.research(
+      "https://example.com/",
+      "Expected Business",
+      "offices_coworking",
+    );
+
+    assert.deepEqual(result.facts, []);
+    assert.deepEqual(result.reviewReasons, ["website_identity_not_confirmed"]);
+  },
+);
+
+test(
   "ignores personal mailbox names and does not verify a mismatched business identity",
   async () => {
     const client = new FirstPartyResearchClient({

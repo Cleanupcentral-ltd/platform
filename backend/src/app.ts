@@ -39,6 +39,14 @@ import {
 } from "./adapters/supabase/supabase-lead-review-repository.js";
 
 import {
+  SupabaseCompanyEnrichmentRepository,
+} from "./adapters/supabase/supabase-company-enrichment-repository.js";
+
+import {
+  FirstPartyCompanyNumberClient,
+} from "./adapters/web/first-party-company-number.js";
+
+import {
   createWixContactEnquiryRepository,
 } from "./adapters/wix/create-wix-contact-enquiry-repository.js";
 
@@ -84,6 +92,12 @@ import {
   createCompaniesHouseVerificationService,
   type CompaniesHouseVerificationService,
 } from "./application/verify-companies-house.js";
+
+import {
+  createCompanyEnrichmentScheduler,
+  createCompanyEnrichmentService,
+  type CompanyEnrichmentService,
+} from "./application/enrich-companies.js";
 
 import {
   createContactEnquiryPersistenceService,
@@ -192,6 +206,12 @@ export interface BuildAppOptions {
   readonly companiesHouseVerificationService?:
     CompaniesHouseVerificationService;
 
+  readonly companyEnrichmentEnabled?:
+    boolean;
+
+  readonly companyEnrichmentService?:
+    CompanyEnrichmentService;
+
   readonly founderAuthService?:
     FounderAuthService;
 }
@@ -289,6 +309,10 @@ export async function buildApp(
       env.LEAD_COMPANIES_HOUSE_V1
     );
 
+  const companyEnrichmentEnabled =
+    options.companyEnrichmentEnabled ??
+    env.LEAD_AUTO_COMPANY_ENRICHMENT_V1;
+
   const app = Fastify({
     bodyLimit: 1_048_576,
 
@@ -369,6 +393,7 @@ export async function buildApp(
               ),
             timeoutMs:
               env.SUPABASE_DATA_TIMEOUT_MS,
+            companyEnrichmentEnabled,
           });
         return defaultLeadReviewRepository;
       };
@@ -402,6 +427,83 @@ export async function buildApp(
             )
           : null
       );
+
+    let companyEnrichmentService =
+      options.companyEnrichmentService ?? null;
+    let defaultCompanyEnrichmentService = false;
+    if (
+      companyEnrichmentEnabled &&
+      companyEnrichmentService === null
+    ) {
+      if (
+        companiesHouseVerificationService === null
+      ) {
+        throw new Error(
+          "Companies House verification is required for automatic company enrichment.",
+        );
+      }
+      companyEnrichmentService =
+        createCompanyEnrichmentService({
+          repository:
+            new SupabaseCompanyEnrichmentRepository({
+              supabaseUrl:
+                requiredEnvironmentValue(
+                  env.SUPABASE_URL,
+                  "SUPABASE_URL",
+                ),
+              secretKey:
+                requiredEnvironmentValue(
+                  env.SUPABASE_SECRET_KEY,
+                  "SUPABASE_SECRET_KEY",
+                ),
+              timeoutMs:
+                env.SUPABASE_DATA_TIMEOUT_MS,
+            }),
+          firstPartyProvider:
+            new FirstPartyCompanyNumberClient({
+              timeoutMs:
+                env.LEAD_WEBSITE_LOOKUP_TIMEOUT_MS,
+              maximumBytes:
+                env.LEAD_WEBSITE_LOOKUP_MAX_BYTES,
+            }),
+          companiesHouseService:
+            companiesHouseVerificationService,
+          batchSize:
+            env.LEAD_COMPANY_ENRICHMENT_BATCH_SIZE,
+          leaseSeconds:
+            env.LEAD_COMPANY_ENRICHMENT_LEASE_SECONDS,
+        });
+      defaultCompanyEnrichmentService = true;
+    }
+
+    if (
+      defaultCompanyEnrichmentService &&
+      companyEnrichmentService !== null
+    ) {
+      const scheduler =
+        createCompanyEnrichmentScheduler(
+          companyEnrichmentService,
+          env.LEAD_COMPANY_ENRICHMENT_INTERVAL_MS,
+          (result) => {
+            if (result.claimedCount > 0) {
+              app.log.info(
+                result,
+                "Lead company enrichment batch completed",
+              );
+            }
+          },
+          (error) => app.log.error(
+            error,
+            "Lead company enrichment batch failed",
+          ),
+        );
+      app.addHook("onReady", async () => {
+        scheduler.start();
+      });
+      app.addHook("onClose", async () => {
+        scheduler.stop();
+      });
+    }
 
     const leadSearchService =
       leadSearchEnabled
@@ -468,6 +570,8 @@ export async function buildApp(
       leadSearchService,
       leadReviewService,
       companiesHouseVerificationService,
+      companyEnrichmentEnabled,
+      companyEnrichmentService,
     });
   }
 

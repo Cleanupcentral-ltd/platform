@@ -14,6 +14,7 @@ import {
   decideEvidence,
   getProspect,
   listProspects,
+  retryCompanyEnrichment,
   searchCompaniesHouseMatches,
   verifyCompaniesHouseMatch,
   type CompaniesHouseMatch,
@@ -27,6 +28,8 @@ interface ProspectReviewWorkspaceProps {
   readonly backendUrl: string;
   readonly accessToken: string;
   readonly companiesHouseEnabled?:
+    boolean;
+  readonly companyEnrichmentEnabled?:
     boolean;
 }
 
@@ -97,9 +100,20 @@ const BLOCKER_LABELS:
       "A do-not-contact or objection record blocks the prospect.",
     unresolved_subscriber_type:
       "Subscriber type is unresolved.",
-    unapproved_email_basis:
+  unapproved_email_basis:
       "The email basis is not approved for this subscriber type.",
   };
+
+const ENRICHMENT_LABELS = {
+  pending: "Automatic check queued",
+  processing: "Automatic check running",
+  auto_verified: "Automatically verified",
+  review_required: "Founder match review needed",
+  no_match: "No Companies House match",
+  duplicate: "Possible duplicate",
+  failed: "Automatic check failed",
+  verified_existing: "Company already verified",
+} as const;
 
 function messageFrom(error: unknown): string {
   return error instanceof Error
@@ -149,6 +163,7 @@ export function ProspectReviewWorkspace({
   backendUrl,
   accessToken,
   companiesHouseEnabled = false,
+  companyEnrichmentEnabled = false,
 }: ProspectReviewWorkspaceProps) {
   const [prospects, setProspects] =
     useState<readonly ProspectSummary[]>([]);
@@ -183,6 +198,17 @@ export function ProspectReviewWorkspace({
   const [companySearchComplete,
     setCompanySearchComplete] =
       useState(false);
+  const [queueSearch, setQueueSearch] =
+    useState("");
+  const [queueFilter, setQueueFilter] =
+    useState<
+      "exceptions" | "pending" |
+      "verified" | "all"
+    >(
+      companyEnrichmentEnabled
+        ? "exceptions"
+        : "all",
+    );
 
   async function refreshQueue() {
     setLoading(true);
@@ -225,8 +251,17 @@ export function ProspectReviewWorkspace({
       setCompanyQuery(
         loaded.businessName,
       );
-      setCompanyMatches([]);
-      setCompanySearchComplete(false);
+      const prepared =
+        loaded.companyEnrichment?.status ===
+          "review_required"
+          ? loaded.companyEnrichment.candidates
+          : [];
+      setCompanyMatches(prepared);
+      setCompanySearchComplete(
+        loaded.companyEnrichment?.status ===
+          "no_match" ||
+        prepared.length > 0,
+      );
     } catch (caught) {
       setError(messageFrom(caught));
     } finally {
@@ -412,6 +447,31 @@ export function ProspectReviewWorkspace({
     }
   }
 
+  async function retryAutomaticCheck() {
+    if (review === null) return;
+    setWorking(true);
+    setError(null);
+    setMessage(null);
+    try {
+      await retryCompanyEnrichment(
+        backendUrl,
+        accessToken,
+        review.id,
+      );
+      setMessage(
+        "The automatic company check was queued. It will run in the background; manual verification remains available.",
+      );
+      await Promise.all([
+        loadReview(review.id),
+        refreshQueue(),
+      ]);
+    } catch (caught) {
+      setError(messageFrom(caught));
+    } finally {
+      setWorking(false);
+    }
+  }
+
   const controlledValues =
     CONTROLLED_VALUES[factName];
   const visibleFactOptions =
@@ -422,6 +482,50 @@ export function ProspectReviewWorkspace({
           ),
         )
       : FACT_OPTIONS;
+  const normalizedQueueSearch =
+    queueSearch.trim().toLowerCase();
+  const filteredProspects = prospects.filter(
+    (item) => {
+      const status =
+        item.companyEnrichment?.status;
+      const filterMatches =
+        queueFilter === "all" ||
+        (
+          queueFilter === "exceptions" &&
+          status !== undefined &&
+          [
+            "review_required",
+            "no_match",
+            "duplicate",
+            "failed",
+          ].includes(status)
+        ) ||
+        (
+          queueFilter === "pending" &&
+          (status === "pending" ||
+            status === "processing")
+        ) ||
+        (
+          queueFilter === "verified" &&
+          (status === "auto_verified" ||
+            status === "verified_existing")
+        );
+      if (!filterMatches) return false;
+      if (normalizedQueueSearch === "") {
+        return true;
+      }
+      return [
+        item.businessName,
+        item.primaryPostcode ?? "",
+        item.companyEnrichment
+          ?.discoveredCompanyNumber ?? "",
+      ].some((value) =>
+        value.toLowerCase().includes(
+          normalizedQueueSearch,
+        ),
+      );
+    },
+  );
 
   return (
     <section
@@ -432,7 +536,7 @@ export function ProspectReviewWorkspace({
         <div>
           <h2>Verify and score prospects</h2>
           <p>
-            Scores are calculated when prospects are captured and update after evidence review. They use only founder-reviewed evidence, and a high score never overrides a blocker.
+            Scores are calculated when prospects are captured and update after verified evidence changes. Automatic verification is restricted to one labelled company number on the prospect&apos;s first-party website; every other match requires founder review, and a high score never overrides a blocker.
           </p>
         </div>
         <button
@@ -449,6 +553,47 @@ export function ProspectReviewWorkspace({
         Outlook drafting remains disabled in this stage.
       </p>
 
+      {companyEnrichmentEnabled && (
+        <div className="review-queue-controls">
+          <label>
+            Find a prospect
+            <input
+              type="search"
+              value={queueSearch}
+              placeholder="Business, postcode or company number"
+              onChange={(event) =>
+                setQueueSearch(event.target.value)
+              }
+            />
+          </label>
+          <label>
+            Review queue
+            <select
+              value={queueFilter}
+              onChange={(event) =>
+                setQueueFilter(
+                  event.target.value as
+                    typeof queueFilter,
+                )
+              }
+            >
+              <option value="exceptions">
+                Needs founder review
+              </option>
+              <option value="pending">
+                Automatic checks pending
+              </option>
+              <option value="verified">
+                Company verified
+              </option>
+              <option value="all">
+                All prospects
+              </option>
+            </select>
+          </label>
+        </div>
+      )}
+
       <label>
         Prospect to review
         <select
@@ -463,14 +608,14 @@ export function ProspectReviewWorkspace({
           <option value="">
             {loading
               ? "Loading prospects…"
-              : `Choose from ${prospects.length} prospects`}
+              : `Choose from ${filteredProspects.length} prospects`}
           </option>
-          {prospects.map((item) => (
+          {filteredProspects.map((item) => (
             <option
               key={item.id}
               value={item.id}
             >
-              {item.businessName} — {item.primaryPostcode ?? "postcode unknown"} — {item.latestAssessment?.totalScore ?? "not scored"}
+              {item.businessName} — {item.primaryPostcode ?? "postcode unknown"} — {item.latestAssessment?.totalScore ?? "not scored"} — {item.companyEnrichment === null || item.companyEnrichment === undefined ? "not queued" : ENRICHMENT_LABELS[item.companyEnrichment.status]}
             </option>
           ))}
         </select>
@@ -565,8 +710,49 @@ export function ProspectReviewWorkspace({
                   Companies House-assisted verification
                 </h3>
                 <p>
-                  Search the official register, compare the result, then confirm only an exact match.
+                  The engine checks labelled first-party company numbers automatically. Name-search candidates are prepared here for founder confirmation and are never auto-accepted.
                 </p>
+                {review.companyEnrichment !== null &&
+                  review.companyEnrichment !== undefined && (
+                    <div className="enrichment-summary">
+                      <strong>
+                        {ENRICHMENT_LABELS[
+                          review.companyEnrichment.status
+                        ]}
+                      </strong>
+                      {review.companyEnrichment
+                        .discoveredCompanyNumber !== null && (
+                          <span>
+                            Company number {review.companyEnrichment.discoveredCompanyNumber}
+                          </span>
+                        )}
+                      {review.companyEnrichment
+                        .sourceUrl !== null && (
+                          <a
+                            href={review.companyEnrichment.sourceUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            Open first-party source
+                          </a>
+                        )}
+                      {["failed", "no_match", "duplicate"]
+                        .includes(
+                          review.companyEnrichment.status,
+                        ) && (
+                          <button
+                            type="button"
+                            className="secondary"
+                            disabled={working}
+                            onClick={() =>
+                              void retryAutomaticCheck()
+                            }
+                          >
+                            Retry automatic check
+                          </button>
+                        )}
+                    </div>
+                  )}
                 <form
                   className="stack"
                   onSubmit={searchCompaniesHouse}
@@ -596,7 +782,7 @@ export function ProspectReviewWorkspace({
                 {companySearchComplete &&
                   companyMatches.length === 0 && (
                     <p>
-                      No Companies House matches were returned. Use the manual verification form below.
+                      No Companies House matches were returned. Use the manual verification form below or retry after correcting the prospect website.
                     </p>
                   )}
 
@@ -817,7 +1003,10 @@ export function ProspectReviewWorkspace({
                 </div>
                 <div className="evidence-actions">
                   <span className={`status-${item.verificationStatus}`}>
-                    {item.verificationStatus}
+                    {item.verificationMethod ===
+                      "automatic_first_party_company_number"
+                      ? "automatically verified"
+                      : item.verificationStatus}
                   </span>
                   {(
                     item.sourceType ===

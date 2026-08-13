@@ -2,6 +2,10 @@ import type {
   LeadSector,
 } from "./lead-search.js";
 
+import type {
+  CompanyEnrichmentRecord,
+} from "./company-enrichment.js";
+
 export const LEAD_EVIDENCE_SOURCE_TYPES = [
   "first_party_website",
   "companies_house",
@@ -51,6 +55,8 @@ export interface LeadProspectSummary {
       | "research_required";
     readonly assessedAt: string;
   } | null;
+  readonly companyEnrichment?:
+    CompanyEnrichmentRecord | null;
 }
 
 export interface LeadEvidenceRecord {
@@ -64,6 +70,9 @@ export interface LeadEvidenceRecord {
     LeadVerificationStatus;
   readonly capturedAt: string;
   readonly verifiedAt: string | null;
+  readonly verificationMethod?:
+    | "founder_review"
+    | "automatic_first_party_company_number";
 }
 
 export interface LeadContactRecord {
@@ -108,6 +117,8 @@ export interface LeadProspectReview {
   readonly contacts: readonly LeadContactRecord[];
   readonly latestAssessment:
     LeadAssessmentRecord | null;
+  readonly companyEnrichment?:
+    CompanyEnrichmentRecord | null;
 }
 
 export interface AddVerifiedLeadEvidenceInput {
@@ -170,6 +181,19 @@ export interface RecordCompaniesHouseVerificationInput {
     readonly CompaniesHouseVerifiedFact[];
 }
 
+export interface FirstPartyCompanyNumberAssertion {
+  readonly sourceUrl: string;
+  readonly sourceExcerpt: string;
+  readonly contentSha256: string;
+}
+
+export interface RecordAutomaticCompaniesHouseVerificationInput
+extends RecordCompaniesHouseVerificationInput {
+  readonly enrichmentAttemptCount: number;
+  readonly firstPartyAssertion:
+    FirstPartyCompanyNumberAssertion;
+}
+
 export interface LeadReviewRepository {
   listProspects(
     limit: number,
@@ -193,6 +217,11 @@ export interface LeadReviewRepository {
   recordCompaniesHouseVerification(
     input:
       RecordCompaniesHouseVerificationInput,
+  ): Promise<readonly string[]>;
+
+  recordAutomaticCompaniesHouseVerification(
+    input:
+      RecordAutomaticCompaniesHouseVerificationInput,
   ): Promise<readonly string[]>;
 
   decideEvidence(

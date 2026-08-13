@@ -25,6 +25,8 @@ interface LeadSearchWorkspaceProps {
   readonly reviewEnabled?: boolean;
   readonly companiesHouseEnabled?:
     boolean;
+  readonly companyEnrichmentEnabled?:
+    boolean;
 }
 
 function errorMessage(
@@ -49,6 +51,7 @@ export function LeadSearchWorkspace({
   onSignOut,
   reviewEnabled = false,
   companiesHouseEnabled = false,
+  companyEnrichmentEnabled = false,
 }: LeadSearchWorkspaceProps) {
   const [postcode, setPostcode] =
     useState("");
@@ -458,6 +461,9 @@ export function LeadSearchWorkspace({
           accessToken={accessToken}
           companiesHouseEnabled={
             companiesHouseEnabled
+          }
+          companyEnrichmentEnabled={
+            companyEnrichmentEnabled
           }
         />
       )}

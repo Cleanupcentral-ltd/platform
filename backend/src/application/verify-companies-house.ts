@@ -13,6 +13,7 @@ import type {
 
 import type {
   CompaniesHouseVerifiedFact,
+  FirstPartyCompanyNumberAssertion,
   LeadReviewRepository,
 } from "../ports/lead-review.js";
 
@@ -66,6 +67,17 @@ export interface CompaniesHouseVerificationService {
     founderId: string,
     prospectId: string,
     companyNumber: string,
+  ): Promise<
+    CompaniesHouseVerificationResult
+  >;
+
+  verifyAutomatically(
+    actorId: string,
+    prospectId: string,
+    companyNumber: string,
+    enrichmentAttemptCount: number,
+    firstPartyAssertion:
+      FirstPartyCompanyNumberAssertion,
   ): Promise<
     CompaniesHouseVerificationResult
   >;
@@ -153,6 +165,135 @@ export function createCompaniesHouseVerificationService(
       "getProspect" | "assess">,
   provider: CompaniesHouseProvider,
 ): CompaniesHouseVerificationService {
+  async function verifyCompany(
+    founderId: string,
+    prospectId: string,
+    rawCompanyNumber: string,
+    firstPartyAssertion:
+      FirstPartyCompanyNumberAssertion | null,
+    enrichmentAttemptCount: number | null,
+  ): Promise<CompaniesHouseVerificationResult> {
+    await reviewService.getProspect(
+      prospectId,
+    );
+    const companyNumber =
+      normalizedCompanyNumber(
+        rawCompanyNumber,
+      );
+
+    let linkedProspect;
+    try {
+      linkedProspect = await repository
+        .findProspectByCompanyNumber(
+          companyNumber,
+        );
+    } catch {
+      throw new CompaniesHouseVerificationError(
+        "repository_unavailable",
+      );
+    }
+    if (
+      linkedProspect !== null &&
+      linkedProspect.id !== prospectId
+    ) {
+      throw new CompaniesHouseVerificationError(
+        "duplicate_company",
+      );
+    }
+
+    let profile;
+    try {
+      profile = await provider
+        .getProfile(companyNumber);
+    } catch (error) {
+      throw mapProviderError(error);
+    }
+
+    const status =
+      profile.companyStatus === "active"
+        ? "active" as const
+        : "inactive" as const;
+    const subscriber = subscriberType(
+      profile.companyType,
+    );
+    const excerpt = [
+      `Companies House company profile for ${profile.companyName}`,
+      `company number ${profile.companyNumber}`,
+      `status ${profile.companyStatus}`,
+      `type ${profile.companyType}`,
+    ].join("; ");
+    const values = [
+      ["business_name", profile.companyName],
+      ["company_number", profile.companyNumber],
+      ["business_status", status],
+      ["subscriber_type", subscriber],
+    ] as const;
+    const facts: CompaniesHouseVerifiedFact[] =
+      values.map(
+        ([factName, factValue]) => ({
+          factName,
+          factValue,
+          sourceExcerpt: excerpt,
+          contentSha256: sha256(
+            `${profile.officialUrl}\n${factName}\n${factValue}`,
+          ),
+        }),
+      );
+
+    let evidenceIds: readonly string[];
+    try {
+      evidenceIds = firstPartyAssertion === null
+        ? await repository
+            .recordCompaniesHouseVerification({
+              prospectId,
+              founderId,
+              sourceUrl: profile.officialUrl,
+              facts,
+            })
+        : await repository
+            .recordAutomaticCompaniesHouseVerification({
+              prospectId,
+              founderId,
+              sourceUrl: profile.officialUrl,
+              facts,
+              enrichmentAttemptCount:
+                enrichmentAttemptCount!,
+              firstPartyAssertion,
+            });
+    } catch {
+      throw new CompaniesHouseVerificationError(
+        "repository_unavailable",
+      );
+    }
+
+    let automaticAssessment:
+      AutomaticAssessmentResult;
+    try {
+      automaticAssessment = {
+        status: "updated",
+        assessment:
+          await reviewService.assess(
+            founderId,
+            prospectId,
+          ),
+      };
+    } catch {
+      automaticAssessment = {
+        status: "pending",
+        assessment: null,
+      };
+    }
+
+    return {
+      companyName: profile.companyName,
+      companyNumber: profile.companyNumber,
+      businessStatus: status,
+      subscriberType: subscriber,
+      evidenceIds,
+      automaticAssessment,
+    };
+  }
+
   return {
     async search(
       prospectId,
@@ -188,121 +329,29 @@ export function createCompaniesHouseVerificationService(
       prospectId,
       rawCompanyNumber,
     ) {
-      await reviewService.getProspect(
+      return verifyCompany(
+        founderId,
         prospectId,
+        rawCompanyNumber,
+        null,
+        null,
       );
-      const companyNumber =
-        normalizedCompanyNumber(
-          rawCompanyNumber,
-        );
+    },
 
-      let linkedProspect;
-      try {
-        linkedProspect =
-          await repository
-            .findProspectByCompanyNumber(
-              companyNumber,
-            );
-      } catch {
-        throw new CompaniesHouseVerificationError(
-          "repository_unavailable",
-        );
-      }
-      if (
-        linkedProspect !== null &&
-        linkedProspect.id !== prospectId
-      ) {
-        throw new CompaniesHouseVerificationError(
-          "duplicate_company",
-        );
-      }
-
-      let profile;
-      try {
-        profile = await provider
-          .getProfile(companyNumber);
-      } catch (error) {
-        throw mapProviderError(error);
-      }
-
-      const status =
-        profile.companyStatus === "active"
-          ? "active" as const
-          : "inactive" as const;
-      const subscriber =
-        subscriberType(
-          profile.companyType,
-        );
-      const excerpt = [
-        `Companies House company profile for ${profile.companyName}`,
-        `company number ${profile.companyNumber}`,
-        `status ${profile.companyStatus}`,
-        `type ${profile.companyType}`,
-      ].join("; ");
-      const values = [
-        ["business_name", profile.companyName],
-        ["company_number", profile.companyNumber],
-        ["business_status", status],
-        ["subscriber_type", subscriber],
-      ] as const;
-      const facts:
-        CompaniesHouseVerifiedFact[] =
-        values.map(
-          ([factName, factValue]) => ({
-            factName,
-            factValue,
-            sourceExcerpt: excerpt,
-            contentSha256: sha256(
-              `${profile.officialUrl}\n${factName}\n${factValue}`,
-            ),
-          }),
-        );
-
-      let evidenceIds:
-        readonly string[];
-      try {
-        evidenceIds = await repository
-          .recordCompaniesHouseVerification({
-            prospectId,
-            founderId,
-            sourceUrl:
-              profile.officialUrl,
-            facts,
-          });
-      } catch {
-        throw new CompaniesHouseVerificationError(
-          "repository_unavailable",
-        );
-      }
-
-      let automaticAssessment:
-        AutomaticAssessmentResult;
-      try {
-        automaticAssessment = {
-          status: "updated",
-          assessment:
-            await reviewService.assess(
-              founderId,
-              prospectId,
-            ),
-        };
-      } catch {
-        automaticAssessment = {
-          status: "pending",
-          assessment: null,
-        };
-      }
-
-      return {
-        companyName:
-          profile.companyName,
-        companyNumber:
-          profile.companyNumber,
-        businessStatus: status,
-        subscriberType: subscriber,
-        evidenceIds,
-        automaticAssessment,
-      };
+    async verifyAutomatically(
+      actorId,
+      prospectId,
+      companyNumber,
+      enrichmentAttemptCount,
+      firstPartyAssertion,
+    ) {
+      return verifyCompany(
+        actorId,
+        prospectId,
+        companyNumber,
+        firstPartyAssertion,
+        enrichmentAttemptCount,
+      );
     },
   };
 }

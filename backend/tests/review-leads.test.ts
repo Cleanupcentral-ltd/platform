@@ -59,6 +59,9 @@ function repository(
     async recordCompaniesHouseVerification() {
       return [];
     },
+    async recordAutomaticCompaniesHouseVerification() {
+      return [];
+    },
     async decideEvidence() {},
     async saveAssessment(input) {
       captures.assessment = input;

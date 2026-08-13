@@ -5,6 +5,7 @@ import {
   addVerificationEvidence,
   assessProspect,
   listProspects,
+  retryCompanyEnrichment,
   searchCompaniesHouseMatches,
   verifyCompaniesHouseMatch,
 } from "../src/lead-review-api.ts";
@@ -43,6 +44,36 @@ test(
       "Bearer founder-aal2-token",
     );
     assert.deepEqual(result, []);
+  },
+);
+
+test(
+  "automatic company retry sends no client-supplied match or score",
+  async () => {
+    let requestUrl = "";
+    let requestBody = "";
+    await retryCompanyEnrichment(
+      "https://backend.example",
+      "founder-aal2-token",
+      PROSPECT_ID,
+      (async (input, init) => {
+        requestUrl = String(input);
+        requestBody = String(init?.body);
+        return Response.json(
+          {
+            success: true,
+            status: "pending",
+          },
+          { status: 202 },
+        );
+      }) as typeof fetch,
+    );
+
+    assert.match(
+      requestUrl,
+      /company-enrichment\/retry$/,
+    );
+    assert.equal(requestBody, "{}");
   },
 );
 

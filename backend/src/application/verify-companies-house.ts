@@ -89,6 +89,9 @@ const CORPORATE_COMPANY_TYPES =
     "plc",
     "llp",
     "scottish-partnership",
+    "private-limited-guarant-nsc",
+    "private-limited-guarant-nsc-limited-exemption",
+    "charitable-incorporated-organisation",
   ]);
 
 function sha256(value: string): string {

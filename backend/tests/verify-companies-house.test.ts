@@ -342,3 +342,39 @@ test(
     assert.equal(capture.verification, undefined);
   },
 );
+
+test(
+  "incorporated charity company types are mapped as corporate",
+  async () => {
+    for (
+      const companyType of [
+        "private-limited-guarant-nsc",
+        "private-limited-guarant-nsc-limited-exemption",
+        "charitable-incorporated-organisation",
+      ]
+    ) {
+      const capture: {
+        verification?:
+          RecordCompaniesHouseVerificationInput;
+      } = {};
+      const service =
+        createCompaniesHouseVerificationService(
+          repository(capture),
+          reviewService(),
+          provider(companyType),
+        );
+
+      const result = await service.verify(
+        FOUNDER_ID,
+        PROSPECT_ID,
+        "01234567",
+      );
+
+      assert.equal(
+        result.subscriberType,
+        "corporate",
+        companyType,
+      );
+    }
+  },
+);

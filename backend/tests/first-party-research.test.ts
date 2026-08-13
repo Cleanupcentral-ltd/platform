@@ -250,3 +250,48 @@ test(
     ));
   },
 );
+
+test(
+  "follows company-information pages for registration evidence",
+  async () => {
+    const requested: string[] = [];
+    const client = new FirstPartyResearchClient({
+      timeoutMs: 1_000,
+      maximumBytes: 20_000,
+      async resolveHost() {
+        return ["8.8.8.8"];
+      },
+      fetchFunction: (async (input) => {
+        const url = String(input);
+        requested.push(url);
+        if (url === "https://example.com/") {
+          return html([
+            "<h1>Example Offices</h1>",
+            "<p>Serviced office space.</p>",
+            '<a href="/company-information">Company information</a>',
+          ].join(""));
+        }
+        return html(
+          "<p>Example Offices Limited. Company number: 01234567.</p>",
+        );
+      }) as typeof fetch,
+    });
+
+    const result = await client.research(
+      "https://example.com/",
+      "Example Offices",
+      "offices_coworking",
+    );
+
+    assert.ok(
+      requested.includes(
+        "https://example.com/company-information",
+      ),
+    );
+    assert.equal(
+      result.companyNumberAssertions[0]
+        ?.companyNumber,
+      "01234567",
+    );
+  },
+);

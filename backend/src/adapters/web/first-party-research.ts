@@ -50,7 +50,7 @@ interface LoadedPage {
 }
 
 const PAGE_LINK_PATTERN =
-  /(?:about|contact|legal|terms|privacy|imprint)/i;
+  /(?:about|contact|legal|terms|privacy|imprint|governance|company[-_ ]?information|corporate[-_ ]?information|charity)/i;
 
 const COMPANY_NUMBER_PATTERNS = [
   /\b(?:(?:companies\s+house|company|co\.?|registration)\s*)?(?:registration\s*)?(?:number|no\.?)\s*(?:is\s*)?[:#-]?\s*((?:[a-z]{2}\s*\d{6})|(?:\d{8}))\b/giu,

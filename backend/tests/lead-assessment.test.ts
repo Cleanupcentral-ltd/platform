@@ -381,3 +381,69 @@ test(
     );
   },
 );
+
+test(
+  "a fully cleared venue can become ready at 6 points",
+  () => {
+    const sameSource = "https://example.com/";
+    const records = [
+      evidence(
+        "10000000-0000-4000-8000-000000000031",
+        "first_party_website",
+        "business_name",
+        "Example Hall",
+      ),
+      evidence(
+        "10000000-0000-4000-8000-000000000032",
+        "first_party_website",
+        "approved_sector",
+        "community_halls_event_venues",
+      ),
+      evidence(
+        "10000000-0000-4000-8000-000000000033",
+        "first_party_website",
+        "business_status",
+        "active",
+      ),
+      evidence(
+        "10000000-0000-4000-8000-000000000034",
+        "first_party_website",
+        "public_email",
+        "bookings@example.com",
+      ),
+      evidence(
+        "10000000-0000-4000-8000-000000000035",
+        "first_party_website",
+        "subscriber_type",
+        "corporate",
+      ),
+    ].map((item) => ({
+      ...item,
+      sourceUrl: sameSource,
+    }));
+
+    const result = calculateLeadAssessment(
+      prospect({
+        businessName: "Example Hall",
+        sector: "community_halls_event_venues",
+        evidence: records,
+        contacts: [{
+          id:
+            "20000000-0000-4000-8000-000000000031",
+          contactType: "email",
+          contactValue: "bookings@example.com",
+          normalizedValue: "bookings@example.com",
+          sourceEvidenceId: records[3]!.id,
+          verificationStatus: "verified",
+        }],
+      }),
+    );
+
+    assert.equal(result.totalScore, 6);
+    assert.equal(
+      result.eligibilityResult,
+      "eligible",
+    );
+    assert.deepEqual(result.blockers, []);
+  },
+);

@@ -410,7 +410,7 @@ test(
     assert.equal(
       captures.assessment
         ?.rulesVersion,
-      "cuc-lel-0-10-v1.2",
+      "cuc-lel-0-10-v1.3",
     );
     assert.equal(
       captures.assessment

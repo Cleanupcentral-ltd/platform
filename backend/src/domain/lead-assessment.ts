@@ -10,9 +10,19 @@ import {
 } from "./business-email.js";
 
 export const LEAD_SCORING_VERSION =
-  "cuc-lel-0-10-v1.2";
+  "cuc-lel-0-10-v1.3";
 
 export const LEAD_READY_MINIMUM_SCORE = 7;
+export const LEAD_VENUE_READY_MINIMUM_SCORE = 6;
+
+function minimumReadyScore(
+  prospect: LeadProspectReview,
+): number {
+  return prospect.sector ===
+    "community_halls_event_venues"
+    ? LEAD_VENUE_READY_MINIMUM_SCORE
+    : LEAD_READY_MINIMUM_SCORE;
+}
 
 export const LEAD_QUALIFICATION_BLOCKERS = {
   missingVerifiedIdentity:
@@ -529,7 +539,9 @@ export function calculateLeadAssessment(
         sum + item.points,
       0,
     );
-  if (totalScore < LEAD_READY_MINIMUM_SCORE) {
+  const readyMinimumScore =
+    minimumReadyScore(prospect);
+  if (totalScore < readyMinimumScore) {
     blockers.push(
       LEAD_QUALIFICATION_BLOCKERS
         .scoreBelowReadyThreshold,

@@ -24,12 +24,20 @@ import {
   type VerificationSourceType,
 } from "./lead-review-api";
 
+import {
+  defaultReviewQueueFilter,
+  filterProspectQueue,
+  type ReviewQueueFilter,
+} from "./qualification-queue";
+
 interface ProspectReviewWorkspaceProps {
   readonly backendUrl: string;
   readonly accessToken: string;
   readonly companiesHouseEnabled?:
     boolean;
   readonly companyEnrichmentEnabled?:
+    boolean;
+  readonly automaticQualificationEnabled?:
     boolean;
 }
 
@@ -115,6 +123,13 @@ const ENRICHMENT_LABELS = {
   verified_existing: "Company already verified",
 } as const;
 
+const QUALIFICATION_LABELS = {
+  ready_for_outreach: "Ready for outreach",
+  needs_founder_decision: "Needs founder decision",
+  excluded: "Excluded",
+  processing: "Processing",
+} as const;
+
 function messageFrom(error: unknown): string {
   return error instanceof Error
     ? error.message
@@ -164,6 +179,7 @@ export function ProspectReviewWorkspace({
   accessToken,
   companiesHouseEnabled = false,
   companyEnrichmentEnabled = false,
+  automaticQualificationEnabled = false,
 }: ProspectReviewWorkspaceProps) {
   const [prospects, setProspects] =
     useState<readonly ProspectSummary[]>([]);
@@ -201,13 +217,11 @@ export function ProspectReviewWorkspace({
   const [queueSearch, setQueueSearch] =
     useState("");
   const [queueFilter, setQueueFilter] =
-    useState<
-      "exceptions" | "pending" |
-      "verified" | "all"
-    >(
-      companyEnrichmentEnabled
-        ? "exceptions"
-        : "all",
+    useState<ReviewQueueFilter>(
+      defaultReviewQueueFilter(
+        automaticQualificationEnabled,
+        companyEnrichmentEnabled,
+      ),
     );
 
   async function refreshQueue() {
@@ -482,49 +496,11 @@ export function ProspectReviewWorkspace({
           ),
         )
       : FACT_OPTIONS;
-  const normalizedQueueSearch =
-    queueSearch.trim().toLowerCase();
-  const filteredProspects = prospects.filter(
-    (item) => {
-      const status =
-        item.companyEnrichment?.status;
-      const filterMatches =
-        queueFilter === "all" ||
-        (
-          queueFilter === "exceptions" &&
-          status !== undefined &&
-          [
-            "review_required",
-            "no_match",
-            "duplicate",
-            "failed",
-          ].includes(status)
-        ) ||
-        (
-          queueFilter === "pending" &&
-          (status === "pending" ||
-            status === "processing")
-        ) ||
-        (
-          queueFilter === "verified" &&
-          (status === "auto_verified" ||
-            status === "verified_existing")
-        );
-      if (!filterMatches) return false;
-      if (normalizedQueueSearch === "") {
-        return true;
-      }
-      return [
-        item.businessName,
-        item.primaryPostcode ?? "",
-        item.companyEnrichment
-          ?.discoveredCompanyNumber ?? "",
-      ].some((value) =>
-        value.toLowerCase().includes(
-          normalizedQueueSearch,
-        ),
-      );
-    },
+  const filteredProspects = filterProspectQueue(
+    prospects,
+    queueFilter,
+    queueSearch,
+    automaticQualificationEnabled,
   );
 
   return (
@@ -536,7 +512,9 @@ export function ProspectReviewWorkspace({
         <div>
           <h2>Verify and score prospects</h2>
           <p>
-            Scores are calculated when prospects are captured and update after verified evidence changes. Automatic verification is restricted to one labelled company number on the prospect&apos;s first-party website; every other match requires founder review, and a high score never overrides a blocker.
+            {automaticQualificationEnabled
+              ? "Automatic research checks bounded first-party and official evidence, calculates the 0–10 score and routes only exceptions for founder review. A high score never overrides a blocker."
+              : "Scores are calculated when prospects are captured and update after verified evidence changes. Automatic verification is restricted to one labelled company number on the prospect's first-party website; every other match requires founder review, and a high score never overrides a blocker."}
           </p>
         </div>
         <button
@@ -577,15 +555,34 @@ export function ProspectReviewWorkspace({
                 )
               }
             >
-              <option value="exceptions">
-                Needs founder review
-              </option>
-              <option value="pending">
-                Automatic checks pending
-              </option>
-              <option value="verified">
-                Company verified
-              </option>
+              {automaticQualificationEnabled ? (
+                <>
+                  <option value="ready_for_outreach">
+                    Ready for outreach
+                  </option>
+                  <option value="needs_founder_decision">
+                    Needs founder decision
+                  </option>
+                  <option value="excluded">
+                    Excluded
+                  </option>
+                  <option value="processing">
+                    Processing
+                  </option>
+                </>
+              ) : (
+                <>
+                  <option value="exceptions">
+                    Needs founder review
+                  </option>
+                  <option value="pending">
+                    Automatic checks pending
+                  </option>
+                  <option value="verified">
+                    Company verified
+                  </option>
+                </>
+              )}
               <option value="all">
                 All prospects
               </option>
@@ -615,7 +612,11 @@ export function ProspectReviewWorkspace({
               key={item.id}
               value={item.id}
             >
-              {item.businessName} — {item.primaryPostcode ?? "postcode unknown"} — {item.latestAssessment?.totalScore ?? "not scored"} — {item.companyEnrichment === null || item.companyEnrichment === undefined ? "not queued" : ENRICHMENT_LABELS[item.companyEnrichment.status]}
+              {item.businessName} — {item.primaryPostcode ?? "postcode unknown"} — {item.latestAssessment?.totalScore ?? "not scored"} — {item.companyEnrichment === null || item.companyEnrichment === undefined
+                ? "not queued"
+                : item.companyEnrichment.qualificationState === undefined
+                  ? ENRICHMENT_LABELS[item.companyEnrichment.status]
+                  : QUALIFICATION_LABELS[item.companyEnrichment.qualificationState]}
             </option>
           ))}
         </select>
@@ -658,7 +659,7 @@ export function ProspectReviewWorkspace({
                   }>
                     {review.latestAssessment
                       .eligibilityResult === "eligible"
-                      ? "Eligible for founder review"
+                      ? "Ready for outreach"
                       : "Research required"}
                   </span>
                 </div>
@@ -716,10 +717,28 @@ export function ProspectReviewWorkspace({
                   review.companyEnrichment !== undefined && (
                     <div className="enrichment-summary">
                       <strong>
-                        {ENRICHMENT_LABELS[
-                          review.companyEnrichment.status
-                        ]}
+                        {review.companyEnrichment
+                          .qualificationState === undefined
+                          ? ENRICHMENT_LABELS[
+                              review.companyEnrichment.status
+                            ]
+                          : QUALIFICATION_LABELS[
+                              review.companyEnrichment
+                                .qualificationState
+                            ]}
                       </strong>
+                      {review.companyEnrichment
+                        .qualificationReasons !== undefined &&
+                        review.companyEnrichment
+                          .qualificationReasons.length > 0 && (
+                          <span>
+                            {review.companyEnrichment
+                              .qualificationReasons
+                              .map((reason) =>
+                                reason.replaceAll("_", " "))
+                              .join(" · ")}
+                          </span>
+                        )}
                       {review.companyEnrichment
                         .discoveredCompanyNumber !== null && (
                           <span>
@@ -1006,7 +1025,10 @@ export function ProspectReviewWorkspace({
                     {item.verificationMethod ===
                       "automatic_first_party_company_number"
                       ? "automatically verified"
-                      : item.verificationStatus}
+                      : item.verificationMethod ===
+                          "automatic_first_party_research"
+                        ? "automatically researched"
+                        : item.verificationStatus}
                   </span>
                   {(
                     item.sourceType ===

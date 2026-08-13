@@ -110,3 +110,112 @@ test(
     );
   },
 );
+
+test(
+  "automatic qualification claims only the versioned private queue",
+  async () => {
+    let requestUrl = "";
+    const repository =
+      new SupabaseCompanyEnrichmentRepository({
+        supabaseUrl:
+          "https://project.supabase.co",
+        secretKey: "sb_secret_private",
+        timeoutMs: 1_000,
+        fetchFunction: (async (input) => {
+          requestUrl = String(input);
+          return Response.json([{
+            prospect_id:
+              "11111111-1111-4111-8111-111111111111",
+            actor_id:
+              "22222222-2222-4222-8222-222222222222",
+            business_name:
+              "Example University Halls",
+            sector:
+              "university_accommodation",
+            website_url:
+              "https://example.ac.uk/",
+            company_number: null,
+            attempt_count: 1,
+          }]);
+        }) as typeof fetch,
+      });
+
+    const jobs = await repository
+      .claimQualificationJobs(5, 180);
+
+    assert.equal(
+      requestUrl,
+      "https://project.supabase.co/rest/v1/rpc/claim_automatic_qualification_jobs",
+    );
+    assert.equal(
+      jobs[0]?.sector,
+      "university_accommodation",
+    );
+  },
+);
+
+test(
+  "automatic research records exact source evidence through one private RPC",
+  async () => {
+    let requestUrl = "";
+    let requestBody: unknown;
+    const repository =
+      new SupabaseCompanyEnrichmentRepository({
+        supabaseUrl:
+          "https://project.supabase.co",
+        secretKey: "sb_secret_private",
+        timeoutMs: 1_000,
+        fetchFunction: (async (input, init) => {
+          requestUrl = String(input);
+          requestBody = JSON.parse(
+            String(init?.body),
+          );
+          return Response.json([{
+            evidence_ids: [
+              "33333333-3333-4333-8333-333333333333",
+            ],
+          }]);
+        }) as typeof fetch,
+      });
+
+    await repository.recordResearch(
+      "11111111-1111-4111-8111-111111111111",
+      "22222222-2222-4222-8222-222222222222",
+      1,
+      [{
+        sourceUrl:
+          "https://example.com/contact",
+        factName: "public_email",
+        factValue: "hello@example.com",
+        sourceExcerpt:
+          "Contact hello@example.com",
+        contentSha256: "a".repeat(64),
+        contactType: "email",
+        normalizedContactValue:
+          "hello@example.com",
+      }],
+    );
+
+    assert.equal(
+      requestUrl,
+      "https://project.supabase.co/rest/v1/rpc/record_automatic_first_party_research",
+    );
+    assert.deepEqual(
+      (requestBody as {
+        p_facts: readonly unknown[];
+      }).p_facts,
+      [{
+        source_url:
+          "https://example.com/contact",
+        field_name: "public_email",
+        field_value: "hello@example.com",
+        source_excerpt:
+          "Contact hello@example.com",
+        content_sha256: "a".repeat(64),
+        contact_type: "email",
+        normalized_contact_value:
+          "hello@example.com",
+      }],
+    );
+  },
+);

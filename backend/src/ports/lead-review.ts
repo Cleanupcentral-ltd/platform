@@ -72,7 +72,8 @@ export interface LeadEvidenceRecord {
   readonly verifiedAt: string | null;
   readonly verificationMethod?:
     | "founder_review"
-    | "automatic_first_party_company_number";
+    | "automatic_first_party_company_number"
+    | "automatic_first_party_research";
 }
 
 export interface LeadContactRecord {

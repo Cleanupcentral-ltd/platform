@@ -183,6 +183,13 @@ const environmentSchema = z
           (value) => value === "true",
         ),
 
+    LEAD_AUTOMATIC_QUALIFICATION_V1:
+      z.enum(["true", "false"])
+        .default("false")
+        .transform(
+          (value) => value === "true",
+        ),
+
     LEAD_COMPANY_ENRICHMENT_INTERVAL_MS:
       z.coerce.number().int()
         .min(15_000)
@@ -212,6 +219,18 @@ const environmentSchema = z
         .min(32_768)
         .max(1_048_576)
         .default(524_288),
+
+    LEAD_WEBSITE_RESEARCH_MAX_PAGES:
+      z.coerce.number().int()
+        .min(1)
+        .max(8)
+        .default(6),
+
+    LEAD_WEBSITE_REQUEST_RETRIES:
+      z.coerce.number().int()
+        .min(0)
+        .max(2)
+        .default(1),
 
     COMPANIES_HOUSE_API_KEY:
       z.string()
@@ -441,6 +460,18 @@ const environmentSchema = z
           path: ["LEAD_AUTO_COMPANY_ENRICHMENT_V1"],
           message:
             "Automatic company enrichment requires Companies House verification to be enabled.",
+        });
+      }
+
+      if (
+        value.LEAD_AUTOMATIC_QUALIFICATION_V1 &&
+        !value.LEAD_AUTO_COMPANY_ENRICHMENT_V1
+      ) {
+        context.addIssue({
+          code: "custom",
+          path: ["LEAD_AUTOMATIC_QUALIFICATION_V1"],
+          message:
+            "Automatic qualification requires automatic company enrichment to be enabled.",
         });
       }
 

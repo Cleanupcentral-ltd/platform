@@ -58,6 +58,7 @@ const evidenceRowSchema = z.object({
   verification_method: z.enum([
     "founder_review",
     "automatic_first_party_company_number",
+    "automatic_first_party_research",
   ]).optional().default("founder_review"),
 });
 
@@ -85,6 +86,18 @@ const enrichmentRowSchema = z.object({
   attempt_count: z.number().int().min(0),
   last_attempt_at: z.string().nullable(),
   completed_at: z.string().nullable(),
+  qualification_state: z.enum([
+    "ready_for_outreach",
+    "needs_founder_decision",
+    "excluded",
+    "processing",
+  ]).optional(),
+  qualification_reasons:
+    z.array(z.string()).optional(),
+  research_summary:
+    z.record(z.string(), z.unknown()).optional(),
+  research_completed_at:
+    z.string().nullable().optional(),
 });
 
 const contactRowSchema = z.object({
@@ -156,6 +169,8 @@ export interface SupabaseLeadReviewRepositoryOptions {
   readonly timeoutMs: number;
   readonly fetchFunction?: FetchFunction;
   readonly companyEnrichmentEnabled?: boolean;
+  readonly automaticQualificationEnabled?:
+    boolean;
 }
 
 function mapEvidence(
@@ -192,6 +207,30 @@ function mapEnrichment(
     attemptCount: row.attempt_count,
     lastAttemptAt: row.last_attempt_at,
     completedAt: row.completed_at,
+    ...(row.qualification_state === undefined
+      ? {}
+      : {
+          qualificationState:
+            row.qualification_state,
+        }),
+    ...(row.qualification_reasons === undefined
+      ? {}
+      : {
+          qualificationReasons:
+            row.qualification_reasons,
+        }),
+    ...(row.research_summary === undefined
+      ? {}
+      : {
+          researchSummary:
+            row.research_summary,
+        }),
+    ...(row.research_completed_at === undefined
+      ? {}
+      : {
+          researchCompletedAt:
+            row.research_completed_at,
+        }),
   };
 }
 
@@ -221,6 +260,8 @@ implements LeadReviewRepository {
   private readonly fetchFunction: FetchFunction;
   private readonly companyEnrichmentEnabled:
     boolean;
+  private readonly automaticQualificationEnabled:
+    boolean;
 
   constructor(
     options:
@@ -234,6 +275,8 @@ implements LeadReviewRepository {
       options.fetchFunction ?? fetch;
     this.companyEnrichmentEnabled =
       options.companyEnrichmentEnabled ?? false;
+    this.automaticQualificationEnabled =
+      options.automaticQualificationEnabled ?? false;
   }
 
   private async request(
@@ -318,7 +361,7 @@ implements LeadReviewRepository {
         ),
         this.companyEnrichmentEnabled
           ? this.json(
-              "/company_enrichment?select=prospect_id,status,discovered_company_number,source_url,candidates,last_error_code,attempt_count,last_attempt_at,completed_at&limit=5000",
+              `/company_enrichment?select=prospect_id,status,discovered_company_number,source_url,candidates,last_error_code,attempt_count,last_attempt_at,completed_at${this.automaticQualificationEnabled ? ",qualification_state,qualification_reasons,research_summary,research_completed_at" : ""}&limit=5000`,
               z.array(enrichmentRowSchema),
             )
           : Promise.resolve([]),
@@ -425,7 +468,7 @@ implements LeadReviewRepository {
         ),
         this.companyEnrichmentEnabled
           ? this.json(
-              `/company_enrichment?prospect_id=eq.${id}&select=prospect_id,status,discovered_company_number,source_url,candidates,last_error_code,attempt_count,last_attempt_at,completed_at&limit=1`,
+              `/company_enrichment?prospect_id=eq.${id}&select=prospect_id,status,discovered_company_number,source_url,candidates,last_error_code,attempt_count,last_attempt_at,completed_at${this.automaticQualificationEnabled ? ",qualification_state,qualification_reasons,research_summary,research_completed_at" : ""}&limit=1`,
               z.array(enrichmentRowSchema),
             )
           : Promise.resolve([]),

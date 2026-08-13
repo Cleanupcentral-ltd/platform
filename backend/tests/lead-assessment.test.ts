@@ -103,7 +103,7 @@ test(
 );
 
 test(
-  "verified first-party and Companies House evidence can produce ten points while the unapproved email basis still blocks eligibility",
+  "verified corporate first-party contact can become ready while the founder remains the draft approval gate",
   () => {
     const records = [
       evidence(
@@ -178,13 +178,9 @@ test(
     assert.equal(result.totalScore, 10);
     assert.equal(
       result.eligibilityResult,
-      "research_required",
+      "eligible",
     );
-    assert.ok(
-      result.blockers.includes(
-        "unapproved_email_basis",
-      ),
-    );
+    assert.deepEqual(result.blockers, []);
     assert.equal(
       result.scoreBreakdown
         .compliantContactability

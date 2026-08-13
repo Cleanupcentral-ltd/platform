@@ -50,6 +50,8 @@ interface FoundationResponse {
       unknown;
     readonly automaticCompanyEnrichment?:
       unknown;
+    readonly automaticQualification?:
+      unknown;
     readonly outlookDrafts?: unknown;
   };
 }
@@ -61,6 +63,8 @@ interface Capabilities {
   readonly companiesHouseVerification:
     boolean;
   readonly automaticCompanyEnrichment:
+    boolean;
+  readonly automaticQualification:
     boolean;
 }
 
@@ -92,6 +96,7 @@ export function LeadEngineFoundation() {
       reviewAndScoring: false,
       companiesHouseVerification: false,
       automaticCompanyEnrichment: false,
+      automaticQualification: false,
     });
 
   const client = useMemo<SupabaseClient | null>(() => {
@@ -169,6 +174,9 @@ export function LeadEngineFoundation() {
         body.capabilities
           ?.automaticCompanyEnrichment ===
         true,
+      automaticQualification:
+        body.capabilities
+          ?.automaticQualification === true,
     });
     setAccessToken(
       session.access_token,
@@ -427,6 +435,7 @@ export function LeadEngineFoundation() {
       reviewAndScoring: false,
       companiesHouseVerification: false,
       automaticCompanyEnrichment: false,
+      automaticQualification: false,
     });
     setScreen("signed_out");
   }
@@ -657,6 +666,10 @@ export function LeadEngineFoundation() {
                   companyEnrichmentEnabled={
                     capabilities
                       .automaticCompanyEnrichment
+                  }
+                  automaticQualificationEnabled={
+                    capabilities
+                      .automaticQualification
                   }
                 />
               )

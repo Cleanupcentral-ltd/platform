@@ -749,6 +749,40 @@ test(
   },
 );
 
+test(
+  "protected health exposes automatic qualification only when its worker is enabled",
+  async (context) => {
+    const app = await buildApp({
+      leadEngineUiEnabled: true,
+      founderAuthService:
+        founderService,
+      companyEnrichmentEnabled: true,
+      automaticQualificationEnabled: true,
+      companyEnrichmentService,
+    });
+
+    context.after(
+      async () => app.close(),
+    );
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/ops/leads/health",
+      headers: {
+        authorization:
+          "Bearer test-token",
+      },
+    });
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(
+      response.json().capabilities
+        .automaticQualification,
+      true,
+    );
+  },
+);
+
 for (
   const scenario of [
     {

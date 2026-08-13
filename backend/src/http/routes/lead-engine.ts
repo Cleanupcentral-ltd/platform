@@ -63,6 +63,9 @@ export interface LeadEngineRouteDependencies {
 
   readonly companyEnrichmentService?:
     CompanyEnrichmentService | null;
+
+  readonly automaticQualificationEnabled?:
+    boolean;
 }
 
 const UK_POSTCODE =
@@ -581,6 +584,13 @@ export function registerLeadEngineRoutes(
             automaticCompanyEnrichment:
               dependencies
                 .companyEnrichmentEnabled === true &&
+              dependencies
+                .companyEnrichmentService !== null &&
+              dependencies
+                .companyEnrichmentService !== undefined,
+            automaticQualification:
+              dependencies
+                .automaticQualificationEnabled === true &&
               dependencies
                 .companyEnrichmentService !== null &&
               dependencies

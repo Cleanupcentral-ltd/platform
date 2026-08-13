@@ -274,7 +274,7 @@ export function createLeadReviewService(
     async listProspects() {
       try {
         return await repository
-          .listProspects(100);
+          .listProspects(500);
       } catch {
         throw new LeadReviewError(
           "repository_unavailable",

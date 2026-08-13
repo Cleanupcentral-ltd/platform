@@ -6,7 +6,7 @@ import type {
 } from "../ports/lead-review.js";
 
 export const LEAD_SCORING_VERSION =
-  "cuc-lel-0-10-v1";
+  "cuc-lel-0-10-v1.1";
 
 export const LEAD_QUALIFICATION_BLOCKERS = {
   missingVerifiedIdentity:
@@ -488,10 +488,15 @@ export function calculateLeadAssessment(
         .unresolvedSubscriber,
     );
   }
-  blockers.push(
-    LEAD_QUALIFICATION_BLOCKERS
-      .unapprovedEmailBasis,
-  );
+  if (
+    subscriberType !== "corporate" ||
+    compliantContactability.points === 0
+  ) {
+    blockers.push(
+      LEAD_QUALIFICATION_BLOCKERS
+        .unapprovedEmailBasis,
+    );
+  }
 
   const totalScore =
     dimensions.reduce(
@@ -526,7 +531,7 @@ export function calculateLeadAssessment(
     blockers,
     rationale:
       eligibilityResult === "eligible"
-        ? `Eligible for founder review with a transparent score of ${totalScore}/10. Outreach remains disabled.`
+        ? `Ready for founder draft approval with a transparent score of ${totalScore}/10. Outlook drafting and sending remain disabled.`
         : `Research required. Score ${totalScore}/10 does not override ${blockers.length} qualification blocker${blockers.length === 1 ? "" : "s"}.`,
     evidenceIds: citedEvidence,
   };

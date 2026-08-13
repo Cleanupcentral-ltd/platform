@@ -70,7 +70,8 @@ export interface ProspectEvidence {
   readonly verifiedAt: string | null;
   readonly verificationMethod?:
     | "founder_review"
-    | "automatic_first_party_company_number";
+    | "automatic_first_party_company_number"
+    | "automatic_first_party_research";
 }
 
 export interface ProspectAssessment {
@@ -124,6 +125,17 @@ export interface CompanyEnrichmentRecord {
   readonly attemptCount: number;
   readonly lastAttemptAt: string | null;
   readonly completedAt: string | null;
+  readonly qualificationState?:
+    | "ready_for_outreach"
+    | "needs_founder_decision"
+    | "excluded"
+    | "processing";
+  readonly qualificationReasons?:
+    readonly string[];
+  readonly researchSummary?:
+    Readonly<Record<string, unknown>>;
+  readonly researchCompletedAt?:
+    string | null;
 }
 
 export interface CompaniesHouseVerificationResult {

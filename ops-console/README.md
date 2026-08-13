@@ -1,7 +1,8 @@
 # Clean Up Central Operations Console
 
 Founder operations console for Lead Engine Lite search, evidence review,
-automatic qualification queues, Outlook draft approval and outreach tracking.
+automatic qualification queues, Outlook draft approval, outreach tracking and
+audited CSV fallback export.
 
 ## Route
 
@@ -40,4 +41,6 @@ Keep `VITE_LEAD_ENGINE_UI_V1=false` until the controlled founder MFA test is
 ready. Backend capability flags independently control search, qualification
 and Outlook drafting. The console contains no Microsoft credential or email
 send capability; Outlook creation is an explicit founder-approved, unsent
-draft operation performed by the authenticated backend.
+draft operation performed by the authenticated backend. `LEAD_EXPORT_V1`
+independently controls the founder-only CSV button; export files are generated
+server-side, formula-safe and never expose the service key to the browser.

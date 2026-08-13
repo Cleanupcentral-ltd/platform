@@ -136,10 +136,11 @@ have received the required professional review and founder approval.
 ## Acceptance evidence
 
 - focused Outlook, qualification and route tests: passed locally;
-- full backend suite: 283 passed, 0 failed;
+- full backend suite: 287 passed, 0 failed;
 - backend type-check and production build: passed locally;
-- founder console tests, type-check and production build: passed locally;
-- both migrations and their database acceptance suites passed against the
+- founder console suite: 26 passed, 0 failed; type-check and production build
+  passed locally;
+- all three migrations and their database acceptance suites passed against the
   production schema inside rolled-back transactions; no change was persisted;
 - Microsoft consent and one-draft production acceptance: pending explicit
   founder rollout approval.

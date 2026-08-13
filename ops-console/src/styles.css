@@ -176,6 +176,13 @@ h3 {
   flex: 0 0 auto;
 }
 
+.workspace-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 10px;
+  align-items: center;
+}
+
 .search-form {
   display: grid;
   grid-template-columns:

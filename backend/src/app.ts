@@ -39,6 +39,10 @@ import {
 } from "./adapters/supabase/supabase-lead-review-repository.js";
 
 import {
+  SupabaseLeadExportRepository,
+} from "./adapters/supabase/supabase-lead-export-repository.js";
+
+import {
   SupabaseCompanyEnrichmentRepository,
 } from "./adapters/supabase/supabase-company-enrichment-repository.js";
 
@@ -123,6 +127,11 @@ import {
   createOutreachService,
   type OutreachService,
 } from "./application/outreach.js";
+
+import {
+  createLeadExportService,
+  type LeadExportService,
+} from "./application/export-leads.js";
 
 import {
   createContactEnquiryPersistenceService,
@@ -243,6 +252,12 @@ export interface BuildAppOptions {
   readonly outreachService?:
     OutreachService;
 
+  readonly leadExportEnabled?:
+    boolean;
+
+  readonly leadExportService?:
+    LeadExportService;
+
   readonly companyEnrichmentService?:
     CompanyEnrichmentService;
 
@@ -355,6 +370,10 @@ export async function buildApp(
     options.outlookDraftEnabled ??
     env.LEAD_OUTLOOK_DRAFT_V1;
 
+  const leadExportEnabled =
+    options.leadExportEnabled ??
+    env.LEAD_EXPORT_V1;
+
   const app = Fastify({
     bodyLimit: 1_048_576,
 
@@ -398,6 +417,10 @@ export async function buildApp(
       "Content-Type",
       "X-Submission-Id",
       "X-File-Name",
+    ],
+
+    exposedHeaders: [
+      "Content-Disposition",
     ],
 
     credentials: false,
@@ -711,6 +734,27 @@ export async function buildApp(
           })()
         : null;
 
+    const leadExportService =
+      leadExportEnabled
+        ? options.leadExportService ??
+          createLeadExportService(
+            new SupabaseLeadExportRepository({
+              supabaseUrl:
+                requiredEnvironmentValue(
+                  env.SUPABASE_URL,
+                  "SUPABASE_URL",
+                ),
+              secretKey:
+                requiredEnvironmentValue(
+                  env.SUPABASE_SECRET_KEY,
+                  "SUPABASE_SECRET_KEY",
+                ),
+              timeoutMs:
+                env.SUPABASE_DATA_TIMEOUT_MS,
+            }),
+          )
+        : null;
+
     registerLeadEngineRoutes(app, {
       founderAuthService:
         options.founderAuthService ??
@@ -737,6 +781,8 @@ export async function buildApp(
       automaticQualificationEnabled,
       outlookDraftEnabled,
       outreachService,
+      leadExportEnabled,
+      leadExportService,
       outlookCallbackRedirectUrl:
         env.LEAD_ENGINE_CONSOLE_ORIGIN ===
           undefined

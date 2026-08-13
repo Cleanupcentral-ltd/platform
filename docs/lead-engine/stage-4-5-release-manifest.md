@@ -13,8 +13,10 @@
 - `backend/src/adapters/microsoft/microsoft-graph-outlook.ts`
 - `backend/src/adapters/supabase/supabase-outlook-connection-repository.ts`
 - `backend/src/adapters/supabase/supabase-outreach-repository.ts`
+- `backend/src/adapters/supabase/supabase-lead-export-repository.ts`
 - `backend/src/adapters/supabase/supabase-company-enrichment-repository.ts`
 - `backend/src/application/outreach.ts`
+- `backend/src/application/export-leads.ts`
 - `backend/src/application/qualify-leads.ts`
 - `backend/src/config/env.ts`
 - `backend/src/domain/business-email.ts`
@@ -22,27 +24,34 @@
 - `backend/src/http/routes/lead-engine.ts`
 - `backend/src/ports/automatic-qualification.ts`
 - `backend/src/ports/outreach.ts`
+- `backend/src/ports/lead-export.ts`
 - `backend/src/app.ts`
 - `backend/tests/lead-assessment.test.ts`
+- `backend/tests/export-leads.test.ts`
 - `backend/tests/lead-engine-route.test.ts`
 - `backend/tests/microsoft-graph-outlook.test.ts`
 - `backend/tests/outreach.test.ts`
 - `backend/tests/qualify-leads.test.ts`
 - `backend/tests/supabase-company-enrichment-repository.test.ts`
+- `backend/tests/supabase-lead-export-repository.test.ts`
 - `ops-console/src/LeadEngineFoundation.tsx`
 - `ops-console/src/LeadSearchWorkspace.tsx`
+- `ops-console/src/lead-export-api.ts`
 - `ops-console/src/ProspectReviewWorkspace.tsx`
 - `ops-console/src/lead-review-api.ts`
 - `ops-console/src/styles.css`
 - `ops-console/tests/lead-review-api.test.ts`
+- `ops-console/tests/lead-export-api.test.ts`
 - `ops-console/README.md`
 
 ## Database files
 
 - `supabase/migrations/20260813180000_controlled_automatic_qualification_rollout.sql`
 - `supabase/migrations/20260813181000_outlook_draft_workflow.sql`
+- `supabase/migrations/20260813182000_lead_engine_csv_export.sql`
 - `supabase/tests/controlled_automatic_qualification_rollout.sql`
 - `supabase/tests/outlook_draft_workflow.sql`
+- `supabase/tests/lead_engine_csv_export.sql`
 
 ## Documentation files
 
@@ -56,20 +65,22 @@ environment files are not part of the intended commit.
 
 ## Validation
 
-- Backend tests: 283 passed, 0 failed.
+- Backend tests: 287 passed, 0 failed.
 - Backend type-check: passed.
 - Backend production build: passed.
-- Founder console unit tests: 24 passed, 0 failed.
+- Founder console unit tests: 26 passed, 0 failed.
 - Founder console type-check: passed.
 - Founder console production build: passed.
 - Focused Outlook/canary safety tests: passed.
-- Both migrations parsed and executed against the real production schema inside
+- All three migrations parsed and executed against the real production schema inside
   transactions that were rolled back.
-- Both database acceptance suites passed inside the same rolled-back method.
+- All three database acceptance suites passed inside the same rolled-back method.
+- The CSV database dry-run kept all production prospect rows inside PostgreSQL
+  and returned only a pass marker to the connector.
 - Browser source and bundle scan found no backend secret-variable references or
   Outlook send endpoint.
-- No production migration, feature enablement, Outlook connection, draft or
-  send occurred.
+- No production migration, feature enablement, CSV export, Outlook connection,
+  draft or send occurred.
 
 ## Draft pull-request body
 
@@ -83,6 +94,7 @@ environment files are not part of the intended commit.
 - adds first-party generic-mailbox, suppression, stale-preview, idempotency,
   immutable-copy and durable do-not-contact controls;
 - adds the console preview, approval, draft link and activity journey; and
+- adds a founder-only, audited and formula-safe CSV fallback export; and
 - documents controlled rollout, rollback and project-closure evidence.
 
 ### Why
@@ -94,12 +106,12 @@ completes the draft-only Stage 4 boundary without adding send capability.
 
 ### Impact
 
-Both features remain disabled by default. Existing website, quote, enquiry,
+All three features remain disabled by default. Existing website, quote, enquiry,
 attachment and notification paths are unchanged. The database changes are
 additive. A founder and MFA session is required for all console actions.
 
 ### Validation
 
-283 backend tests, the complete console test command, both type checks and both
-production builds pass. Both migrations and database suites pass against the
+287 backend tests, the complete 26-test console command, both type checks and both
+production builds pass. All three migrations and database suites pass against the
 production schema under rollback.

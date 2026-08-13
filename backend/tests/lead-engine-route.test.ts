@@ -32,6 +32,10 @@ import type {
   OutreachService,
 } from "../src/application/outreach.js";
 
+import type {
+  LeadExportService,
+} from "../src/application/export-leads.js";
+
 const USER_ID =
   "79b42d3d-78be-42fc-9d91-5d97566d2ed0";
 
@@ -418,6 +422,20 @@ const outreachService: OutreachService = {
     };
   },
 };
+
+const leadExportService:
+  LeadExportService = {
+    async createCsv(founderId) {
+      assert.equal(founderId, USER_ID);
+      return {
+        filename:
+          "clean-up-central-leads-2026-08-13.csv",
+        csv:
+          '"business_name"\r\n"Example Workspace"\r\n',
+        rowCount: 1,
+      };
+    },
+  };
 
 function createRejectingReviewService():
   LeadReviewService {
@@ -960,6 +978,88 @@ test(
       response.json().capabilities
         .automaticQualification,
       true,
+    );
+  },
+);
+
+test(
+  "founder CSV export is authenticated, audited by its service and absent while disabled",
+  async (context) => {
+    const disabled = await buildApp({
+      leadEngineUiEnabled: true,
+      founderAuthService:
+        founderService,
+      leadExportEnabled: false,
+      leadExportService,
+    });
+    const enabled = await buildApp({
+      leadEngineUiEnabled: true,
+      founderAuthService:
+        founderService,
+      leadExportEnabled: true,
+      leadExportService,
+    });
+    context.after(async () => {
+      await disabled.close();
+      await enabled.close();
+    });
+
+    const hidden = await disabled.inject({
+      method: "GET",
+      url: "/api/ops/leads/export.csv",
+      headers: {
+        authorization:
+          "Bearer test-token",
+      },
+    });
+    assert.equal(hidden.statusCode, 404);
+
+    const unauthenticated =
+      await enabled.inject({
+        method: "GET",
+        url:
+          "/api/ops/leads/export.csv",
+      });
+    assert.equal(
+      unauthenticated.statusCode,
+      401,
+    );
+
+    const health = await enabled.inject({
+      method: "GET",
+      url: "/api/ops/leads/health",
+      headers: {
+        authorization:
+          "Bearer test-token",
+      },
+    });
+    assert.equal(
+      health.json().capabilities.export,
+      true,
+    );
+
+    const response = await enabled.inject({
+      method: "GET",
+      url: "/api/ops/leads/export.csv",
+      headers: {
+        authorization:
+          "Bearer test-token",
+      },
+    });
+    assert.equal(response.statusCode, 200);
+    assert.match(
+      response.headers["content-type"] ?? "",
+      /^text\/csv/,
+    );
+    assert.equal(
+      response.headers[
+        "content-disposition"
+      ],
+      'attachment; filename="clean-up-central-leads-2026-08-13.csv"',
+    );
+    assert.match(
+      response.body,
+      /Example Workspace/,
     );
   },
 );

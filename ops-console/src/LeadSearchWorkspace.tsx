@@ -17,6 +17,10 @@ import {
   ProspectReviewWorkspace,
 } from "./ProspectReviewWorkspace";
 
+import {
+  downloadLeadExport,
+} from "./lead-export-api";
+
 interface LeadSearchWorkspaceProps {
   readonly backendUrl: string;
   readonly accessToken: string;
@@ -31,6 +35,7 @@ interface LeadSearchWorkspaceProps {
     boolean;
   readonly outlookDraftEnabled?:
     boolean;
+  readonly exportEnabled?: boolean;
 }
 
 function errorMessage(
@@ -58,6 +63,7 @@ export function LeadSearchWorkspace({
   companyEnrichmentEnabled = false,
   automaticQualificationEnabled = false,
   outlookDraftEnabled = false,
+  exportEnabled = false,
 }: LeadSearchWorkspaceProps) {
   const [postcode, setPostcode] =
     useState("");
@@ -79,6 +85,44 @@ export function LeadSearchWorkspace({
     useState<string | null>(null);
   const [manualError, setManualError] =
     useState<string | null>(null);
+  const [exporting, setExporting] =
+    useState(false);
+  const [exportMessage, setExportMessage] =
+    useState<string | null>(null);
+  const [exportError, setExportError] =
+    useState<string | null>(null);
+
+  async function exportCsv() {
+    setExporting(true);
+    setExportMessage(null);
+    setExportError(null);
+    try {
+      const file =
+        await downloadLeadExport(
+          backendUrl,
+          accessToken,
+        );
+      const objectUrl =
+        URL.createObjectURL(file.blob);
+      const anchor =
+        document.createElement("a");
+      anchor.href = objectUrl;
+      anchor.download = file.filename;
+      document.body.append(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(objectUrl);
+      setExportMessage(
+        "The founder CSV export was downloaded and recorded in the audit log.",
+      );
+    } catch (error) {
+      setExportError(
+        errorMessage(error),
+      );
+    } finally {
+      setExporting(false);
+    }
+  }
 
   async function submitSearch(
     event: FormEvent<HTMLFormElement>,
@@ -195,14 +239,43 @@ export function LeadSearchWorkspace({
             </a>
           )}
         </div>
-        <button
-          type="button"
-          className="secondary sign-out"
-          onClick={() => void onSignOut()}
-        >
-          Sign out
-        </button>
+        <div className="workspace-actions">
+          {exportEnabled && (
+            <button
+              type="button"
+              className="secondary"
+              disabled={exporting}
+              onClick={() =>
+                void exportCsv()
+              }
+            >
+              {exporting
+                ? "Preparing CSV…"
+                : "Download CSV"}
+            </button>
+          )}
+          <button
+            type="button"
+            className="secondary sign-out"
+            onClick={() =>
+              void onSignOut()
+            }
+          >
+            Sign out
+          </button>
+        </div>
       </div>
+
+      {exportMessage !== null && (
+        <p className="success compact">
+          {exportMessage}
+        </p>
+      )}
+      {exportError !== null && (
+        <p className="error">
+          {exportError}
+        </p>
+      )}
 
       <form
         onSubmit={submitSearch}

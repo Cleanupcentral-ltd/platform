@@ -31,6 +31,11 @@ import {
 } from "../../application/outreach.js";
 
 import {
+  LeadExportError,
+  type LeadExportService,
+} from "../../application/export-leads.js";
+
+import {
   FounderAuthError,
   type FounderAuthService,
 } from "../../ports/founder-auth.js";
@@ -77,6 +82,12 @@ export interface LeadEngineRouteDependencies {
 
   readonly outreachService?:
     OutreachService | null;
+
+  readonly leadExportEnabled?:
+    boolean;
+
+  readonly leadExportService?:
+    LeadExportService | null;
 
   readonly outlookCallbackRedirectUrl?:
     string | null;
@@ -295,6 +306,12 @@ const OUTLOOK_RATE_LIMIT = {
   max: 10,
   timeWindow: "1 minute",
   groupId: "outlook-drafts",
+} as const;
+
+const EXPORT_RATE_LIMIT = {
+  max: 5,
+  timeWindow: "1 minute",
+  groupId: "lead-export",
 } as const;
 
 function readBearerToken(
@@ -748,11 +765,89 @@ export function registerLeadEngineRoutes(
                 .outreachService !== null &&
               dependencies
                 .outreachService !== undefined,
+            export:
+              dependencies
+                .leadExportEnabled === true &&
+              dependencies
+                .leadExportService !== null &&
+              dependencies
+                .leadExportService !== undefined,
           },
           requestId: request.id,
         });
     },
   );
+
+  if (
+    dependencies.leadExportEnabled ===
+      true &&
+    dependencies.leadExportService !==
+      null &&
+    dependencies.leadExportService !==
+      undefined
+  ) {
+    const leadExportService =
+      dependencies.leadExportService;
+
+    app.get(
+      "/api/ops/leads/export.csv",
+      {
+        config: {
+          rateLimit: EXPORT_RATE_LIMIT,
+        },
+      },
+      async (
+        request,
+        reply,
+      ): Promise<FastifyReply> => {
+        const founder =
+          await authenticateFounder(
+            request,
+            dependencies
+              .founderAuthService,
+          );
+        try {
+          const file =
+            await leadExportService
+              .createCsv(
+                founder.userId,
+              );
+          return reply
+            .header(
+              "Cache-Control",
+              "no-store",
+            )
+            .header(
+              "Content-Disposition",
+              `attachment; filename="${file.filename}"`,
+            )
+            .header(
+              "X-Content-Type-Options",
+              "nosniff",
+            )
+            .status(200)
+            .type(
+              "text/csv; charset=utf-8",
+            )
+            .send(file.csv);
+        } catch (error) {
+          if (
+            error instanceof
+              LeadExportError
+          ) {
+            throw new HttpError({
+              code:
+                "LEAD_EXPORT_UNAVAILABLE",
+              message:
+                "The lead export is temporarily unavailable. No prospect data was changed.",
+              statusCode: 503,
+            });
+          }
+          throw error;
+        }
+      },
+    );
+  }
 
   if (
     dependencies.outlookDraftEnabled ===

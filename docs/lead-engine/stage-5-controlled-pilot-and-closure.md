@@ -15,7 +15,9 @@ Outlook-draft-only. There is no automatic or bulk sending.
 ### 1. Disabled-state release
 
 - Apply the additive Stage 4.2 canary and Stage 4 Outlook migrations.
-- Deploy backend and console with both new feature flags off.
+- Deploy backend and console with all three new feature flags off:
+  `LEAD_AUTOMATIC_QUALIFICATION_V1`, `LEAD_OUTLOOK_DRAFT_V1` and
+  `LEAD_EXPORT_V1`.
 - Confirm the website, quote generator, enquiry, attachment and notification
   paths remain healthy.
 - Confirm unauthenticated, non-founder and non-MFA Lead Engine access is denied.
@@ -59,8 +61,13 @@ advice.
 
 - Record contacted, reply, follow-up and outcome against controlled data.
 - Verify a do-not-contact outcome creates an immediate durable suppression.
+- Enable `LEAD_EXPORT_V1`, download one founder CSV and confirm it includes the
+  prospect reference, status, suppression state and source links without
+  spreadsheet formula execution. Confirm one private export-audit row exists.
 - Complete one manual research and manual draft fallback without provider
   automation.
+- Disable `LEAD_EXPORT_V1` and confirm the export route and console button are
+  absent while all stored leads remain available.
 - Disable the Outlook flag and confirm the existing Lead Engine remains usable.
 - Disable automatic qualification and confirm search and manual review remain
   usable and existing evidence is preserved.
@@ -76,8 +83,8 @@ advice.
 | Qualification | One-business canary record, sources, queue and retry outcome |
 | Outlook | Consent permissions, exact unsent draft and no-contacted proof |
 | Compliance | Approved privacy information, lawful basis, wording and retention |
-| Fallback | Manual research/draft drill result |
-| Rollback | Both feature flags disabled without data or suppression loss |
+| Fallback | Manual research/draft drill plus audited CSV export result |
+| Rollback | All three feature flags disabled without data or suppression loss |
 | Commercial | Search, unique, duplicate, ready, review, draft and time baseline |
 | Risks/costs | Provider terms, current costs and unresolved decisions |
 

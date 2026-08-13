@@ -125,6 +125,15 @@ export interface AutomaticQualificationRepository {
     facts: readonly AutomaticResearchFact[],
   ): Promise<readonly string[]>;
 
+  recordSinglePremises?(
+    prospectId: string,
+    actorId: string,
+    attemptCount: number,
+    sourceUrl: string,
+    sourceExcerpt: string,
+    contentSha256: string,
+  ): Promise<readonly string[]>;
+
   completeQualification(
     input: CompleteAutomaticQualificationInput,
   ): Promise<void>;

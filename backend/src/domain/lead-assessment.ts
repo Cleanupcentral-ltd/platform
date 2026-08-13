@@ -10,7 +10,9 @@ import {
 } from "./business-email.js";
 
 export const LEAD_SCORING_VERSION =
-  "cuc-lel-0-10-v1.1";
+  "cuc-lel-0-10-v1.2";
+
+export const LEAD_READY_MINIMUM_SCORE = 7;
 
 export const LEAD_QUALIFICATION_BLOCKERS = {
   missingVerifiedIdentity:
@@ -29,6 +31,8 @@ export const LEAD_QUALIFICATION_BLOCKERS = {
     "unresolved_subscriber_type",
   unapprovedEmailBasis:
     "unapproved_email_basis",
+  scoreBelowReadyThreshold:
+    "score_below_ready_threshold",
 } as const;
 
 interface DimensionScore {
@@ -525,6 +529,12 @@ export function calculateLeadAssessment(
         sum + item.points,
       0,
     );
+  if (totalScore < LEAD_READY_MINIMUM_SCORE) {
+    blockers.push(
+      LEAD_QUALIFICATION_BLOCKERS
+        .scoreBelowReadyThreshold,
+    );
+  }
   const citedEvidence = [
     ...new Set(
       dimensions.flatMap(

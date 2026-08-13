@@ -185,6 +185,11 @@ const evidenceDecisionRequestSchema =
 const assessmentRequestSchema =
   z.strictObject({});
 
+const prospectViewRequestSchema =
+  z.strictObject({
+    viewed: z.boolean(),
+  });
+
 const companiesHouseSearchQuerySchema =
   z.object({
     q: z.string()
@@ -623,15 +628,18 @@ export function registerLeadEngineRoutes(
         request,
         reply,
       ): Promise<FastifyReply> => {
-        await authenticateFounder(
-          request,
-          dependencies
-            .founderAuthService,
-        );
+        const founder =
+          await authenticateFounder(
+            request,
+            dependencies
+              .founderAuthService,
+          );
         const prospects =
           await runReviewOperation(
             () => reviewService
-              .listProspects(),
+              .listProspects(
+                founder.userId,
+              ),
           );
         return reply
           .header(
@@ -643,6 +651,76 @@ export function registerLeadEngineRoutes(
           .send({
             success: true,
             prospects,
+            requestId: request.id,
+          });
+      },
+    );
+
+    app.put(
+      "/api/ops/leads/prospects/:prospectId/view",
+      {
+        bodyLimit: 4 * 1024,
+        config: {
+          rateLimit:
+            REVIEW_RATE_LIMIT,
+        },
+      },
+      async (
+        request,
+        reply,
+      ): Promise<FastifyReply> => {
+        const founder =
+          await authenticateFounder(
+            request,
+            dependencies
+              .founderAuthService,
+          );
+        requireJson(
+          request,
+          "Prospect view state must use application/json.",
+        );
+        const params =
+          prospectParamsSchema
+            .safeParse(request.params);
+        const body =
+          prospectViewRequestSchema
+            .safeParse(request.body);
+        if (
+          !params.success ||
+          !body.success
+        ) {
+          throw new HttpError({
+            code: "VALIDATION_ERROR",
+            message:
+              "Enter a valid prospect view state.",
+            statusCode: 400,
+          });
+        }
+
+        const viewedAt =
+          await runReviewOperation(
+            () => reviewService
+              .setProspectViewed(
+                founder.userId,
+                params.data.prospectId,
+                body.data.viewed,
+              ),
+          );
+
+        return reply
+          .header(
+            "Cache-Control",
+            "no-store",
+          )
+          .status(200)
+          .type("application/json")
+          .send({
+            success: true,
+            viewState: {
+              prospectId:
+                params.data.prospectId,
+              viewedAt,
+            },
             requestId: request.id,
           });
       },

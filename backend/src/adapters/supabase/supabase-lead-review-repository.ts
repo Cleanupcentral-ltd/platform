@@ -137,6 +137,16 @@ const assessmentRowSchema = z.object({
   assessed_at: z.string(),
 });
 
+const prospectViewRowSchema = z.object({
+  prospect_id: z.string().uuid(),
+  last_viewed_at: z.string(),
+});
+
+const prospectViewStateResponseSchema =
+  z.array(z.object({
+    viewed_at: z.string().nullable(),
+  })).length(1);
+
 const searchProvenanceRowSchema =
   z.object({
     prospect_id: z.string().uuid(),
@@ -342,10 +352,11 @@ implements LeadReviewRepository {
   }
 
   async listProspects(
+    founderId: string,
     limit: number,
   ): Promise<readonly LeadProspectSummary[]> {
     const [prospects, evidence, assessments,
-      enrichments] =
+      enrichments, views] =
       await Promise.all([
         this.json(
           `/prospects?select=id,business_name,sector,primary_postcode,website_url,company_number,created_at&order=created_at.desc,id.desc&limit=${limit}`,
@@ -365,6 +376,10 @@ implements LeadReviewRepository {
               z.array(enrichmentRowSchema),
             )
           : Promise.resolve([]),
+        this.json(
+          `/prospect_views?founder_id=eq.${encodeURIComponent(founderId)}&select=prospect_id,last_viewed_at&limit=${limit}`,
+          z.array(prospectViewRowSchema),
+        ),
       ]);
 
     const latest = new Map<string,
@@ -374,6 +389,12 @@ implements LeadReviewRepository {
         latest.set(item.prospect_id, item);
       }
     }
+    const viewedAtByProspect = new Map(
+      views.map((view) => [
+        view.prospect_id,
+        view.last_viewed_at,
+      ]),
+    );
 
     return prospects.map((item) => {
       const prospectEvidence =
@@ -397,6 +418,10 @@ implements LeadReviewRepository {
           item.primary_postcode,
         websiteUrl: item.website_url,
         createdAt: item.created_at,
+        viewedAt:
+          viewedAtByProspect.get(
+            item.id,
+          ) ?? null,
         evidenceCounts: {
           unverified:
             prospectEvidence.filter(
@@ -435,6 +460,30 @@ implements LeadReviewRepository {
             : mapEnrichment(enrichment),
       };
     });
+  }
+
+  async setProspectViewed(
+    founderId: string,
+    prospectId: string,
+    viewed: boolean,
+  ): Promise<string | null> {
+    const result = await this.json(
+      "/rpc/set_prospect_view_state",
+      prospectViewStateResponseSchema,
+      {
+        method: "POST",
+        headers: {
+          "content-type":
+            "application/json",
+        },
+        body: JSON.stringify({
+          p_founder_id: founderId,
+          p_prospect_id: prospectId,
+          p_viewed: viewed,
+        }),
+      },
+    );
+    return result[0]!.viewed_at;
   }
 
   async getProspect(

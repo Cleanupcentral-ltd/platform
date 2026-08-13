@@ -79,6 +79,9 @@ function repository(
     async listProspects() {
       return [];
     },
+    async setProspectViewed() {
+      return null;
+    },
     async getProspect() {
       return null;
     },

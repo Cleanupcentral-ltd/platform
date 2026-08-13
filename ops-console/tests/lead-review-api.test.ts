@@ -7,6 +7,7 @@ import {
   listProspects,
   retryCompanyEnrichment,
   searchCompaniesHouseMatches,
+  updateProspectViewState,
   verifyCompaniesHouseMatch,
 } from "../src/lead-review-api.ts";
 
@@ -44,6 +45,51 @@ test(
       "Bearer founder-aal2-token",
     );
     assert.deepEqual(result, []);
+  },
+);
+
+test(
+  "prospect view state changes only through an explicit founder action",
+  async () => {
+    let requestUrl = "";
+    let requestInit:
+      RequestInit | undefined;
+    const viewedAt =
+      await updateProspectViewState(
+        "https://backend.example",
+        "founder-aal2-token",
+        PROSPECT_ID,
+        true,
+        (async (input, init) => {
+          requestUrl = String(input);
+          requestInit = init;
+          return Response.json({
+            success: true,
+            viewState: {
+              prospectId: PROSPECT_ID,
+              viewedAt:
+                "2026-08-13T14:00:00.000Z",
+            },
+          });
+        }) as typeof fetch,
+      );
+
+    assert.match(
+      requestUrl,
+      /\/prospects\/11111111-1111-4111-8111-111111111111\/view$/,
+    );
+    assert.equal(
+      requestInit?.method,
+      "PUT",
+    );
+    assert.deepEqual(
+      JSON.parse(String(requestInit?.body)),
+      { viewed: true },
+    );
+    assert.equal(
+      viewedAt,
+      "2026-08-13T14:00:00.000Z",
+    );
   },
 );
 

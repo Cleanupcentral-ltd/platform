@@ -5,6 +5,120 @@ import {
   SupabaseLeadReviewRepository,
 } from "../src/adapters/supabase/supabase-lead-review-repository.js";
 
+const PROSPECT_ID =
+  "11111111-1111-4111-8111-111111111111";
+const FOUNDER_ID =
+  "22222222-2222-4222-8222-222222222222";
+
+test(
+  "prospect lists include only the authenticated founder's view state",
+  async () => {
+    const requestUrls: string[] = [];
+    const repository =
+      new SupabaseLeadReviewRepository({
+        supabaseUrl:
+          "https://project.supabase.co",
+        secretKey: "sb_secret_private",
+        timeoutMs: 1_000,
+        fetchFunction:
+          (async (input) => {
+            const url = String(input);
+            requestUrls.push(url);
+            if (url.includes("/prospects?")) {
+              return Response.json([{
+                id: PROSPECT_ID,
+                business_name:
+                  "Example Business",
+                sector:
+                  "offices_coworking",
+                primary_postcode:
+                  "BR1 1AA",
+                website_url:
+                  "https://example.com/",
+                company_number: null,
+                created_at:
+                  "2026-08-13T12:00:00.000Z",
+              }]);
+            }
+            if (url.includes("/prospect_views?")) {
+              return Response.json([{
+                prospect_id: PROSPECT_ID,
+                last_viewed_at:
+                  "2026-08-13T14:00:00.000Z",
+              }]);
+            }
+            return Response.json([]);
+          }) as typeof fetch,
+      });
+
+    const prospects =
+      await repository.listProspects(
+        FOUNDER_ID,
+        500,
+      );
+
+    assert.equal(
+      prospects[0]?.viewedAt,
+      "2026-08-13T14:00:00.000Z",
+    );
+    assert.ok(
+      requestUrls.some((url) =>
+        url.includes(
+          `/prospect_views?founder_id=eq.${FOUNDER_ID}`,
+        )),
+    );
+  },
+);
+
+test(
+  "prospect view changes use the private atomic function",
+  async () => {
+    let requestUrl = "";
+    let requestInit:
+      RequestInit | undefined;
+    const repository =
+      new SupabaseLeadReviewRepository({
+        supabaseUrl:
+          "https://project.supabase.co",
+        secretKey: "sb_secret_private",
+        timeoutMs: 1_000,
+        fetchFunction:
+          (async (input, init) => {
+            requestUrl = String(input);
+            requestInit = init;
+            return Response.json([{
+              viewed_at:
+                "2026-08-13T14:00:00.000Z",
+            }]);
+          }) as typeof fetch,
+      });
+
+    const viewedAt =
+      await repository.setProspectViewed(
+        FOUNDER_ID,
+        PROSPECT_ID,
+        true,
+      );
+
+    assert.equal(
+      requestUrl,
+      "https://project.supabase.co/rest/v1/rpc/set_prospect_view_state",
+    );
+    assert.deepEqual(
+      JSON.parse(String(requestInit?.body)),
+      {
+        p_founder_id: FOUNDER_ID,
+        p_prospect_id: PROSPECT_ID,
+        p_viewed: true,
+      },
+    );
+    assert.equal(
+      viewedAt,
+      "2026-08-13T14:00:00.000Z",
+    );
+  },
+);
+
 test(
   "Supabase lead review uses the private schema and secret key for atomic evidence capture",
   async () => {

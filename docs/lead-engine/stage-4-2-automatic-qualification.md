@@ -106,6 +106,31 @@ Rollout order:
 
 Rollback is to set `LEAD_AUTOMATIC_QUALIFICATION_V1=false` and redeploy. The additive columns, evidence and queue history remain; Stage 4.1 continues using its existing flag and worker.
 
+## Unseen and Viewed founder queue amendment
+
+The qualification queue and the founder's reading progress are separate concepts. A prospect can be **Ready for outreach** and still be **Unseen**, or it can be **Viewed** while automatic qualification continues.
+
+- Every existing and newly captured prospect starts Unseen because no view row exists.
+- Loading or refreshing the queue does not mark any prospect Viewed.
+- A prospect is marked Viewed only after the founder deliberately opens its detail successfully.
+- The queue prefixes Unseen options with `NEW`, shows a founder-specific Unseen count and provides an Unseen-only filter.
+- An opened record can be returned to the queue with **Mark as unseen**.
+- View state is keyed by founder and prospect. A deduplicated search result reuses the existing prospect and therefore retains its view state.
+- Outlook drafting, sending, qualification state, assessment score and compliance gates are unaffected.
+
+The additive `prospect_views` table is private to the `lead_engine` schema. Browser roles receive no table or function privileges; the existing authenticated backend is the only access path. No backfill is performed, so all 141 existing prospects begin Unseen.
+
+Amendment rollout order:
+
+1. Review and approve the draft PR.
+2. Apply `20260813135234_prospect_view_tracking.sql` while automatic qualification remains disabled.
+3. Run database permission checks and Supabase security/performance advisors.
+4. Merge and deploy the backend and console code.
+5. Confirm all existing prospects show as Unseen, queue refresh changes nothing, one deliberate open changes only that founder's record to Viewed, and **Mark as unseen** reverses it.
+6. Continue the separate Stage 4.2 controlled-processing approval.
+
+The migration and merge require explicit founder approval. The migration must precede the code deployment because the queue reads the new private table.
+
 ## Acceptance criteria
 
 1. Search capture remains fast and returns while qualification continues in the background.
@@ -130,9 +155,9 @@ Evidence must be recorded against the exact release commit.
 
 - Backend source and tests type-check: passed locally.
 - Backend production build: passed locally.
-- Full backend test suite: 265 passed, 0 failed.
+- Full backend test suite: 269 passed, 0 failed.
 - Founder console type-check: passed locally.
-- Founder console unit tests: 20 passed, 0 failed.
+- Founder console unit tests: 22 passed, 0 failed.
 - Founder console production build: passed locally.
 - Additive migration static/security review: passed; queue claims use `FOR UPDATE SKIP LOCKED`, a partial index and attempt-bound leases. New RPCs are `security invoker`, use an empty search path, revoke browser execution and grant only `service_role`. Existing table RLS and force-RLS remain in place.
 - Production migration list and the exact existing evidence constraint were inspected read-only; Stage 4.2 is not applied.

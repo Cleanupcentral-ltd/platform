@@ -43,6 +43,7 @@ export interface LeadProspectSummary {
   readonly primaryPostcode: string | null;
   readonly websiteUrl: string | null;
   readonly createdAt: string;
+  readonly viewedAt: string | null;
   readonly evidenceCounts: {
     readonly unverified: number;
     readonly verified: number;
@@ -197,8 +198,15 @@ extends RecordCompaniesHouseVerificationInput {
 
 export interface LeadReviewRepository {
   listProspects(
+    founderId: string,
     limit: number,
   ): Promise<readonly LeadProspectSummary[]>;
+
+  setProspectViewed(
+    founderId: string,
+    prospectId: string,
+    viewed: boolean,
+  ): Promise<string | null>;
 
   getProspect(
     prospectId: string,

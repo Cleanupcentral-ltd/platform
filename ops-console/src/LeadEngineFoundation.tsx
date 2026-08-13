@@ -53,6 +53,7 @@ interface FoundationResponse {
     readonly automaticQualification?:
       unknown;
     readonly outlookDrafts?: unknown;
+    readonly export?: unknown;
   };
 }
 
@@ -66,6 +67,8 @@ interface Capabilities {
     boolean;
   readonly automaticQualification:
     boolean;
+  readonly outlookDrafts: boolean;
+  readonly export: boolean;
 }
 
 function messageFrom(error: unknown): string {
@@ -97,6 +100,8 @@ export function LeadEngineFoundation() {
       companiesHouseVerification: false,
       automaticCompanyEnrichment: false,
       automaticQualification: false,
+      outlookDrafts: false,
+      export: false,
     });
 
   const client = useMemo<SupabaseClient | null>(() => {
@@ -177,6 +182,12 @@ export function LeadEngineFoundation() {
       automaticQualification:
         body.capabilities
           ?.automaticQualification === true,
+      outlookDrafts:
+        body.capabilities
+          ?.outlookDrafts === true,
+      export:
+        body.capabilities
+          ?.export === true,
     });
     setAccessToken(
       session.access_token,
@@ -436,6 +447,8 @@ export function LeadEngineFoundation() {
       companiesHouseVerification: false,
       automaticCompanyEnrichment: false,
       automaticQualification: false,
+      outlookDrafts: false,
+      export: false,
     });
     setScreen("signed_out");
   }
@@ -670,6 +683,12 @@ export function LeadEngineFoundation() {
                   automaticQualificationEnabled={
                     capabilities
                       .automaticQualification
+                  }
+                  outlookDraftEnabled={
+                    capabilities.outlookDrafts
+                  }
+                  exportEnabled={
+                    capabilities.export
                   }
                 />
               )

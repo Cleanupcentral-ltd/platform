@@ -39,8 +39,24 @@ import {
 } from "./adapters/supabase/supabase-lead-review-repository.js";
 
 import {
+  SupabaseLeadExportRepository,
+} from "./adapters/supabase/supabase-lead-export-repository.js";
+
+import {
   SupabaseCompanyEnrichmentRepository,
 } from "./adapters/supabase/supabase-company-enrichment-repository.js";
+
+import {
+  SupabaseOutreachRepository,
+} from "./adapters/supabase/supabase-outreach-repository.js";
+
+import {
+  SupabaseOutlookConnectionRepository,
+} from "./adapters/supabase/supabase-outlook-connection-repository.js";
+
+import {
+  MicrosoftGraphOutlookGateway,
+} from "./adapters/microsoft/microsoft-graph-outlook.js";
 
 import {
   FirstPartyCompanyNumberClient,
@@ -106,6 +122,16 @@ import {
 import {
   createAutomaticQualificationService,
 } from "./application/qualify-leads.js";
+
+import {
+  createOutreachService,
+  type OutreachService,
+} from "./application/outreach.js";
+
+import {
+  createLeadExportService,
+  type LeadExportService,
+} from "./application/export-leads.js";
 
 import {
   createContactEnquiryPersistenceService,
@@ -220,6 +246,18 @@ export interface BuildAppOptions {
   readonly automaticQualificationEnabled?:
     boolean;
 
+  readonly outlookDraftEnabled?:
+    boolean;
+
+  readonly outreachService?:
+    OutreachService;
+
+  readonly leadExportEnabled?:
+    boolean;
+
+  readonly leadExportService?:
+    LeadExportService;
+
   readonly companyEnrichmentService?:
     CompanyEnrichmentService;
 
@@ -328,6 +366,14 @@ export async function buildApp(
     options.automaticQualificationEnabled ??
     env.LEAD_AUTOMATIC_QUALIFICATION_V1;
 
+  const outlookDraftEnabled =
+    options.outlookDraftEnabled ??
+    env.LEAD_OUTLOOK_DRAFT_V1;
+
+  const leadExportEnabled =
+    options.leadExportEnabled ??
+    env.LEAD_EXPORT_V1;
+
   const app = Fastify({
     bodyLimit: 1_048_576,
 
@@ -371,6 +417,10 @@ export async function buildApp(
       "Content-Type",
       "X-Submission-Id",
       "X-File-Name",
+    ],
+
+    exposedHeaders: [
+      "Content-Disposition",
     ],
 
     credentials: false,
@@ -497,6 +547,11 @@ export async function buildApp(
                 env.LEAD_COMPANY_ENRICHMENT_BATCH_SIZE,
               leaseSeconds:
                 env.LEAD_COMPANY_ENRICHMENT_LEASE_SECONDS,
+              activationTotalLimit:
+                env.LEAD_AUTOMATIC_QUALIFICATION_ROLLOUT ===
+                  "all"
+                  ? null
+                  : 1,
             })
           : createCompanyEnrichmentService({
               repository:
@@ -591,6 +646,115 @@ export async function buildApp(
           })
         : null;
 
+    const outreachService =
+      outlookDraftEnabled
+        ? options.outreachService ??
+          (() => {
+            if (leadReviewService === null) {
+              throw new Error(
+                "Lead review is required for Outlook drafting.",
+              );
+            }
+            const connectionRepository =
+              new SupabaseOutlookConnectionRepository({
+                supabaseUrl:
+                  requiredEnvironmentValue(
+                    env.SUPABASE_URL,
+                    "SUPABASE_URL",
+                  ),
+                secretKey:
+                  requiredEnvironmentValue(
+                    env.SUPABASE_SECRET_KEY,
+                    "SUPABASE_SECRET_KEY",
+                  ),
+                timeoutMs:
+                  env.SUPABASE_DATA_TIMEOUT_MS,
+              });
+            return createOutreachService({
+              leadReviewService,
+              privacyUrl:
+                requiredEnvironmentValue(
+                  env.OUTREACH_PRIVACY_URL,
+                  "OUTREACH_PRIVACY_URL",
+                ),
+              optOutText:
+                requiredEnvironmentValue(
+                  env.OUTREACH_OPTOUT_TEXT,
+                  "OUTREACH_OPTOUT_TEXT",
+                ),
+              repository:
+                new SupabaseOutreachRepository({
+                  supabaseUrl:
+                    requiredEnvironmentValue(
+                      env.SUPABASE_URL,
+                      "SUPABASE_URL",
+                    ),
+                  secretKey:
+                    requiredEnvironmentValue(
+                      env.SUPABASE_SECRET_KEY,
+                      "SUPABASE_SECRET_KEY",
+                    ),
+                  timeoutMs:
+                    env.SUPABASE_DATA_TIMEOUT_MS,
+                }),
+              gateway:
+                new MicrosoftGraphOutlookGateway({
+                  clientId:
+                    requiredEnvironmentValue(
+                      env.MICROSOFT_CLIENT_ID,
+                      "MICROSOFT_CLIENT_ID",
+                    ),
+                  clientSecret:
+                    requiredEnvironmentValue(
+                      env.MICROSOFT_CLIENT_SECRET,
+                      "MICROSOFT_CLIENT_SECRET",
+                    ),
+                  tenantId:
+                    env.MICROSOFT_TENANT_ID,
+                  redirectUri:
+                    requiredEnvironmentValue(
+                      env.MICROSOFT_REDIRECT_URI,
+                      "MICROSOFT_REDIRECT_URI",
+                    ),
+                  graphBaseUrl:
+                    env.MICROSOFT_GRAPH_API_BASE_URL,
+                  loginBaseUrl:
+                    env.MICROSOFT_LOGIN_BASE_URL,
+                  tokenEncryptionKey:
+                    requiredEnvironmentValue(
+                      env.OUTLOOK_TOKEN_ENCRYPTION_KEY,
+                      "OUTLOOK_TOKEN_ENCRYPTION_KEY",
+                    ),
+                  timeoutMs:
+                    env.OUTLOOK_GRAPH_TIMEOUT_MS,
+                  repository:
+                    connectionRepository,
+                }),
+            });
+          })()
+        : null;
+
+    const leadExportService =
+      leadExportEnabled
+        ? options.leadExportService ??
+          createLeadExportService(
+            new SupabaseLeadExportRepository({
+              supabaseUrl:
+                requiredEnvironmentValue(
+                  env.SUPABASE_URL,
+                  "SUPABASE_URL",
+                ),
+              secretKey:
+                requiredEnvironmentValue(
+                  env.SUPABASE_SECRET_KEY,
+                  "SUPABASE_SECRET_KEY",
+                ),
+              timeoutMs:
+                env.SUPABASE_DATA_TIMEOUT_MS,
+            }),
+          )
+        : null;
+
     registerLeadEngineRoutes(app, {
       founderAuthService:
         options.founderAuthService ??
@@ -615,6 +779,15 @@ export async function buildApp(
       companyEnrichmentEnabled,
       companyEnrichmentService,
       automaticQualificationEnabled,
+      outlookDraftEnabled,
+      outreachService,
+      leadExportEnabled,
+      leadExportService,
+      outlookCallbackRedirectUrl:
+        env.LEAD_ENGINE_CONSOLE_ORIGIN ===
+          undefined
+          ? null
+          : `${env.LEAD_ENGINE_CONSOLE_ORIGIN.replace(/\/$/, "")}/ops/leads`,
     });
   }
 

@@ -9,16 +9,23 @@ import {
 } from "./lead-search-api";
 
 import {
+  beginOutlookConnection,
+  createOutlookDraft,
   addVerificationEvidence,
   assessProspect,
   decideEvidence,
+  getOutreachWorkspace,
   getProspect,
   listProspects,
+  previewOutlookDraft,
+  recordOutreachActivity,
   retryCompanyEnrichment,
   searchCompaniesHouseMatches,
   updateProspectViewState,
   verifyCompaniesHouseMatch,
   type CompaniesHouseMatch,
+  type OutlookDraftPreview,
+  type OutreachWorkspace,
   type ProspectReview,
   type ProspectSummary,
   type VerificationFactName,
@@ -39,6 +46,8 @@ interface ProspectReviewWorkspaceProps {
   readonly companyEnrichmentEnabled?:
     boolean;
   readonly automaticQualificationEnabled?:
+    boolean;
+  readonly outlookDraftEnabled?:
     boolean;
 }
 
@@ -181,6 +190,7 @@ export function ProspectReviewWorkspace({
   companiesHouseEnabled = false,
   companyEnrichmentEnabled = false,
   automaticQualificationEnabled = false,
+  outlookDraftEnabled = false,
 }: ProspectReviewWorkspaceProps) {
   const [prospects, setProspects] =
     useState<readonly ProspectSummary[]>([]);
@@ -226,6 +236,24 @@ export function ProspectReviewWorkspace({
     );
   const [unseenOnly, setUnseenOnly] =
     useState(false);
+  const [outreach, setOutreach] =
+    useState<OutreachWorkspace | null>(
+      null,
+    );
+  const [draftPreview, setDraftPreview] =
+    useState<OutlookDraftPreview | null>(
+      null,
+    );
+  const [activityType, setActivityType] =
+    useState<
+      | "contacted"
+      | "replied"
+      | "follow_up_scheduled"
+      | "outcome"
+    >("contacted");
+  const [activityOutcome,
+    setActivityOutcome] =
+      useState("not_now");
 
   async function refreshQueue() {
     setLoading(true);
@@ -265,6 +293,22 @@ export function ProspectReviewWorkspace({
           prospectId,
         );
       setReview(loaded);
+      setDraftPreview(null);
+      if (outlookDraftEnabled) {
+        try {
+          setOutreach(
+            await getOutreachWorkspace(
+              backendUrl,
+              accessToken,
+              prospectId,
+            ),
+          );
+        } catch {
+          setOutreach(null);
+        }
+      } else {
+        setOutreach(null);
+      }
       setCompanyQuery(
         loaded.businessName,
       );
@@ -550,6 +594,143 @@ export function ProspectReviewWorkspace({
     }
   }
 
+  async function refreshOutreach() {
+    if (
+      !outlookDraftEnabled ||
+      review === null
+    ) return;
+    setOutreach(
+      await getOutreachWorkspace(
+        backendUrl,
+        accessToken,
+        review.id,
+      ),
+    );
+  }
+
+  async function connectOutlook() {
+    setWorking(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const authorizationUrl =
+        await beginOutlookConnection(
+          backendUrl,
+          accessToken,
+        );
+      window.location.assign(
+        authorizationUrl,
+      );
+    } catch (caught) {
+      setError(messageFrom(caught));
+      setWorking(false);
+    }
+  }
+
+  async function previewDraft(
+    contactId: string | null = null,
+  ) {
+    if (review === null) return;
+    setWorking(true);
+    setError(null);
+    setMessage(null);
+    try {
+      setDraftPreview(
+        await previewOutlookDraft(
+          backendUrl,
+          accessToken,
+          review.id,
+          contactId,
+        ),
+      );
+    } catch (caught) {
+      setError(messageFrom(caught));
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  async function approveDraft() {
+    if (
+      review === null ||
+      draftPreview === null
+    ) return;
+    setWorking(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const draft = await createOutlookDraft(
+        backendUrl,
+        accessToken,
+        review.id,
+        draftPreview.contactId,
+        draftPreview.previewSha256,
+      );
+      setMessage(
+        `Draft saved in Outlook for ${draft.recipientEmail}. Nothing was sent.`,
+      );
+      await refreshOutreach();
+    } catch (caught) {
+      setError(messageFrom(caught));
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  async function submitActivity(
+    event: FormEvent<HTMLFormElement>,
+  ) {
+    event.preventDefault();
+    if (review === null) return;
+    const form = new FormData(
+      event.currentTarget,
+    );
+    const followUpValue = String(
+      form.get("followUpAt") ?? "",
+    );
+    const notes = String(
+      form.get("activityNotes") ?? "",
+    ).trim();
+    setWorking(true);
+    setError(null);
+    setMessage(null);
+    try {
+      await recordOutreachActivity(
+        backendUrl,
+        accessToken,
+        review.id,
+        {
+          activityType,
+          outcome:
+            activityType === "outcome"
+              ? activityOutcome
+              : null,
+          notes: notes || null,
+          followUpAt:
+            activityType ===
+                "follow_up_scheduled" &&
+              followUpValue !== ""
+              ? new Date(
+                  followUpValue,
+                ).toISOString()
+              : null,
+        },
+      );
+      setMessage(
+        "Outreach activity recorded.",
+      );
+      event.currentTarget.reset();
+      await Promise.all([
+        refreshOutreach(),
+        refreshQueue(),
+      ]);
+    } catch (caught) {
+      setError(messageFrom(caught));
+    } finally {
+      setWorking(false);
+    }
+  }
+
   const controlledValues =
     CONTROLLED_VALUES[factName];
   const visibleFactOptions =
@@ -599,7 +780,9 @@ export function ProspectReviewWorkspace({
       </div>
 
       <p className="notice">
-        Outlook drafting remains disabled in this stage.
+        {outlookDraftEnabled
+          ? "Outlook access is draft-only. The Lead Engine has no send permission, never creates drafts in bulk and records Drafted separately from Contacted."
+          : "Outlook draft creation remains disabled until the controlled Stage 4 rollout."}
       </p>
 
       <div className="review-queue-controls">
@@ -806,6 +989,251 @@ export function ProspectReviewWorkspace({
           </section>
 
           <div className="stack">
+            {outlookDraftEnabled && (
+              <section className="review-panel stack outreach-panel">
+                <h3>Outlook draft and follow-up</h3>
+                {outreach === null ? (
+                  <p>
+                    Outreach status is loading or temporarily unavailable. Prospect review remains available.
+                  </p>
+                ) : outreach.connection.connected ? (
+                  <>
+                    <p className="success">
+                      Outlook connected: {outreach.connection.mailboxEmail}
+                    </p>
+                    {outreach.latestDraft === null ? (
+                      <button
+                        type="button"
+                        disabled={working}
+                        onClick={() =>
+                          void previewDraft()
+                        }
+                      >
+                        Preview evidence-backed draft
+                      </button>
+                    ) : (
+                      <div className="draft-status stack">
+                        <strong>
+                          Latest status: {outreach.latestDraft.status}
+                        </strong>
+                        <span>
+                          To {outreach.latestDraft.recipientEmail}
+                        </span>
+                        {outreach.latestDraft.outlookWebUrl !== null && (
+                          <a
+                            href={outreach.latestDraft.outlookWebUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            Open draft in Outlook
+                          </a>
+                        )}
+                        {outreach.latestDraft.status === "failed" && (
+                          <button
+                            type="button"
+                            className="secondary"
+                            disabled={working}
+                            onClick={() =>
+                              void previewDraft(
+                                outreach.latestDraft!.contactId,
+                              )
+                            }
+                          >
+                            Review and retry draft
+                          </button>
+                        )}
+                      </div>
+                    )}
+
+                    {draftPreview !== null && (
+                      <div className="draft-preview stack">
+                        <label>
+                          Verified recipient
+                          <select
+                            value={draftPreview.contactId}
+                            disabled={working}
+                            onChange={(event) =>
+                              void previewDraft(
+                                event.target.value,
+                              )
+                            }
+                          >
+                            {draftPreview.availableRecipients.map(
+                              (recipient) => (
+                                <option
+                                  key={recipient.contactId}
+                                  value={recipient.contactId}
+                                >
+                                  {recipient.email}
+                                </option>
+                              ),
+                            )}
+                          </select>
+                        </label>
+                        <div>
+                          <span className="field-label">Subject</span>
+                          <p>{draftPreview.subject}</p>
+                        </div>
+                        <div>
+                          <span className="field-label">Body</span>
+                          <pre>{draftPreview.body}</pre>
+                        </div>
+                        <details>
+                          <summary>
+                            Evidence used ({draftPreview.evidence.length})
+                          </summary>
+                          <ul>
+                            {draftPreview.evidence.map(
+                              (item) => (
+                                <li key={item.id}>
+                                  <a
+                                    href={item.sourceUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                  >
+                                    {item.factName.replaceAll("_", " ")}: {item.factValue}
+                                  </a>
+                                </li>
+                              ),
+                            )}
+                          </ul>
+                        </details>
+                        <button
+                          type="button"
+                          disabled={working}
+                          onClick={() =>
+                            void approveDraft()
+                          }
+                        >
+                          Approve and create Outlook draft
+                        </button>
+                        <p className="registered-office-note">
+                          This saves one unsent draft. Edit and send it manually in Outlook after your final review.
+                        </p>
+                      </div>
+                    )}
+
+                    {outreach.latestDraft !== null &&
+                      outreach.latestDraft.outlookDraftId !== null && (
+                      <form
+                        className="stack activity-form"
+                        onSubmit={submitActivity}
+                      >
+                        <h3>Record what happened</h3>
+                        <label>
+                          Activity
+                          <select
+                            value={activityType}
+                            onChange={(event) =>
+                              setActivityType(
+                                event.target.value as
+                                  typeof activityType,
+                              )
+                            }
+                          >
+                            <option value="contacted">
+                              Email sent manually
+                            </option>
+                            <option value="replied">
+                              Reply received
+                            </option>
+                            <option value="follow_up_scheduled">
+                              Follow-up scheduled
+                            </option>
+                            <option value="outcome">
+                              Record outcome
+                            </option>
+                          </select>
+                        </label>
+                        {activityType === "outcome" && (
+                          <label>
+                            Outcome
+                            <select
+                              value={activityOutcome}
+                              onChange={(event) =>
+                                setActivityOutcome(
+                                  event.target.value,
+                                )
+                              }
+                            >
+                              <option value="won">Won</option>
+                              <option value="lost">Lost</option>
+                              <option value="not_now">Not now</option>
+                              <option value="not_interested">Not interested</option>
+                              <option value="do_not_contact">Do not contact</option>
+                            </select>
+                          </label>
+                        )}
+                        {activityType === "follow_up_scheduled" && (
+                          <label>
+                            Follow-up date and time
+                            <input
+                              name="followUpAt"
+                              type="datetime-local"
+                              required
+                            />
+                          </label>
+                        )}
+                        <label>
+                          Note (optional)
+                          <input
+                            name="activityNotes"
+                            maxLength={1000}
+                          />
+                        </label>
+                        <button
+                          type="submit"
+                          className="secondary"
+                          disabled={working}
+                        >
+                          Save activity
+                        </button>
+                      </form>
+                    )}
+
+                    {outreach.activities.length > 0 && (
+                      <details>
+                        <summary>
+                          Outreach history ({outreach.activities.length})
+                        </summary>
+                        <ul className="activity-list">
+                          {outreach.activities.map(
+                            (activity) => (
+                              <li key={activity.id}>
+                                <strong>
+                                  {activity.activityType.replaceAll("_", " ")}
+                                </strong>
+                                {activity.outcome === null
+                                  ? ""
+                                  : ` — ${activity.outcome.replaceAll("_", " ")}`}
+                                <br />
+                                {new Date(activity.createdAt).toLocaleString()}
+                              </li>
+                            ),
+                          )}
+                        </ul>
+                      </details>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <p>
+                      Connect the founder mailbox once. The permission is Mail.ReadWrite only and explicitly excludes Mail.Send.
+                    </p>
+                    <button
+                      type="button"
+                      disabled={working}
+                      onClick={() =>
+                        void connectOutlook()
+                      }
+                    >
+                      Connect founder Outlook
+                    </button>
+                  </>
+                )}
+              </section>
+            )}
+
             {companiesHouseEnabled && (
               <section className="review-panel stack">
                 <h3>

@@ -264,3 +264,53 @@ test(
     );
   },
 );
+
+test(
+  "a personal mailbox stays in founder review even with corporate evidence",
+  () => {
+    const emailEvidence = evidence(
+      "10000000-0000-4000-8000-000000000011",
+      "first_party_website",
+      "public_email",
+      "amirah@example.com",
+    );
+    const subscriberEvidence = evidence(
+      "10000000-0000-4000-8000-000000000012",
+      "companies_house",
+      "subscriber_type",
+      "corporate",
+    );
+    const result = calculateLeadAssessment(
+      prospect({
+        evidence: [
+          emailEvidence,
+          subscriberEvidence,
+        ],
+        contacts: [{
+          id:
+            "20000000-0000-4000-8000-000000000011",
+          contactType: "email",
+          contactValue:
+            "amirah@example.com",
+          normalizedValue:
+            "amirah@example.com",
+          sourceEvidenceId:
+            emailEvidence.id,
+          verificationStatus:
+            "verified",
+        }],
+      }),
+    );
+
+    assert.equal(
+      result.scoreBreakdown
+        .compliantContactability.points,
+      0,
+    );
+    assert.ok(
+      result.blockers.includes(
+        "unapproved_email_basis",
+      ),
+    );
+  },
+);

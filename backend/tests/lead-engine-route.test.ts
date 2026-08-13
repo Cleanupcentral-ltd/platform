@@ -28,6 +28,14 @@ import type {
   CompanyEnrichmentService,
 } from "../src/application/enrich-companies.js";
 
+import type {
+  OutreachService,
+} from "../src/application/outreach.js";
+
+import type {
+  LeadExportService,
+} from "../src/application/export-leads.js";
+
 const USER_ID =
   "79b42d3d-78be-42fc-9d91-5d97566d2ed0";
 
@@ -295,6 +303,137 @@ const companyEnrichmentService:
         "11111111-1111-4111-8111-111111111111",
       );
       assert.equal(actorId, USER_ID);
+    },
+  };
+
+const outreachService: OutreachService = {
+  async getWorkspace(founderId, prospectId) {
+    assert.equal(founderId, USER_ID);
+    assert.equal(
+      prospectId,
+      "11111111-1111-4111-8111-111111111111",
+    );
+    return {
+      connection: {
+        connected: true,
+        mailboxEmail:
+          "founder@outlook.com",
+        connectedAt:
+          "2026-08-13T12:00:00.000Z",
+      },
+      latestDraft: null,
+      activities: [],
+    };
+  },
+  async previewDraft(
+    founderId,
+    prospectId,
+    contactId,
+  ) {
+    assert.equal(founderId, USER_ID);
+    assert.equal(
+      prospectId,
+      "11111111-1111-4111-8111-111111111111",
+    );
+    assert.equal(contactId, null);
+    return {
+      prospectId,
+      businessName: "Example Workspace",
+      templateId:
+        "initial_outreach_v1",
+      contactId:
+        "33333333-3333-4333-8333-333333333333",
+      recipientEmail:
+        "hello@example.com",
+      availableRecipients: [{
+        contactId:
+          "33333333-3333-4333-8333-333333333333",
+        email: "hello@example.com",
+      }],
+      subject:
+        "Cleaning support for Example Workspace",
+      body: "Hello",
+      evidence: [],
+      previewSha256: "a".repeat(64),
+    };
+  },
+  async createDraft(
+    founderId,
+    prospectId,
+    contactId,
+    previewSha256,
+  ) {
+    assert.equal(founderId, USER_ID);
+    assert.equal(
+      contactId,
+      "33333333-3333-4333-8333-333333333333",
+    );
+    assert.equal(
+      previewSha256,
+      "a".repeat(64),
+    );
+    return {
+      id:
+        "55555555-5555-4555-8555-555555555555",
+      prospectId,
+      contactId,
+      recipientEmail:
+        "hello@example.com",
+      subject:
+        "Cleaning support for Example Workspace",
+      body: "Hello",
+      templateId:
+        "initial_outreach_v1",
+      previewSha256,
+      evidenceIds: [],
+      status: "drafted",
+      outlookDraftId:
+        "graph-draft-id",
+      outlookWebUrl:
+        "https://outlook.live.com/mail/0/drafts/id/graph-draft-id",
+      lastErrorCode: null,
+      createdAt:
+        "2026-08-13T12:00:00.000Z",
+      updatedAt:
+        "2026-08-13T12:00:00.000Z",
+    };
+  },
+  async createAuthorizationUrl(founderId) {
+    assert.equal(founderId, USER_ID);
+    return "https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize";
+  },
+  async completeAuthorization() {},
+  async recordActivity(
+    founderId,
+    prospectId,
+    input,
+  ) {
+    assert.equal(founderId, USER_ID);
+    return {
+      id:
+        "66666666-6666-4666-8666-666666666666",
+      activityType:
+        input.activityType,
+      outcome: input.outcome,
+      notes: input.notes,
+      followUpAt: input.followUpAt,
+      createdAt:
+        "2026-08-13T13:00:00.000Z",
+    };
+  },
+};
+
+const leadExportService:
+  LeadExportService = {
+    async createCsv(founderId) {
+      assert.equal(founderId, USER_ID);
+      return {
+        filename:
+          "clean-up-central-leads-2026-08-13.csv",
+        csv:
+          '"business_name"\r\n"Example Workspace"\r\n',
+        rowCount: 1,
+      };
     },
   };
 
@@ -840,6 +979,197 @@ test(
         .automaticQualification,
       true,
     );
+  },
+);
+
+test(
+  "founder CSV export is authenticated, audited by its service and absent while disabled",
+  async (context) => {
+    const disabled = await buildApp({
+      leadEngineUiEnabled: true,
+      founderAuthService:
+        founderService,
+      leadExportEnabled: false,
+      leadExportService,
+    });
+    const enabled = await buildApp({
+      leadEngineUiEnabled: true,
+      founderAuthService:
+        founderService,
+      leadExportEnabled: true,
+      leadExportService,
+    });
+    context.after(async () => {
+      await disabled.close();
+      await enabled.close();
+    });
+
+    const hidden = await disabled.inject({
+      method: "GET",
+      url: "/api/ops/leads/export.csv",
+      headers: {
+        authorization:
+          "Bearer test-token",
+      },
+    });
+    assert.equal(hidden.statusCode, 404);
+
+    const unauthenticated =
+      await enabled.inject({
+        method: "GET",
+        url:
+          "/api/ops/leads/export.csv",
+      });
+    assert.equal(
+      unauthenticated.statusCode,
+      401,
+    );
+
+    const health = await enabled.inject({
+      method: "GET",
+      url: "/api/ops/leads/health",
+      headers: {
+        authorization:
+          "Bearer test-token",
+      },
+    });
+    assert.equal(
+      health.json().capabilities.export,
+      true,
+    );
+
+    const response = await enabled.inject({
+      method: "GET",
+      url: "/api/ops/leads/export.csv",
+      headers: {
+        authorization:
+          "Bearer test-token",
+      },
+    });
+    assert.equal(response.statusCode, 200);
+    assert.match(
+      response.headers["content-type"] ?? "",
+      /^text\/csv/,
+    );
+    assert.equal(
+      response.headers[
+        "content-disposition"
+      ],
+      'attachment; filename="clean-up-central-leads-2026-08-13.csv"',
+    );
+    assert.match(
+      response.body,
+      /Example Workspace/,
+    );
+  },
+);
+
+test(
+  "Outlook rollout exposes preview and draft creation without any send route or permission",
+  async (context) => {
+    const app = await buildApp({
+      leadEngineUiEnabled: true,
+      founderAuthService:
+        founderService,
+      outlookDraftEnabled: true,
+      outreachService,
+    });
+    context.after(
+      async () => app.close(),
+    );
+
+    const health = await app.inject({
+      method: "GET",
+      url: "/api/ops/leads/health",
+      headers: {
+        authorization:
+          "Bearer test-token",
+      },
+    });
+    assert.equal(
+      health.json().capabilities
+        .outlookDrafts,
+      true,
+    );
+
+    const connect = await app.inject({
+      method: "POST",
+      url:
+        "/api/ops/leads/outlook/connect",
+      headers: {
+        authorization:
+          "Bearer test-token",
+        "content-type":
+          "application/json",
+      },
+      payload: {},
+    });
+    assert.equal(connect.statusCode, 200);
+    assert.deepEqual(
+      connect.json().permissions,
+      ["Mail.ReadWrite"],
+    );
+    assert.equal(
+      connect.json().sendingPermitted,
+      false,
+    );
+
+    const preview = await app.inject({
+      method: "POST",
+      url:
+        "/api/ops/leads/prospects/11111111-1111-4111-8111-111111111111/outlook-draft-preview",
+      headers: {
+        authorization:
+          "Bearer test-token",
+        "content-type":
+          "application/json",
+      },
+      payload: { contactId: null },
+    });
+    assert.equal(preview.statusCode, 200);
+    assert.equal(
+      preview.json().preview
+        .recipientEmail,
+      "hello@example.com",
+    );
+
+    const created = await app.inject({
+      method: "POST",
+      url:
+        "/api/ops/leads/prospects/11111111-1111-4111-8111-111111111111/outlook-drafts",
+      headers: {
+        authorization:
+          "Bearer test-token",
+        "content-type":
+          "application/json",
+      },
+      payload: {
+        contactId:
+          "33333333-3333-4333-8333-333333333333",
+        previewSha256:
+          "a".repeat(64),
+      },
+    });
+    assert.equal(created.statusCode, 201);
+    assert.equal(created.json().sent, false);
+    assert.equal(
+      created.json().draft.status,
+      "drafted",
+    );
+
+    const send = await app.inject({
+      method: "POST",
+      url:
+        "/api/ops/leads/prospects/11111111-1111-4111-8111-111111111111/outlook-send",
+      headers: {
+        authorization:
+          "Bearer test-token",
+        "content-type":
+          "application/json",
+      },
+      payload: {},
+    });
+    assert.equal(send.statusCode, 404);
   },
 );
 

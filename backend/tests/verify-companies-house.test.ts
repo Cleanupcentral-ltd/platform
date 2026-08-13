@@ -12,6 +12,7 @@ import type {
 
 import type {
   LeadReviewRepository,
+  RecordAutomaticCompaniesHouseVerificationInput,
   RecordCompaniesHouseVerificationInput,
 } from "../src/ports/lead-review.js";
 
@@ -94,6 +95,12 @@ function repository(
         "44444444-4444-4444-8444-444444444444",
         "55555555-5555-4555-8555-555555555555",
         "66666666-6666-4666-8666-666666666666",
+      ];
+    },
+    async recordAutomaticCompaniesHouseVerification(input) {
+      capture.verification = input;
+      return [
+        "33333333-3333-4333-8333-333333333333",
       ];
     },
     async decideEvidence() {},
@@ -266,5 +273,69 @@ test(
         error.failure ===
           "duplicate_company",
     );
+  },
+);
+
+test(
+  "automatic verification preserves the labelled first-party assertion and uses the automatic repository boundary",
+  async () => {
+    let automaticInput:
+      RecordAutomaticCompaniesHouseVerificationInput |
+      undefined;
+    const capture: {
+      verification?:
+        RecordCompaniesHouseVerificationInput;
+    } = {};
+    const automaticRepository:
+      LeadReviewRepository = {
+        ...repository(capture),
+        async recordAutomaticCompaniesHouseVerification(
+          input,
+        ) {
+          automaticInput = input;
+          return [
+            "33333333-3333-4333-8333-333333333333",
+          ];
+        },
+      };
+    const service =
+      createCompaniesHouseVerificationService(
+        automaticRepository,
+        reviewService(),
+        provider(),
+      );
+
+    await service.verifyAutomatically(
+      FOUNDER_ID,
+      PROSPECT_ID,
+      "01234567",
+      1,
+      {
+        sourceUrl:
+          "https://example.com/legal",
+        sourceExcerpt:
+          "Example Company Ltd. Company number 01234567.",
+        contentSha256:
+          "a".repeat(64),
+      },
+    );
+
+    assert.equal(
+      automaticInput?.firstPartyAssertion
+        .sourceUrl,
+      "https://example.com/legal",
+    );
+    assert.equal(
+      automaticInput?.enrichmentAttemptCount,
+      1,
+    );
+    assert.equal(
+      automaticInput?.facts.find(
+        (fact) =>
+          fact.factName === "company_number",
+      )?.factValue,
+      "01234567",
+    );
+    assert.equal(capture.verification, undefined);
   },
 );

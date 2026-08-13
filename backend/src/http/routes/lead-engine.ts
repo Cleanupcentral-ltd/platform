@@ -21,6 +21,10 @@ import {
   type CompaniesHouseVerificationService,
 } from "../../application/verify-companies-house.js";
 
+import type {
+  CompanyEnrichmentService,
+} from "../../application/enrich-companies.js";
+
 import {
   FounderAuthError,
   type FounderAuthService,
@@ -54,6 +58,11 @@ export interface LeadEngineRouteDependencies {
 
   readonly companiesHouseVerificationService?:
     CompaniesHouseVerificationService | null;
+
+  readonly companyEnrichmentEnabled?: boolean;
+
+  readonly companyEnrichmentService?:
+    CompanyEnrichmentService | null;
 }
 
 const UK_POSTCODE =
@@ -569,6 +578,13 @@ export function registerLeadEngineRoutes(
               dependencies
                 .companiesHouseVerificationService !==
                 undefined,
+            automaticCompanyEnrichment:
+              dependencies
+                .companyEnrichmentEnabled === true &&
+              dependencies
+                .companyEnrichmentService !== null &&
+              dependencies
+                .companyEnrichmentService !== undefined,
             outlookDrafts: false,
           },
           requestId: request.id,
@@ -866,6 +882,72 @@ export function registerLeadEngineRoutes(
           });
       },
     );
+
+    if (
+      dependencies.companyEnrichmentEnabled === true &&
+      dependencies.companyEnrichmentService !== null &&
+      dependencies.companyEnrichmentService !== undefined
+    ) {
+      app.post(
+        "/api/ops/leads/prospects/:prospectId/company-enrichment/retry",
+        {
+          bodyLimit: 1 * 1024,
+          config: {
+            rateLimit: REVIEW_RATE_LIMIT,
+          },
+        },
+        async (
+          request,
+          reply,
+        ): Promise<FastifyReply> => {
+          const founder =
+            await authenticateFounder(
+              request,
+              dependencies.founderAuthService,
+            );
+          requireJson(
+            request,
+            "Company enrichment retries must use application/json.",
+          );
+          const params = prospectParamsSchema
+            .safeParse(request.params);
+          const body = assessmentRequestSchema
+            .safeParse(request.body);
+          if (!params.success || !body.success) {
+            throw new HttpError({
+              code: "VALIDATION_ERROR",
+              message:
+                "Enter a valid prospect reference without client-supplied enrichment data.",
+              statusCode: 400,
+            });
+          }
+          try {
+            await dependencies.companyEnrichmentService!
+              .retry(
+                params.data.prospectId,
+                founder.userId,
+              );
+          } catch {
+            throw new HttpError({
+              code:
+                "COMPANY_ENRICHMENT_UNAVAILABLE",
+              message:
+                "The automatic company check could not be queued. Manual Companies House verification remains available.",
+              statusCode: 503,
+            });
+          }
+          return reply
+            .header("Cache-Control", "no-store")
+            .status(202)
+            .type("application/json")
+            .send({
+              success: true,
+              status: "pending",
+              requestId: request.id,
+            });
+        },
+      );
+    }
   }
 
   if (

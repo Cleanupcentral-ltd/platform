@@ -307,6 +307,17 @@ h3 {
   display: none;
 }
 
+.review-queue-controls {
+  display: grid;
+  grid-template-columns:
+    minmax(220px, 1.4fr)
+    minmax(220px, 1fr);
+  gap: 14px;
+  padding: 16px;
+  border-radius: 12px;
+  background: #f3f6f3;
+}
+
 .review-layout {
   display: grid;
   grid-template-columns:
@@ -399,6 +410,20 @@ h3 {
   gap: 10px;
 }
 
+.enrichment-summary {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-left: 4px solid #215e33;
+  border-radius: 6px;
+  background: #e4f3e7;
+}
+
+.enrichment-summary a {
+  color: #215e33;
+  font-weight: 700;
+}
+
 .company-match {
   display: grid;
   gap: 12px;
@@ -451,6 +476,7 @@ h3 {
 
   .search-form,
   .manual-form,
+  .review-queue-controls,
   .review-layout {
     grid-template-columns: 1fr;
   }

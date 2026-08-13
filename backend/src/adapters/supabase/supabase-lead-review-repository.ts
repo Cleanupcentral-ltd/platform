@@ -8,9 +8,15 @@ import type {
   LeadProspectReview,
   LeadProspectSummary,
   LeadReviewRepository,
+  RecordAutomaticCompaniesHouseVerificationInput,
   RecordCompaniesHouseVerificationInput,
   SaveLeadAssessmentInput,
 } from "../../ports/lead-review.js";
+
+import {
+  COMPANY_ENRICHMENT_STATUSES,
+  type CompanyEnrichmentRecord,
+} from "../../ports/company-enrichment.js";
 
 type FetchFunction = typeof fetch;
 
@@ -49,6 +55,36 @@ const evidenceRowSchema = z.object({
   ]),
   captured_at: z.string(),
   verified_at: z.string().nullable(),
+  verification_method: z.enum([
+    "founder_review",
+    "automatic_first_party_company_number",
+  ]).optional().default("founder_review"),
+});
+
+const companyMatchSchema = z.object({
+  companyName: z.string(),
+  companyNumber: z.string(),
+  companyStatus: z.string(),
+  companyType: z.string(),
+  registeredOfficeAddress: z.object({
+    formatted: z.string().nullable(),
+    postcode: z.string().nullable(),
+  }),
+  dateOfCreation: z.string().nullable(),
+  officialUrl: z.string().url(),
+});
+
+const enrichmentRowSchema = z.object({
+  prospect_id: z.string().uuid(),
+  status: z.enum(COMPANY_ENRICHMENT_STATUSES),
+  discovered_company_number:
+    z.string().nullable(),
+  source_url: z.string().nullable(),
+  candidates: z.array(companyMatchSchema),
+  last_error_code: z.string().nullable(),
+  attempt_count: z.number().int().min(0),
+  last_attempt_at: z.string().nullable(),
+  completed_at: z.string().nullable(),
 });
 
 const contactRowSchema = z.object({
@@ -119,6 +155,7 @@ export interface SupabaseLeadReviewRepositoryOptions {
   readonly secretKey: string;
   readonly timeoutMs: number;
   readonly fetchFunction?: FetchFunction;
+  readonly companyEnrichmentEnabled?: boolean;
 }
 
 function mapEvidence(
@@ -136,6 +173,25 @@ function mapEvidence(
       row.verification_status,
     capturedAt: row.captured_at,
     verifiedAt: row.verified_at,
+    verificationMethod:
+      row.verification_method,
+  };
+}
+
+function mapEnrichment(
+  row: z.infer<typeof enrichmentRowSchema>,
+): CompanyEnrichmentRecord {
+  return {
+    status: row.status,
+    discoveredCompanyNumber:
+      row.discovered_company_number,
+    sourceUrl: row.source_url,
+    candidates: row.candidates,
+    lastErrorCode:
+      row.last_error_code,
+    attemptCount: row.attempt_count,
+    lastAttemptAt: row.last_attempt_at,
+    completedAt: row.completed_at,
   };
 }
 
@@ -163,6 +219,8 @@ implements LeadReviewRepository {
   private readonly secretKey: string;
   private readonly timeoutMs: number;
   private readonly fetchFunction: FetchFunction;
+  private readonly companyEnrichmentEnabled:
+    boolean;
 
   constructor(
     options:
@@ -174,6 +232,8 @@ implements LeadReviewRepository {
     this.timeoutMs = options.timeoutMs;
     this.fetchFunction =
       options.fetchFunction ?? fetch;
+    this.companyEnrichmentEnabled =
+      options.companyEnrichmentEnabled ?? false;
   }
 
   private async request(
@@ -241,20 +301,27 @@ implements LeadReviewRepository {
   async listProspects(
     limit: number,
   ): Promise<readonly LeadProspectSummary[]> {
-    const [prospects, evidence, assessments] =
+    const [prospects, evidence, assessments,
+      enrichments] =
       await Promise.all([
         this.json(
           `/prospects?select=id,business_name,sector,primary_postcode,website_url,company_number,created_at&order=created_at.desc,id.desc&limit=${limit}`,
           z.array(prospectRowSchema),
         ),
         this.json(
-          "/evidence?select=id,prospect_id,source_url,source_type,field_name,field_value,source_excerpt,verification_status,captured_at,verified_at&limit=5000",
+          `/evidence?select=id,prospect_id,source_url,source_type,field_name,field_value,source_excerpt,verification_status,captured_at,verified_at${this.companyEnrichmentEnabled ? ",verification_method" : ""}&limit=5000`,
           z.array(evidenceRowSchema),
         ),
         this.json(
           "/assessments?select=id,prospect_id,total_score,rules_version,eligibility_result,score_breakdown,blockers,rationale,evidence_ids,assessed_at&order=assessed_at.desc&limit=1000",
           z.array(assessmentRowSchema),
         ),
+        this.companyEnrichmentEnabled
+          ? this.json(
+              "/company_enrichment?select=prospect_id,status,discovered_company_number,source_url,candidates,last_error_code,attempt_count,last_attempt_at,completed_at&limit=5000",
+              z.array(enrichmentRowSchema),
+            )
+          : Promise.resolve([]),
       ]);
 
     const latest = new Map<string,
@@ -273,6 +340,11 @@ implements LeadReviewRepository {
         );
       const assessment =
         latest.get(item.id) ?? null;
+      const enrichment =
+        enrichments.find(
+          (record) =>
+            record.prospect_id === item.id,
+        );
       return {
         id: item.id,
         businessName:
@@ -314,6 +386,10 @@ implements LeadReviewRepository {
                 assessedAt:
                   assessment.assessed_at,
               },
+        companyEnrichment:
+          enrichment === undefined
+            ? null
+            : mapEnrichment(enrichment),
       };
     });
   }
@@ -325,14 +401,14 @@ implements LeadReviewRepository {
       prospectId,
     );
     const [prospects, evidence, contacts,
-      assessments, provenance] =
+      assessments, provenance, enrichments] =
       await Promise.all([
         this.json(
           `/prospects?id=eq.${id}&select=id,business_name,sector,primary_postcode,website_url,company_number,created_at&limit=1`,
           z.array(prospectRowSchema),
         ),
         this.json(
-          `/evidence?prospect_id=eq.${id}&select=id,prospect_id,source_url,source_type,field_name,field_value,source_excerpt,verification_status,captured_at,verified_at&order=captured_at.desc,id.desc&limit=1000`,
+          `/evidence?prospect_id=eq.${id}&select=id,prospect_id,source_url,source_type,field_name,field_value,source_excerpt,verification_status,captured_at,verified_at${this.companyEnrichmentEnabled ? ",verification_method" : ""}&order=captured_at.desc,id.desc&limit=1000`,
           z.array(evidenceRowSchema),
         ),
         this.json(
@@ -347,6 +423,12 @@ implements LeadReviewRepository {
           `/search_run_prospects?prospect_id=eq.${id}&select=prospect_id&limit=1`,
           z.array(searchProvenanceRowSchema),
         ),
+        this.companyEnrichmentEnabled
+          ? this.json(
+              `/company_enrichment?prospect_id=eq.${id}&select=prospect_id,status,discovered_company_number,source_url,candidates,last_error_code,attempt_count,last_attempt_at,completed_at&limit=1`,
+              z.array(enrichmentRowSchema),
+            )
+          : Promise.resolve([]),
       ]);
 
     const row = prospects[0];
@@ -420,6 +502,12 @@ implements LeadReviewRepository {
           ? null
           : mapAssessment(
               assessments[0],
+            ),
+      companyEnrichment:
+        enrichments[0] === undefined
+          ? null
+          : mapEnrichment(
+              enrichments[0],
             ),
     };
   }
@@ -512,6 +600,48 @@ implements LeadReviewRepository {
                 fact.factName,
               field_value:
                 fact.factValue,
+              source_excerpt:
+                fact.sourceExcerpt,
+              content_sha256:
+                fact.contentSha256,
+            }),
+          ),
+        }),
+      },
+    );
+    return result[0]!.evidence_ids;
+  }
+
+  async recordAutomaticCompaniesHouseVerification(
+    input:
+      RecordAutomaticCompaniesHouseVerificationInput,
+  ): Promise<readonly string[]> {
+    const result = await this.json(
+      "/rpc/record_automatic_companies_house_verification",
+      evidenceIdsResponseSchema,
+      {
+        method: "POST",
+        headers: {
+          "content-type":
+            "application/json",
+        },
+        body: JSON.stringify({
+          p_prospect_id: input.prospectId,
+          p_actor_id: input.founderId,
+          p_attempt_count:
+            input.enrichmentAttemptCount,
+          p_website_source_url:
+            input.firstPartyAssertion.sourceUrl,
+          p_website_source_excerpt:
+            input.firstPartyAssertion.sourceExcerpt,
+          p_website_content_sha256:
+            input.firstPartyAssertion.contentSha256,
+          p_companies_house_source_url:
+            input.sourceUrl,
+          p_facts: input.facts.map(
+            (fact) => ({
+              field_name: fact.factName,
+              field_value: fact.factValue,
               source_excerpt:
                 fact.sourceExcerpt,
               content_sha256:

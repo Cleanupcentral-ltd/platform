@@ -150,3 +150,69 @@ test(
     );
   },
 );
+
+test(
+  "automatic Companies House verification sends both first-party and official evidence through one atomic RPC",
+  async () => {
+    let requestUrl = "";
+    let requestInit: RequestInit | undefined;
+    const repository =
+      new SupabaseLeadReviewRepository({
+        supabaseUrl:
+          "https://project.supabase.co",
+        secretKey: "sb_secret_private",
+        timeoutMs: 1_000,
+        fetchFunction:
+          (async (input, init) => {
+            requestUrl = String(input);
+            requestInit = init;
+            return Response.json([{
+              evidence_ids: [
+                "33333333-3333-4333-8333-333333333333",
+              ],
+            }]);
+          }) as typeof fetch,
+      });
+
+    await repository
+      .recordAutomaticCompaniesHouseVerification({
+        prospectId:
+          "11111111-1111-4111-8111-111111111111",
+        founderId:
+          "22222222-2222-4222-8222-222222222222",
+        enrichmentAttemptCount: 2,
+        sourceUrl:
+          "https://find-and-update.company-information.service.gov.uk/company/01234567",
+        firstPartyAssertion: {
+          sourceUrl:
+            "https://example.com/privacy",
+          sourceExcerpt:
+            "Company number 01234567",
+          contentSha256: "b".repeat(64),
+        },
+        facts: [{
+          factName: "company_number",
+          factValue: "01234567",
+          sourceExcerpt: "Official profile",
+          contentSha256: "a".repeat(64),
+        }],
+      });
+
+    assert.equal(
+      requestUrl,
+      "https://project.supabase.co/rest/v1/rpc/record_automatic_companies_house_verification",
+    );
+    const body = JSON.parse(
+      String(requestInit?.body),
+    );
+    assert.equal(
+      body.p_website_source_url,
+      "https://example.com/privacy",
+    );
+    assert.equal(body.p_attempt_count, 2);
+    assert.equal(
+      body.p_facts[0].field_value,
+      "01234567",
+    );
+  },
+);

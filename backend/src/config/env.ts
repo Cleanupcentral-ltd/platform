@@ -176,6 +176,43 @@ const environmentSchema = z
             value === "true",
         ),
 
+    LEAD_AUTO_COMPANY_ENRICHMENT_V1:
+      z.enum(["true", "false"])
+        .default("false")
+        .transform(
+          (value) => value === "true",
+        ),
+
+    LEAD_COMPANY_ENRICHMENT_INTERVAL_MS:
+      z.coerce.number().int()
+        .min(15_000)
+        .max(900_000)
+        .default(60_000),
+
+    LEAD_COMPANY_ENRICHMENT_BATCH_SIZE:
+      z.coerce.number().int()
+        .min(1)
+        .max(20)
+        .default(5),
+
+    LEAD_COMPANY_ENRICHMENT_LEASE_SECONDS:
+      z.coerce.number().int()
+        .min(30)
+        .max(900)
+        .default(180),
+
+    LEAD_WEBSITE_LOOKUP_TIMEOUT_MS:
+      z.coerce.number().int()
+        .min(1_000)
+        .max(15_000)
+        .default(5_000),
+
+    LEAD_WEBSITE_LOOKUP_MAX_BYTES:
+      z.coerce.number().int()
+        .min(32_768)
+        .max(1_048_576)
+        .default(524_288),
+
     COMPANIES_HOUSE_API_KEY:
       z.string()
         .trim()
@@ -393,6 +430,30 @@ const environmentSchema = z
             });
           }
         }
+      }
+
+      if (
+        value.LEAD_AUTO_COMPANY_ENRICHMENT_V1 &&
+        !value.LEAD_COMPANIES_HOUSE_V1
+      ) {
+        context.addIssue({
+          code: "custom",
+          path: ["LEAD_AUTO_COMPANY_ENRICHMENT_V1"],
+          message:
+            "Automatic company enrichment requires Companies House verification to be enabled.",
+        });
+      }
+
+      if (
+        value.LEAD_AUTO_COMPANY_ENRICHMENT_V1 &&
+        value.COMPANIES_HOUSE_API_KEY === undefined
+      ) {
+        context.addIssue({
+          code: "custom",
+          path: ["COMPANIES_HOUSE_API_KEY"],
+          message:
+            "COMPANIES_HOUSE_API_KEY is required when automatic company enrichment is enabled.",
+        });
       }
     },
   );

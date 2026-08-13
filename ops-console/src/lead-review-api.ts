@@ -24,6 +24,16 @@ export type VerificationFactName =
   | "subscriber_type"
   | "company_number";
 
+export type CompanyEnrichmentStatus =
+  | "pending"
+  | "processing"
+  | "auto_verified"
+  | "review_required"
+  | "no_match"
+  | "duplicate"
+  | "failed"
+  | "verified_existing";
+
 export interface ProspectSummary {
   readonly id: string;
   readonly businessName: string;
@@ -43,6 +53,8 @@ export interface ProspectSummary {
       | "research_required";
     readonly assessedAt: string;
   } | null;
+  readonly companyEnrichment?:
+    CompanyEnrichmentRecord | null;
 }
 
 export interface ProspectEvidence {
@@ -56,6 +68,9 @@ export interface ProspectEvidence {
     VerificationStatus;
   readonly capturedAt: string;
   readonly verifiedAt: string | null;
+  readonly verificationMethod?:
+    | "founder_review"
+    | "automatic_first_party_company_number";
 }
 
 export interface ProspectAssessment {
@@ -98,6 +113,19 @@ export interface CompaniesHouseMatch {
   readonly officialUrl: string;
 }
 
+export interface CompanyEnrichmentRecord {
+  readonly status: CompanyEnrichmentStatus;
+  readonly discoveredCompanyNumber:
+    string | null;
+  readonly sourceUrl: string | null;
+  readonly candidates:
+    readonly CompaniesHouseMatch[];
+  readonly lastErrorCode: string | null;
+  readonly attemptCount: number;
+  readonly lastAttemptAt: string | null;
+  readonly completedAt: string | null;
+}
+
 export interface CompaniesHouseVerificationResult {
   readonly companyName: string;
   readonly companyNumber: string;
@@ -134,6 +162,8 @@ export interface ProspectReview {
   }[];
   readonly latestAssessment:
     ProspectAssessment | null;
+  readonly companyEnrichment?:
+    CompanyEnrichmentRecord | null;
 }
 
 export interface AddVerificationEvidenceInput {
@@ -365,4 +395,24 @@ export async function verifyCompaniesHouseMatch(
     fetchFunction,
   );
   return response.verification;
+}
+
+export async function retryCompanyEnrichment(
+  backendUrl: string,
+  accessToken: string,
+  prospectId: string,
+  fetchFunction: typeof fetch = fetch,
+): Promise<void> {
+  await requestJson(
+    `${baseUrl(backendUrl)}/api/ops/leads/prospects/${encodeURIComponent(prospectId)}/company-enrichment/retry`,
+    accessToken,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: "{}",
+    },
+    fetchFunction,
+  );
 }

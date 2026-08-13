@@ -24,6 +24,10 @@ import type {
   CompaniesHouseVerificationService,
 } from "../src/application/verify-companies-house.js";
 
+import type {
+  CompanyEnrichmentService,
+} from "../src/application/enrich-companies.js";
+
 const USER_ID =
   "79b42d3d-78be-42fc-9d91-5d97566d2ed0";
 
@@ -243,6 +247,38 @@ const companiesHouseVerificationService:
           assessment: null,
         },
       };
+    },
+    async verifyAutomatically(
+      actorId,
+      prospectId,
+      companyNumber,
+      _assertion,
+    ) {
+      return this.verify(
+        actorId,
+        prospectId,
+        companyNumber,
+      );
+    },
+  };
+
+const companyEnrichmentService:
+  CompanyEnrichmentService = {
+    async runBatch() {
+      return {
+        claimedCount: 0,
+        autoVerifiedCount: 0,
+        reviewRequiredCount: 0,
+        completedCount: 0,
+        failedCount: 0,
+      };
+    },
+    async retry(prospectId, actorId) {
+      assert.equal(
+        prospectId,
+        "11111111-1111-4111-8111-111111111111",
+      );
+      assert.equal(actorId, USER_ID);
     },
   };
 
@@ -945,6 +981,39 @@ test(
     assert.equal(
       response.statusCode,
       400,
+    );
+  },
+);
+
+test(
+  "founder can retry a persisted automatic company check without supplying match data",
+  async (context) => {
+    const app = await buildApp({
+      leadEngineUiEnabled: true,
+      leadSearchEnabled: false,
+      founderAuthService: founderService,
+      leadReviewService,
+      companiesHouseVerificationService,
+      companyEnrichmentEnabled: true,
+      companyEnrichmentService,
+    });
+    context.after(async () => app.close());
+
+    const response = await app.inject({
+      method: "POST",
+      url:
+        "/api/ops/leads/prospects/11111111-1111-4111-8111-111111111111/company-enrichment/retry",
+      headers: {
+        authorization: "Bearer test-token",
+        "content-type": "application/json",
+      },
+      payload: {},
+    });
+
+    assert.equal(response.statusCode, 202);
+    assert.equal(
+      response.json().status,
+      "pending",
     );
   },
 );

@@ -1,5 +1,7 @@
 # Lead Engine Lite Stage 4 — Companies House-assisted verification
 
+> Stage 4.1 later approved one narrow automatic path for a single labelled company number on a captured first-party website. See `stage-4-1-automatic-company-enrichment.md`. The founder-confirmed workflow documented here remains the fallback for every other result.
+
 ## Outcome
 
 Reduce founder research time without allowing an automated company match, sector assignment or outreach decision.
@@ -19,7 +21,7 @@ The console searches the official Companies House API for up to five candidates.
 
 ## Deliberate exclusions
 
-- No automatic match acceptance.
+- No automatic match acceptance within this Stage 4 manual workflow. Stage 4.1 adds only the separately approved first-party company-number path.
 - No automatic prospect import from Companies House.
 - No approved-sector inference from SIC codes.
 - No assumption that a registered office is the trading or cleaning location.

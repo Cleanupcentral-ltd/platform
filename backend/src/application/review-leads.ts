@@ -51,9 +51,17 @@ export interface AutomaticAssessmentResult {
 }
 
 export interface LeadReviewService {
-  listProspects(): Promise<
+  listProspects(
+    founderId: string,
+  ): Promise<
     readonly LeadProspectSummary[]
   >;
+
+  setProspectViewed(
+    founderId: string,
+    prospectId: string,
+    viewed: boolean,
+  ): Promise<string | null>;
 
   getProspect(
     prospectId: string,
@@ -271,10 +279,33 @@ export function createLeadReviewService(
   }
 
   return {
-    async listProspects() {
+    async listProspects(founderId) {
       try {
         return await repository
-          .listProspects(500);
+          .listProspects(
+            founderId,
+            500,
+          );
+      } catch {
+        throw new LeadReviewError(
+          "repository_unavailable",
+        );
+      }
+    },
+
+    async setProspectViewed(
+      founderId,
+      prospectId,
+      viewed,
+    ) {
+      await prospect(prospectId);
+      try {
+        return await repository
+          .setProspectViewed(
+            founderId,
+            prospectId,
+            viewed,
+          );
       } catch {
         throw new LeadReviewError(
           "repository_unavailable",

@@ -46,6 +46,9 @@ function repository(
     async listProspects() {
       return [];
     },
+    async setProspectViewed() {
+      return null;
+    },
     async getProspect() {
       return review;
     },
@@ -85,6 +88,49 @@ function repository(
     },
   };
 }
+
+test(
+  "prospect view state is scoped to the authenticated founder",
+  async () => {
+    let captured:
+      | readonly [string, string, boolean]
+      | undefined;
+    const base = repository({});
+    const service =
+      createLeadReviewService({
+        ...base,
+        async setProspectViewed(
+          founderId,
+          prospectId,
+          viewed,
+        ) {
+          captured = [
+            founderId,
+            prospectId,
+            viewed,
+          ];
+          return "2026-08-13T14:00:00.000Z";
+        },
+      });
+
+    const viewedAt =
+      await service.setProspectViewed(
+        FOUNDER_ID,
+        PROSPECT_ID,
+        true,
+      );
+
+    assert.deepEqual(captured, [
+      FOUNDER_ID,
+      PROSPECT_ID,
+      true,
+    ]);
+    assert.equal(
+      viewedAt,
+      "2026-08-13T14:00:00.000Z",
+    );
+  },
+);
 
 test(
   "verified public email is normalized, fingerprinted and linked to its source",

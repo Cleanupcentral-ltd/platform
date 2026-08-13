@@ -111,7 +111,8 @@ const leadSearchService:
 
 const leadReviewService:
   LeadReviewService = {
-    async listProspects() {
+    async listProspects(founderId) {
+      assert.equal(founderId, USER_ID);
       return [{
         id:
           "11111111-1111-4111-8111-111111111111",
@@ -123,6 +124,7 @@ const leadReviewService:
           "https://example.com/",
         createdAt:
           "2026-08-11T10:00:00.000Z",
+        viewedAt: null,
         evidenceCounts: {
           unverified: 2,
           verified: 0,
@@ -130,6 +132,20 @@ const leadReviewService:
         },
         latestAssessment: null,
       }];
+    },
+    async setProspectViewed(
+      founderId,
+      prospectId,
+      viewed,
+    ) {
+      assert.equal(founderId, USER_ID);
+      assert.equal(
+        prospectId,
+        "11111111-1111-4111-8111-111111111111",
+      );
+      return viewed
+        ? "2026-08-13T14:00:00.000Z"
+        : null;
     },
     async getProspect(prospectId) {
       return {
@@ -446,6 +462,50 @@ test(
       response.json().prospects[0]
         .businessName,
       "Example Workspace",
+    );
+  },
+);
+
+test(
+  "opening a prospect records only that founder's view state",
+  async (context) => {
+    const app = await buildApp({
+      leadEngineUiEnabled: true,
+      leadSearchEnabled: false,
+      founderAuthService:
+        founderService,
+      leadReviewService,
+    });
+    context.after(
+      async () => app.close(),
+    );
+
+    const response =
+      await app.inject({
+        method: "PUT",
+        url:
+          "/api/ops/leads/prospects/11111111-1111-4111-8111-111111111111/view",
+        headers: {
+          authorization:
+            "Bearer test-token",
+          "content-type":
+            "application/json",
+        },
+        payload: { viewed: true },
+      });
+
+    assert.equal(
+      response.statusCode,
+      200,
+    );
+    assert.deepEqual(
+      response.json().viewState,
+      {
+        prospectId:
+          "11111111-1111-4111-8111-111111111111",
+        viewedAt:
+          "2026-08-13T14:00:00.000Z",
+      },
     );
   },
 );

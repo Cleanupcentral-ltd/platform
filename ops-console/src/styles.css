@@ -310,12 +310,39 @@ h3 {
 .review-queue-controls {
   display: grid;
   grid-template-columns:
-    minmax(220px, 1.4fr)
-    minmax(220px, 1fr);
+    repeat(
+      auto-fit,
+      minmax(220px, 1fr)
+    );
   gap: 14px;
   padding: 16px;
   border-radius: 12px;
   background: #f3f6f3;
+}
+
+.unseen-toggle {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  align-self: end;
+  gap: 10px;
+}
+
+.unseen-toggle input {
+  width: 20px;
+  min-height: 20px;
+  margin: 0;
+}
+
+.prospect-heading {
+  display: flex;
+  gap: 16px;
+  align-items: start;
+  justify-content: space-between;
+}
+
+.prospect-heading button {
+  flex: 0 0 auto;
 }
 
 .review-layout {
@@ -482,7 +509,8 @@ h3 {
   }
 
   .evidence-item,
-  .score-line {
+  .score-line,
+  .prospect-heading {
     display: grid;
   }
 

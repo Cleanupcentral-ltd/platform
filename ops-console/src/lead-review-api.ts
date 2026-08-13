@@ -41,6 +41,7 @@ export interface ProspectSummary {
   readonly primaryPostcode: string | null;
   readonly websiteUrl: string | null;
   readonly createdAt: string;
+  readonly viewedAt: string | null;
   readonly evidenceCounts: {
     readonly unverified: number;
     readonly verified: number;
@@ -274,6 +275,34 @@ export async function getProspect(
       fetchFunction,
     );
   return response.prospect;
+}
+
+export async function updateProspectViewState(
+  backendUrl: string,
+  accessToken: string,
+  prospectId: string,
+  viewed: boolean,
+  fetchFunction: typeof fetch = fetch,
+): Promise<string | null> {
+  const response = await requestJson<{
+    readonly viewState: {
+      readonly prospectId: string;
+      readonly viewedAt: string | null;
+    };
+  }>(
+    `${baseUrl(backendUrl)}/api/ops/leads/prospects/${encodeURIComponent(prospectId)}/view`,
+    accessToken,
+    {
+      method: "PUT",
+      headers: {
+        "Content-Type":
+          "application/json",
+      },
+      body: JSON.stringify({ viewed }),
+    },
+    fetchFunction,
+  );
+  return response.viewState.viewedAt;
 }
 
 export async function addVerificationEvidence(

@@ -29,10 +29,15 @@ export function filterProspectQueue(
   queueFilter: ReviewQueueFilter,
   search: string,
   automaticQualificationEnabled: boolean,
+  unseenOnly = false,
 ): readonly ProspectSummary[] {
   const normalizedSearch =
     search.trim().toLowerCase();
   return prospects.filter((item) => {
+    if (
+      unseenOnly &&
+      item.viewedAt !== null
+    ) return false;
     const status =
       item.companyEnrichment?.status;
     const filterMatches =

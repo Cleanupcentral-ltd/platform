@@ -26,6 +26,7 @@ function prospect(
     websiteUrl: "https://example.com/",
     createdAt:
       "2026-08-13T12:00:00.000Z",
+    viewedAt: null,
     evidenceCounts: {
       unverified: 0,
       verified: 1,
@@ -56,6 +57,36 @@ test(
     assert.equal(
       defaultReviewQueueFilter(false, true),
       "exceptions",
+    );
+  },
+);
+
+test(
+  "Unseen is an independent filter over every qualification queue",
+  () => {
+    const unseen =
+      prospect(
+        "unseen",
+        "needs_founder_decision",
+      );
+    const viewed = {
+      ...prospect(
+        "viewed",
+        "needs_founder_decision",
+      ),
+      viewedAt:
+        "2026-08-13T14:00:00.000Z",
+    };
+
+    assert.deepEqual(
+      filterProspectQueue(
+        [unseen, viewed],
+        "needs_founder_decision",
+        "",
+        true,
+        true,
+      ).map((item) => item.id),
+      ["unseen"],
     );
   },
 );

@@ -16,6 +16,7 @@ import {
   listProspects,
   retryCompanyEnrichment,
   searchCompaniesHouseMatches,
+  updateProspectViewState,
   verifyCompaniesHouseMatch,
   type CompaniesHouseMatch,
   type ProspectReview,
@@ -223,6 +224,8 @@ export function ProspectReviewWorkspace({
         companyEnrichmentEnabled,
       ),
     );
+  const [unseenOnly, setUnseenOnly] =
+    useState(false);
 
   async function refreshQueue() {
     setLoading(true);
@@ -251,7 +254,7 @@ export function ProspectReviewWorkspace({
 
   async function loadReview(
     prospectId: string,
-  ) {
+  ): Promise<boolean> {
     setWorking(true);
     setError(null);
     setMessage(null);
@@ -276,8 +279,10 @@ export function ProspectReviewWorkspace({
           "no_match" ||
         prepared.length > 0,
       );
+      return true;
     } catch (caught) {
       setError(messageFrom(caught));
+      return false;
     } finally {
       setWorking(false);
     }
@@ -295,7 +300,66 @@ export function ProspectReviewWorkspace({
     setSelectedId(prospectId);
     setReview(null);
     if (prospectId !== "") {
-      await loadReview(prospectId);
+      const loaded =
+        await loadReview(prospectId);
+      const current = prospects.find(
+        (item) => item.id === prospectId,
+      );
+      if (
+        loaded &&
+        current?.viewedAt === null
+      ) {
+        setWorking(true);
+        try {
+          const viewedAt =
+            await updateProspectViewState(
+              backendUrl,
+              accessToken,
+              prospectId,
+              true,
+            );
+          setProspects((items) =>
+            items.map((item) =>
+              item.id === prospectId
+                ? { ...item, viewedAt }
+                : item,
+            ),
+          );
+        } catch (caught) {
+          setError(messageFrom(caught));
+        } finally {
+          setWorking(false);
+        }
+      }
+    }
+  }
+
+  async function markSelectedAsUnseen() {
+    if (selectedId === "") return;
+    setWorking(true);
+    setError(null);
+    setMessage(null);
+    try {
+      await updateProspectViewState(
+        backendUrl,
+        accessToken,
+        selectedId,
+        false,
+      );
+      setProspects((items) =>
+        items.map((item) =>
+          item.id === selectedId
+            ? { ...item, viewedAt: null }
+            : item,
+        ),
+      );
+      setMessage(
+        "This prospect is marked Unseen and will appear in the Unseen-only queue.",
+      );
+    } catch (caught) {
+      setError(messageFrom(caught));
+    } finally {
+      setWorking(false);
     }
   }
 
@@ -501,6 +565,13 @@ export function ProspectReviewWorkspace({
     queueFilter,
     queueSearch,
     automaticQualificationEnabled,
+    unseenOnly,
+  );
+  const unseenCount = prospects.filter(
+    (item) => item.viewedAt === null,
+  ).length;
+  const selectedProspect = prospects.find(
+    (item) => item.id === selectedId,
   );
 
   return (
@@ -531,9 +602,10 @@ export function ProspectReviewWorkspace({
         Outlook drafting remains disabled in this stage.
       </p>
 
-      {companyEnrichmentEnabled && (
-        <div className="review-queue-controls">
-          <label>
+      <div className="review-queue-controls">
+        {companyEnrichmentEnabled && (
+          <>
+            <label>
             Find a prospect
             <input
               type="search"
@@ -543,8 +615,8 @@ export function ProspectReviewWorkspace({
                 setQueueSearch(event.target.value)
               }
             />
-          </label>
-          <label>
+            </label>
+            <label>
             Review queue
             <select
               value={queueFilter}
@@ -587,9 +659,24 @@ export function ProspectReviewWorkspace({
                 All prospects
               </option>
             </select>
-          </label>
-        </div>
-      )}
+            </label>
+          </>
+        )}
+        <label className="unseen-toggle">
+          <input
+            type="checkbox"
+            checked={unseenOnly}
+            onChange={(event) =>
+              setUnseenOnly(
+                event.target.checked,
+              )
+            }
+          />
+          <span>
+            Unseen only ({unseenCount})
+          </span>
+        </label>
+      </div>
 
       <label>
         Prospect to review
@@ -612,7 +699,7 @@ export function ProspectReviewWorkspace({
               key={item.id}
               value={item.id}
             >
-              {item.businessName} — {item.primaryPostcode ?? "postcode unknown"} — {item.latestAssessment?.totalScore ?? "not scored"} — {item.companyEnrichment === null || item.companyEnrichment === undefined
+              {item.viewedAt === null ? "NEW — " : ""}{item.businessName} — {item.primaryPostcode ?? "postcode unknown"} — {item.latestAssessment?.totalScore ?? "not scored"} — {item.companyEnrichment === null || item.companyEnrichment === undefined
                 ? "not queued"
                 : item.companyEnrichment.qualificationState === undefined
                   ? ENRICHMENT_LABELS[item.companyEnrichment.status]
@@ -636,11 +723,25 @@ export function ProspectReviewWorkspace({
       {review !== null && (
         <div className="review-layout">
           <section className="review-panel stack">
-            <div>
-              <h3>{review.businessName}</h3>
-              <p>
-                {review.primaryPostcode ?? "Postcode unknown"} · {review.hasSearchProvenance ? "search-linked" : "manual capture — search link required"}
-              </p>
+            <div className="prospect-heading">
+              <div>
+                <h3>{review.businessName}</h3>
+                <p>
+                  {review.primaryPostcode ?? "Postcode unknown"} · {review.hasSearchProvenance ? "search-linked" : "manual capture — search link required"}
+                </p>
+              </div>
+              {selectedProspect?.viewedAt != null && (
+                <button
+                  type="button"
+                  className="secondary small-button"
+                  onClick={() =>
+                    void markSelectedAsUnseen()
+                  }
+                  disabled={working}
+                >
+                  Mark as unseen
+                </button>
+              )}
             </div>
 
             {review.latestAssessment === null ? (

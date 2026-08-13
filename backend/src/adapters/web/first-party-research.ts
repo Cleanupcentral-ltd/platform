@@ -146,7 +146,7 @@ const RECURRING_NEED_PATTERNS = [
   /\bopen\s+(?:seven|7)\s+days\b/i,
 ] as const;
 
-const META_FIELDS = new Set([
+const METADATA_FIELDS = new Set([
   "description",
   "og:description",
   "og:site_name",
@@ -229,28 +229,14 @@ function decodeHtml(value: string): string {
     .replace(/&gt;/gi, ">");
 }
 
-function attributeValue(
-  tag: string,
-  attribute: string,
-): string | null {
-  const escaped = attribute.replace(
-    /[.*+?^${}()|[\]\\]/g,
-    "\\$&",
-  );
+function htmlAttribute(tag: string, name: string): string | null {
   const quoted = tag.match(new RegExp(
-    `\\b${escaped}\\s*=\\s*(["'])([\\s\\S]*?)\\1`,
+    `\\b${name}\\s*=\\s*(["'])([\\s\\S]*?)\\1`,
     "i",
   ));
-  if (quoted?.[2] !== undefined) {
-    return decodeHtml(quoted[2]).trim();
-  }
-  const unquoted = tag.match(new RegExp(
-    `\\b${escaped}\\s*=\\s*([^\\s>]+)`,
-    "i",
-  ));
-  return unquoted?.[1] === undefined
+  return quoted?.[2] === undefined
     ? null
-    : decodeHtml(unquoted[1]).trim();
+    : decodeHtml(quoted[2]).trim();
 }
 
 function collectJsonLdStrings(
@@ -262,31 +248,18 @@ function collectJsonLdStrings(
   if (Array.isArray(value)) {
     for (const item of value) {
       collectJsonLdStrings(item, output, depth + 1);
-      if (output.length >= 80) return;
     }
     return;
   }
-  if (
-    value === null ||
-    typeof value !== "object"
-  ) return;
+  if (value === null || typeof value !== "object") return;
   for (const [key, item] of Object.entries(value)) {
     if (
       JSON_LD_FIELDS.has(key) &&
       typeof item === "string" &&
       item.trim().length > 0
-    ) {
-      output.push(item.trim());
-    }
-    if (
-      item !== null &&
-      typeof item === "object"
-    ) {
-      collectJsonLdStrings(
-        item,
-        output,
-        depth + 1,
-      );
+    ) output.push(item.trim());
+    if (item !== null && typeof item === "object") {
+      collectJsonLdStrings(item, output, depth + 1);
     }
     if (output.length >= 80) return;
   }
@@ -294,54 +267,32 @@ function collectJsonLdStrings(
 
 function metadataText(html: string): string {
   const values: string[] = [];
-  const title = html.match(
-    /<title\b[^>]*>([\s\S]*?)<\/title>/i,
-  )?.[1];
-  if (title !== undefined) {
-    const normalized = decodeHtml(
-      title.replace(/<[^>]+>/g, " "),
-    ).replace(/\s+/g, " ").trim();
-    if (normalized.length > 0) {
-      values.push(normalized);
-    }
-  }
+  const title = html.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i)?.[1];
+  if (title !== undefined) values.push(title.replace(/<[^>]+>/g, " "));
 
   for (const match of html.matchAll(/<meta\b[^>]*>/gi)) {
     const tag = match[0];
-    const field = (
-      attributeValue(tag, "name") ??
-      attributeValue(tag, "property")
+    const key = (
+      htmlAttribute(tag, "name") ?? htmlAttribute(tag, "property")
     )?.toLowerCase();
-    if (
-      field === undefined ||
-      !META_FIELDS.has(field)
-    ) continue;
-    const content = attributeValue(tag, "content");
-    if (content !== null && content.length > 0) {
+    const content = htmlAttribute(tag, "content");
+    if (key !== undefined && METADATA_FIELDS.has(key) && content !== null) {
       values.push(content);
     }
   }
 
-  const scriptPattern =
-    /<script\b([^>]*)>([\s\S]*?)<\/script>/gi;
-  for (const match of html.matchAll(scriptPattern)) {
-    const attributes = match[1] ?? "";
-    const type = attributeValue(
-      `<script ${attributes}>`,
-      "type",
-    )?.toLowerCase();
+  for (const match of html.matchAll(
+    /<script\b([^>]*)>([\s\S]*?)<\/script>/gi,
+  )) {
+    const type = htmlAttribute(`<script ${match[1] ?? ""}>`, "type")
+      ?.toLowerCase();
     if (type !== "application/ld+json") continue;
     const body = match[2]?.trim();
-    if (body === undefined || body.length === 0) {
-      continue;
-    }
+    if (body === undefined || body.length === 0) continue;
     try {
-      collectJsonLdStrings(
-        JSON.parse(body) as unknown,
-        values,
-      );
+      collectJsonLdStrings(JSON.parse(body) as unknown, values);
     } catch {
-      // Truncated or malformed structured data is not evidence.
+      // Malformed or truncated JSON-LD cannot become evidence.
     }
   }
 
@@ -351,14 +302,14 @@ function metadataText(html: string): string {
 }
 
 function htmlText(html: string): string {
-  const visible = decodeHtml(html
+  const visibleText = decodeHtml(html
     .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ")
     .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ")
     .replace(/<noscript\b[^>]*>[\s\S]*?<\/noscript>/gi, " ")
     .replace(/<[^>]+>/g, " "))
     .replace(/\s+/g, " ")
     .trim();
-  return `${visible} ${metadataText(html)}`
+  return `${visibleText} ${metadataText(html)}`
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -371,8 +322,7 @@ function normalizedWords(value: string): readonly string[] {
     .replace(/[^a-z0-9]+/g, " ")
     .trim()
     .split(/\s+/)
-    .filter((word) =>
-      word.length >= 2 && !ignored.has(word));
+    .filter((word) => word.length >= 2 && !ignored.has(word));
 }
 
 function identityMatch(
@@ -389,10 +339,8 @@ function identityMatch(
   ));
   if (exact !== null) return exact;
   const matched = words.filter((word) =>
-    new RegExp(
-      `\\b${word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`,
-      "i",
-    ).test(text));
+    new RegExp(`\\b${word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i")
+      .test(text));
   const minimum = words.length === 1
     ? 1
     : Math.max(2, Math.ceil(words.length * 0.75));
@@ -416,27 +364,18 @@ function excerpt(
   const index = match?.index ?? (
     match?.[0] === undefined
       ? 0
-      : text.toLowerCase().indexOf(
-        match[0].toLowerCase(),
-      )
+      : text.toLowerCase().indexOf(match[0].toLowerCase())
   );
   const matchLength = match?.[0]?.length ?? 0;
   return text.slice(
     Math.max(0, index - 140),
-    Math.min(
-      text.length,
-      index + matchLength + 180,
-    ),
+    Math.min(text.length, index + matchLength + 180),
   ).trim();
 }
 
-function pageLinks(
-  html: string,
-  sourceUrl: URL,
-): readonly URL[] {
+function pageLinks(html: string, sourceUrl: URL): readonly URL[] {
   const results = new Map<string, URL>();
-  const linkPattern =
-    /<a\b[^>]*\bhref\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+  const linkPattern = /<a\b[^>]*\bhref\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
   for (const match of html.matchAll(linkPattern)) {
     const href = match[1];
     const label = htmlText(match[2] ?? "");
@@ -450,12 +389,7 @@ function pageLinks(
       if (
         candidate.protocol === "https:" &&
         candidate.origin === sourceUrl.origin
-      ) {
-        results.set(
-          candidate.toString(),
-          candidate,
-        );
-      }
+      ) results.set(candidate.toString(), candidate);
     } catch {
       // Malformed links cannot become evidence.
     }
@@ -478,66 +412,43 @@ function companyNumberAssertions(
       for (const match of page.text.matchAll(pattern)) {
         const captured = match[1];
         if (captured === undefined) continue;
-        const value = captured
-          .replace(/\s+/g, "")
-          .toUpperCase();
-        if (
-          /^(?:[A-Z]{2}\d{6}|\d{8})$/.test(value) &&
-          !found.has(value)
-        ) {
+        const value = captured.replace(/\s+/g, "").toUpperCase();
+        if (/^(?:[A-Z]{2}\d{6}|\d{8})$/.test(value) && !found.has(value)) {
           const support = excerpt(page.text, match);
           found.set(value, {
             companyNumber: value,
             sourceUrl: page.url.toString(),
             sourceExcerpt: support,
-            contentSha256: sha256(
-              `${page.url}\ncompany_number\n${value}\n${support}`,
-            ),
+            contentSha256: sha256(`${page.url}\ncompany_number\n${value}\n${support}`),
           });
         }
       }
     }
   }
   return [...found.values()].sort((left, right) =>
-    left.companyNumber.localeCompare(
-      right.companyNumber,
-    ));
+    left.companyNumber.localeCompare(right.companyNumber));
 }
 
 function organisationType(
   hostname: string,
   text: string,
 ): FirstPartyResearchResult["organisationType"] {
-  if (
-    hostname === "gov.uk" ||
-    hostname.endsWith(".gov.uk")
-  ) {
+  if (hostname === "gov.uk" || hostname.endsWith(".gov.uk")) {
     return "public_body";
   }
-  if (
-    hostname === "ac.uk" ||
-    hostname.endsWith(".ac.uk")
-  ) {
+  if (hostname === "ac.uk" || hostname.endsWith(".ac.uk")) {
     return "university";
   }
-  if (
-    /\b(?:registered\s+charity|charity\s+(?:number|no\.?))\b/i
-      .test(text)
-  ) {
+  if (/\b(?:registered\s+charity|charity\s+(?:number|no\.?))\b/i.test(text)) {
     return "charity";
   }
-  if (
-    /\b(?:community\s+(?:association|organisation|organization|group)|village\s+hall)\b/i
-      .test(text)
-  ) {
+  if (/\b(?:community\s+(?:association|organisation|organization|group)|village\s+hall)\b/i.test(text)) {
     return "community_organisation";
   }
   return "commercial";
 }
 
-async function defaultResolveHost(
-  hostname: string,
-): Promise<readonly string[]> {
+async function defaultResolveHost(hostname: string): Promise<readonly string[]> {
   return (await lookup(hostname, {
     all: true,
     verbatim: true,
@@ -560,210 +471,112 @@ implements FirstPartyResearchProvider {
     this.maximumBytes = options.maximumBytes;
     this.maximumPages = options.maximumPages ?? 6;
     this.requestRetries = options.requestRetries ?? 1;
-    this.fetchFunction =
-      options.fetchFunction ?? fetch;
-    this.resolveHost =
-      options.resolveHost ?? defaultResolveHost;
+    this.fetchFunction = options.fetchFunction ?? fetch;
+    this.resolveHost = options.resolveHost ?? defaultResolveHost;
   }
 
-  private async safeUrl(
-    value: string,
-    upgradeHttp = false,
-  ): Promise<URL> {
+  private async safeUrl(value: string, upgradeHttp = false): Promise<URL> {
     let url: URL;
     try {
       url = new URL(value);
     } catch {
-      throw new FirstPartyResearchError(
-        "unsafe_url",
-      );
+      throw new FirstPartyResearchError("unsafe_url");
     }
-    if (
-      upgradeHttp &&
-      url.protocol === "http:"
-    ) {
+    if (upgradeHttp && url.protocol === "http:") {
       url.protocol = "https:";
       url.port = "";
     }
     if (
-      url.protocol !== "https:" ||
-      url.username !== "" ||
-      url.password !== "" ||
-      (url.port !== "" && url.port !== "443") ||
+      url.protocol !== "https:" || url.username !== "" ||
+      url.password !== "" || (url.port !== "" && url.port !== "443") ||
       url.hostname === "localhost" ||
       url.hostname.endsWith(".localhost") ||
       url.hostname.endsWith(".local") ||
       url.hostname.endsWith(".internal")
-    ) {
-      throw new FirstPartyResearchError(
-        "unsafe_url",
-      );
-    }
+    ) throw new FirstPartyResearchError("unsafe_url");
 
     const addresses = isIP(url.hostname) === 0
       ? await this.resolveHost(url.hostname)
       : [url.hostname];
-    if (
-      addresses.length === 0 ||
-      addresses.some((address) =>
-        !ipIsPublic(address))
-    ) {
-      throw new FirstPartyResearchError(
-        "unsafe_url",
-      );
+    if (addresses.length === 0 || addresses.some((address) => !ipIsPublic(address))) {
+      throw new FirstPartyResearchError("unsafe_url");
     }
     url.hash = "";
     return url;
   }
 
-  private async boundedText(
-    response: Response,
-  ): Promise<{
+  private async boundedText(response: Response): Promise<{
     readonly value: string;
     readonly truncated: boolean;
   }> {
-    if (response.body === null) {
-      return {
-        value: "",
-        truncated: false,
-      };
-    }
+    if (response.body === null) return { value: "", truncated: false };
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let total = 0;
     let value = "";
     while (true) {
       const chunk = await reader.read();
-      if (chunk.done) {
-        return {
-          value: value + decoder.decode(),
-          truncated: false,
-        };
-      }
-      const remaining =
-        this.maximumBytes - total;
+      if (chunk.done) return {
+        value: value + decoder.decode(),
+        truncated: false,
+      };
+      const remaining = this.maximumBytes - total;
       if (remaining <= 0) {
         await reader.cancel();
-        return {
-          value: value + decoder.decode(),
-          truncated: true,
-        };
+        return { value: value + decoder.decode(), truncated: true };
       }
-      const accepted =
-        chunk.value.byteLength > remaining
-          ? chunk.value.slice(0, remaining)
-          : chunk.value;
+      const accepted = chunk.value.byteLength > remaining
+        ? chunk.value.slice(0, remaining)
+        : chunk.value;
       total += accepted.byteLength;
-      value += decoder.decode(
-        accepted,
-        { stream: true },
-      );
-      if (
-        accepted.byteLength <
-        chunk.value.byteLength
-      ) {
+      value += decoder.decode(accepted, { stream: true });
+      if (accepted.byteLength < chunk.value.byteLength) {
         await reader.cancel();
-        return {
-          value: value + decoder.decode(),
-          truncated: true,
-        };
+        return { value: value + decoder.decode(), truncated: true };
       }
     }
   }
 
-  private async requestPage(
-    initialUrl: URL,
-  ): Promise<LoadedPage> {
+  private async requestPage(initialUrl: URL): Promise<LoadedPage> {
     let url = initialUrl;
-    for (
-      let redirects = 0;
-      redirects <= 3;
-      redirects += 1
-    ) {
+    for (let redirects = 0; redirects <= 3; redirects += 1) {
       let lastFailure: unknown = null;
-      for (
-        let attempt = 0;
-        attempt <= this.requestRetries;
-        attempt += 1
-      ) {
-        const controller =
-          new AbortController();
-        const timeout = setTimeout(
-          () => controller.abort(),
-          this.timeoutMs,
-        );
+      for (let attempt = 0; attempt <= this.requestRetries; attempt += 1) {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
         try {
-          const response =
-            await this.fetchFunction(url, {
-              method: "GET",
-              redirect: "manual",
-              headers: {
-                accept:
-                  "text/html,application/xhtml+xml",
-                "user-agent":
-                  "CleanUpCentral-LeadEngineLite/1.1",
-              },
-              signal: controller.signal,
-            });
-          if (
-            response.status >= 300 &&
-            response.status < 400
-          ) {
-            const location =
-              response.headers.get("location");
-            if (
-              location === null ||
-              redirects === 3
-            ) {
-              throw new FirstPartyResearchError(
-                "temporarily_unavailable",
-              );
+          const response = await this.fetchFunction(url, {
+            method: "GET",
+            redirect: "manual",
+            headers: {
+              accept: "text/html,application/xhtml+xml",
+              "user-agent": "CleanUpCentral-LeadEngineLite/1.1",
+            },
+            signal: controller.signal,
+          });
+          if (response.status >= 300 && response.status < 400) {
+            const location = response.headers.get("location");
+            if (location === null || redirects === 3) {
+              throw new FirstPartyResearchError("temporarily_unavailable");
             }
-            url = await this.safeUrl(
-              new URL(location, url).toString(),
-              true,
-            );
+            url = await this.safeUrl(new URL(location, url).toString(), true);
             lastFailure = null;
             break;
           }
-          if (
-            [
-              408, 425, 429, 500,
-              502, 503, 504,
-            ].includes(response.status)
-          ) {
-            lastFailure =
-              new FirstPartyResearchError(
-                "temporarily_unavailable",
-              );
-            if (
-              attempt < this.requestRetries
-            ) continue;
+          if ([408, 425, 429, 500, 502, 503, 504].includes(response.status)) {
+            lastFailure = new FirstPartyResearchError("temporarily_unavailable");
+            if (attempt < this.requestRetries) continue;
             throw lastFailure;
           }
           if (!response.ok) {
-            throw new FirstPartyResearchError(
-              "unavailable",
-            );
+            throw new FirstPartyResearchError("unavailable");
           }
-          const mediaType = (
-            response.headers.get(
-              "content-type",
-            ) ?? ""
-          ).split(";", 1)[0]
-            ?.trim()
-            .toLowerCase();
-          if (
-            mediaType !== "text/html" &&
-            mediaType !==
-              "application/xhtml+xml"
-          ) {
-            throw new FirstPartyResearchError(
-              "invalid_content",
-            );
+          const mediaType = (response.headers.get("content-type") ?? "")
+            .split(";", 1)[0]?.trim().toLowerCase();
+          if (mediaType !== "text/html" && mediaType !== "application/xhtml+xml") {
+            throw new FirstPartyResearchError("invalid_content");
           }
-          const body =
-            await this.boundedText(response);
+          const body = await this.boundedText(response);
           return {
             url,
             html: body.value,
@@ -773,19 +586,11 @@ implements FirstPartyResearchProvider {
         } catch (error) {
           lastFailure = error;
           if (
-            error instanceof
-              FirstPartyResearchError &&
-            error.failure !==
-              "temporarily_unavailable"
-          ) {
-            throw error;
-          }
-          if (
-            attempt >= this.requestRetries
-          ) {
-            throw new FirstPartyResearchError(
-              "temporarily_unavailable",
-            );
+            error instanceof FirstPartyResearchError &&
+            error.failure !== "temporarily_unavailable"
+          ) throw error;
+          if (attempt >= this.requestRetries) {
+            throw new FirstPartyResearchError("temporarily_unavailable");
           }
         } finally {
           clearTimeout(timeout);
@@ -793,9 +598,7 @@ implements FirstPartyResearchProvider {
       }
       if (lastFailure === null) continue;
     }
-    throw new FirstPartyResearchError(
-      "temporarily_unavailable",
-    );
+    throw new FirstPartyResearchError("temporarily_unavailable");
   }
 
   async research(
@@ -803,173 +606,83 @@ implements FirstPartyResearchProvider {
     businessName: string,
     sector: LeadSector,
   ): Promise<FirstPartyResearchResult> {
-    const start = await this.safeUrl(
-      websiteUrl,
-      true,
-    );
+    const start = await this.safeUrl(websiteUrl, true);
     const queue: URL[] = [start];
     const visited = new Set<string>();
     const pages: LoadedPage[] = [];
-    while (
-      queue.length > 0 &&
-      pages.length < this.maximumPages
-    ) {
+    while (queue.length > 0 && pages.length < this.maximumPages) {
       const requested = queue.shift()!;
-      if (visited.has(requested.toString())) {
-        continue;
-      }
-      const loaded =
-        await this.requestPage(requested);
+      if (visited.has(requested.toString())) continue;
+      const loaded = await this.requestPage(requested);
       visited.add(requested.toString());
       visited.add(loaded.url.toString());
       pages.push(loaded);
       if (pages.length === 1) {
-        queue.push(...pageLinks(
-          loaded.html,
-          loaded.url,
-        ));
+        queue.push(...pageLinks(loaded.html, loaded.url));
       }
     }
-
     const identityPage = pages.find((page) =>
-      identityMatch(
-        businessName,
-        page.text,
-      ) !== null);
+      identityMatch(businessName, page.text) !== null);
     if (identityPage === undefined) {
       return {
-        canonicalWebsiteUrl:
-          pages[0]?.url.toString() ??
-          start.toString(),
+        canonicalWebsiteUrl: pages[0]?.url.toString() ?? start.toString(),
         companyNumberAssertions: [],
         facts: [],
-        visitedUrls: pages.map((page) =>
-          page.url.toString()),
-        truncatedPageCount:
-          pages.filter((page) =>
-            page.truncated).length,
+        visitedUrls: pages.map((page) => page.url.toString()),
+        truncatedPageCount: pages.filter((page) => page.truncated).length,
         organisationType: "unknown",
-        reviewReasons: [
-          "website_identity_not_confirmed",
-        ],
+        reviewReasons: ["website_identity_not_confirmed"],
       };
     }
 
-    const combinedText = pages
-      .map((page) => page.text)
-      .join(" ");
-    const type = organisationType(
-      identityPage.url.hostname,
-      combinedText,
-    );
+    const combinedText = pages.map((page) => page.text).join(" ");
+    const type = organisationType(identityPage.url.hostname, combinedText);
     const facts: AutomaticResearchFact[] = [];
     const seen = new Set<string>();
     const addFact = (
       page: LoadedPage,
-      factName:
-        AutomaticResearchFact["factName"],
+      factName: AutomaticResearchFact["factName"],
       factValue: string,
       support: string,
-      contactType:
-        AutomaticResearchFact["contactType"] =
-          null,
+      contactType: AutomaticResearchFact["contactType"] = null,
     ) => {
-      const key =
-        `${factName}\n${factValue.toLowerCase()}`;
-      if (
-        seen.has(key) ||
-        support.length === 0
-      ) return;
+      const key = `${factName}\n${factValue.toLowerCase()}`;
+      if (seen.has(key) || support.length === 0) return;
       seen.add(key);
       facts.push({
         sourceUrl: page.url.toString(),
         factName,
         factValue,
         sourceExcerpt: support.slice(0, 700),
-        contentSha256: sha256(
-          `${page.url}\n${factName}\n${factValue}\n${support}`,
-        ),
+        contentSha256: sha256(`${page.url}\n${factName}\n${factValue}\n${support}`),
         contactType,
-        normalizedContactValue:
-          contactType === null
-            ? null
-            : factValue.toLowerCase(),
+        normalizedContactValue: contactType === null ? null : factValue.toLowerCase(),
       });
     };
 
-    const identity = identityMatch(
-      businessName,
-      identityPage.text,
-    )!;
-    const identityExcerpt = excerpt(
-      identityPage.text,
-      identity,
-    );
-    addFact(
-      identityPage,
-      "business_name",
-      businessName.trim(),
-      identityExcerpt,
-    );
-    addFact(
-      identityPage,
-      "website_url",
-      identityPage.url.toString(),
-      identityExcerpt,
-    );
-    addFact(
-      identityPage,
-      "organisation_type",
-      type,
-      identityExcerpt,
-    );
+    const identity = identityMatch(businessName, identityPage.text)!;
+    const identityExcerpt = excerpt(identityPage.text, identity);
+    addFact(identityPage, "business_name", businessName.trim(), identityExcerpt);
+    addFact(identityPage, "website_url", identityPage.url.toString(), identityExcerpt);
+    addFact(identityPage, "organisation_type", type, identityExcerpt);
 
     const sectorPage = pages.find((page) =>
-      SECTOR_PATTERNS[sector].some(
-        (pattern) => pattern.test(page.text),
-      ));
+      SECTOR_PATTERNS[sector].some((pattern) => pattern.test(page.text)));
     if (sectorPage !== undefined) {
-      const pattern =
-        SECTOR_PATTERNS[sector].find(
-          (item) => item.test(
-            sectorPage.text,
-          ),
-        )!;
-      addFact(
-        sectorPage,
-        "approved_sector",
-        sector,
-        excerpt(sectorPage.text, pattern),
-      );
+      const pattern = SECTOR_PATTERNS[sector].find((item) => item.test(sectorPage.text))!;
+      addFact(sectorPage, "approved_sector", sector, excerpt(sectorPage.text, pattern));
     }
 
     for (const page of pages) {
-      const emailPattern =
-        /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
-      for (
-        const match of
-        page.text.matchAll(emailPattern)
-      ) {
-        const email =
-          match[0].toLowerCase();
-        const [localPart, domain] =
-          email.split("@") as [
-            string,
-            string,
-          ];
+      const emailPattern = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
+      for (const match of page.text.matchAll(emailPattern)) {
+        const email = match[0].toLowerCase();
+        const [localPart, domain] = email.split("@") as [string, string];
         if (
-          !GENERIC_MAILBOXES.has(
-            localPart,
-          ) ||
+          !GENERIC_MAILBOXES.has(localPart) ||
           PERSONAL_MAIL_DOMAINS.has(domain)
         ) continue;
-        addFact(
-          page,
-          "public_email",
-          email,
-          excerpt(page.text, match),
-          "email",
-        );
+        addFact(page, "public_email", email, excerpt(page.text, match), "email");
       }
       if (
         /<form\b/i.test(page.html) &&
@@ -991,14 +704,9 @@ implements FirstPartyResearchProvider {
     }
 
     const scalePage = pages.find((page) =>
-      SCALE_PATTERNS.some((pattern) =>
-        pattern.test(page.text)));
+      SCALE_PATTERNS.some((pattern) => pattern.test(page.text)));
     if (scalePage !== undefined) {
-      const pattern = SCALE_PATTERNS.find(
-        (item) => item.test(
-          scalePage.text,
-        ),
-      )!;
+      const pattern = SCALE_PATTERNS.find((item) => item.test(scalePage.text))!;
       addFact(
         scalePage,
         "premises_scale",
@@ -1007,17 +715,9 @@ implements FirstPartyResearchProvider {
       );
     }
     const recurringPage = pages.find((page) =>
-      RECURRING_NEED_PATTERNS.some(
-        (pattern) =>
-          pattern.test(page.text),
-      ));
+      RECURRING_NEED_PATTERNS.some((pattern) => pattern.test(page.text)));
     if (recurringPage !== undefined) {
-      const pattern =
-        RECURRING_NEED_PATTERNS.find(
-          (item) => item.test(
-            recurringPage.text,
-          ),
-        )!;
+      const pattern = RECURRING_NEED_PATTERNS.find((item) => item.test(recurringPage.text))!;
       addFact(
         recurringPage,
         "recurring_cleaning_need",
@@ -1026,61 +726,26 @@ implements FirstPartyResearchProvider {
       );
     }
 
-    if (
-      type === "university" ||
-      type === "public_body"
-    ) {
-      addFact(
-        identityPage,
-        "business_status",
-        "active",
-        identityExcerpt,
-      );
-      addFact(
-        identityPage,
-        "subscriber_type",
-        "corporate",
-        identityExcerpt,
-      );
+    if (type === "university" || type === "public_body") {
+      addFact(identityPage, "business_status", "active", identityExcerpt);
+      addFact(identityPage, "subscriber_type", "corporate", identityExcerpt);
     }
 
     const reviewReasons: string[] = [];
-    if (sectorPage === undefined) {
-      reviewReasons.push(
-        "approved_sector_not_confirmed",
-      );
+    if (sectorPage === undefined) reviewReasons.push("approved_sector_not_confirmed");
+    if (!facts.some((fact) => fact.contactType !== null)) {
+      reviewReasons.push("no_generic_business_contact_found");
     }
-    if (
-      !facts.some((fact) =>
-        fact.contactType !== null)
-    ) {
-      reviewReasons.push(
-        "no_generic_business_contact_found",
-      );
-    }
-    if (
-      [
-        "charity",
-        "community_organisation",
-        "commercial",
-      ].includes(type)
-    ) {
-      reviewReasons.push(
-        "subscriber_type_requires_official_verification",
-      );
+    if (["charity", "community_organisation", "commercial"].includes(type)) {
+      reviewReasons.push("subscriber_type_requires_official_verification");
     }
 
     return {
-      canonicalWebsiteUrl:
-        identityPage.url.toString(),
-      companyNumberAssertions:
-        companyNumberAssertions(pages),
+      canonicalWebsiteUrl: identityPage.url.toString(),
+      companyNumberAssertions: companyNumberAssertions(pages),
       facts,
-      visitedUrls: pages.map((page) =>
-        page.url.toString()),
-      truncatedPageCount:
-        pages.filter((page) =>
-          page.truncated).length,
+      visitedUrls: pages.map((page) => page.url.toString()),
+      truncatedPageCount: pages.filter((page) => page.truncated).length,
       organisationType: type,
       reviewReasons,
     };

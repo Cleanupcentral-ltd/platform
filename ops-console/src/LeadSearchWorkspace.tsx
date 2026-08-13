@@ -27,6 +27,8 @@ interface LeadSearchWorkspaceProps {
     boolean;
   readonly companyEnrichmentEnabled?:
     boolean;
+  readonly automaticQualificationEnabled?:
+    boolean;
 }
 
 function errorMessage(
@@ -52,6 +54,7 @@ export function LeadSearchWorkspace({
   reviewEnabled = false,
   companiesHouseEnabled = false,
   companyEnrichmentEnabled = false,
+  automaticQualificationEnabled = false,
 }: LeadSearchWorkspaceProps) {
   const [postcode, setPostcode] =
     useState("");
@@ -464,6 +467,9 @@ export function LeadSearchWorkspace({
           }
           companyEnrichmentEnabled={
             companyEnrichmentEnabled
+          }
+          automaticQualificationEnabled={
+            automaticQualificationEnabled
           }
         />
       )}

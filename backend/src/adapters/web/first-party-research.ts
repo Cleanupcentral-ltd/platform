@@ -169,6 +169,11 @@ const JSON_LD_FIELDS = new Set([
   "url",
 ]);
 
+const STRUCTURED_JSON_SCRIPT_TYPES = new Set([
+  "application/ld+json",
+  "application/json",
+]);
+
 function sha256(value: string): string {
   return createHash("sha256")
     .update(value)
@@ -286,13 +291,13 @@ function metadataText(html: string): string {
   )) {
     const type = htmlAttribute(`<script ${match[1] ?? ""}>`, "type")
       ?.toLowerCase();
-    if (type !== "application/ld+json") continue;
+    if (type === undefined || !STRUCTURED_JSON_SCRIPT_TYPES.has(type)) continue;
     const body = match[2]?.trim();
     if (body === undefined || body.length === 0) continue;
     try {
       collectJsonLdStrings(JSON.parse(body) as unknown, values);
     } catch {
-      // Malformed or truncated JSON-LD cannot become evidence.
+      // Malformed or truncated structured JSON cannot become evidence.
     }
   }
 
@@ -395,6 +400,56 @@ function pageLinks(html: string, sourceUrl: URL): readonly URL[] {
     }
   }
   return [...results.values()];
+}
+
+function canonicalPageLinks(
+  html: string,
+  sourceUrl: URL,
+): readonly URL[] {
+  const results = new Map<string, URL>();
+  for (const match of html.matchAll(/<link\b[^>]*>/gi)) {
+    const tag = match[0];
+    const rel = htmlAttribute(tag, "rel")
+      ?.toLowerCase()
+      .split(/\s+/) ?? [];
+    const href = htmlAttribute(tag, "href");
+    if (!rel.includes("canonical") || href === null) continue;
+    try {
+      const candidate = new URL(href, sourceUrl);
+      candidate.hash = "";
+      if (
+        candidate.protocol === "https:" &&
+        candidate.origin === sourceUrl.origin &&
+        candidate.toString() !== sourceUrl.toString()
+      ) results.set(candidate.toString(), candidate);
+    } catch {
+      // Malformed canonical links cannot become evidence.
+    }
+  }
+  return [...results.values()];
+}
+
+function pageDiagnostic(page: LoadedPage) {
+  const scriptTypes = [...page.html.matchAll(
+    /<script\b([^>]*)>/gi,
+  )].map((match) =>
+    htmlAttribute(`<script ${match[1] ?? ""}>`, "type")
+      ?.toLowerCase() ?? "");
+  return {
+    url: `${page.url.origin}${page.url.pathname}`,
+    htmlCharacters: page.html.length,
+    extractedTextCharacters: page.text.length,
+    titlePresent: /<title\b[^>]*>/i.test(page.html),
+    metaTagCount: [...page.html.matchAll(/<meta\b[^>]*>/gi)].length,
+    jsonLdScriptCount: scriptTypes.filter(
+      (type) => type === "application/ld+json",
+    ).length,
+    applicationJsonScriptCount: scriptTypes.filter(
+      (type) => type === "application/json",
+    ).length,
+    canonicalLinkCount: canonicalPageLinks(page.html, page.url).length,
+    truncated: page.truncated,
+  };
 }
 
 function companyNumberAssertions(
@@ -618,12 +673,17 @@ implements FirstPartyResearchProvider {
       visited.add(loaded.url.toString());
       pages.push(loaded);
       if (pages.length === 1) {
+        queue.unshift(...canonicalPageLinks(loaded.html, loaded.url));
         queue.push(...pageLinks(loaded.html, loaded.url));
       }
     }
     const identityPage = pages.find((page) =>
       identityMatch(businessName, page.text) !== null);
     if (identityPage === undefined) {
+      console.info(JSON.stringify({
+        event: "lead_first_party_identity_not_confirmed",
+        pages: pages.map(pageDiagnostic),
+      }));
       return {
         canonicalWebsiteUrl: pages[0]?.url.toString() ?? start.toString(),
         companyNumberAssertions: [],

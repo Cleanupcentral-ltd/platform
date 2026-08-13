@@ -47,6 +47,10 @@ import {
 } from "./adapters/web/first-party-company-number.js";
 
 import {
+  FirstPartyResearchClient,
+} from "./adapters/web/first-party-research.js";
+
+import {
   createWixContactEnquiryRepository,
 } from "./adapters/wix/create-wix-contact-enquiry-repository.js";
 
@@ -98,6 +102,10 @@ import {
   createCompanyEnrichmentService,
   type CompanyEnrichmentService,
 } from "./application/enrich-companies.js";
+
+import {
+  createAutomaticQualificationService,
+} from "./application/qualify-leads.js";
 
 import {
   createContactEnquiryPersistenceService,
@@ -209,6 +217,9 @@ export interface BuildAppOptions {
   readonly companyEnrichmentEnabled?:
     boolean;
 
+  readonly automaticQualificationEnabled?:
+    boolean;
+
   readonly companyEnrichmentService?:
     CompanyEnrichmentService;
 
@@ -313,6 +324,10 @@ export async function buildApp(
     options.companyEnrichmentEnabled ??
     env.LEAD_AUTO_COMPANY_ENRICHMENT_V1;
 
+  const automaticQualificationEnabled =
+    options.automaticQualificationEnabled ??
+    env.LEAD_AUTOMATIC_QUALIFICATION_V1;
+
   const app = Fastify({
     bodyLimit: 1_048_576,
 
@@ -394,6 +409,7 @@ export async function buildApp(
             timeoutMs:
               env.SUPABASE_DATA_TIMEOUT_MS,
             companyEnrichmentEnabled,
+            automaticQualificationEnabled,
           });
         return defaultLeadReviewRepository;
       };
@@ -442,10 +458,8 @@ export async function buildApp(
           "Companies House verification is required for automatic company enrichment.",
         );
       }
-      companyEnrichmentService =
-        createCompanyEnrichmentService({
-          repository:
-            new SupabaseCompanyEnrichmentRepository({
+      const enrichmentRepository =
+        new SupabaseCompanyEnrichmentRepository({
               supabaseUrl:
                 requiredEnvironmentValue(
                   env.SUPABASE_URL,
@@ -458,21 +472,49 @@ export async function buildApp(
                 ),
               timeoutMs:
                 env.SUPABASE_DATA_TIMEOUT_MS,
-            }),
-          firstPartyProvider:
-            new FirstPartyCompanyNumberClient({
-              timeoutMs:
-                env.LEAD_WEBSITE_LOOKUP_TIMEOUT_MS,
-              maximumBytes:
-                env.LEAD_WEBSITE_LOOKUP_MAX_BYTES,
-            }),
-          companiesHouseService:
-            companiesHouseVerificationService,
-          batchSize:
-            env.LEAD_COMPANY_ENRICHMENT_BATCH_SIZE,
-          leaseSeconds:
-            env.LEAD_COMPANY_ENRICHMENT_LEASE_SECONDS,
         });
+      companyEnrichmentService =
+        automaticQualificationEnabled
+          ? createAutomaticQualificationService({
+              repository:
+                enrichmentRepository,
+              firstPartyProvider:
+                new FirstPartyResearchClient({
+                  timeoutMs:
+                    env.LEAD_WEBSITE_LOOKUP_TIMEOUT_MS,
+                  maximumBytes:
+                    env.LEAD_WEBSITE_LOOKUP_MAX_BYTES,
+                  maximumPages:
+                    env.LEAD_WEBSITE_RESEARCH_MAX_PAGES,
+                  requestRetries:
+                    env.LEAD_WEBSITE_REQUEST_RETRIES,
+                }),
+              companiesHouseService:
+                companiesHouseVerificationService,
+              leadReviewService:
+                leadReviewService!,
+              batchSize:
+                env.LEAD_COMPANY_ENRICHMENT_BATCH_SIZE,
+              leaseSeconds:
+                env.LEAD_COMPANY_ENRICHMENT_LEASE_SECONDS,
+            })
+          : createCompanyEnrichmentService({
+              repository:
+                enrichmentRepository,
+              firstPartyProvider:
+                new FirstPartyCompanyNumberClient({
+                  timeoutMs:
+                    env.LEAD_WEBSITE_LOOKUP_TIMEOUT_MS,
+                  maximumBytes:
+                    env.LEAD_WEBSITE_LOOKUP_MAX_BYTES,
+                }),
+              companiesHouseService:
+                companiesHouseVerificationService,
+              batchSize:
+                env.LEAD_COMPANY_ENRICHMENT_BATCH_SIZE,
+              leaseSeconds:
+                env.LEAD_COMPANY_ENRICHMENT_LEASE_SECONDS,
+            });
       defaultCompanyEnrichmentService = true;
     }
 
@@ -572,6 +614,7 @@ export async function buildApp(
       companiesHouseVerificationService,
       companyEnrichmentEnabled,
       companyEnrichmentService,
+      automaticQualificationEnabled,
     });
   }
 

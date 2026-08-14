@@ -68,6 +68,13 @@ export interface FirstPartyResearchResult {
       readonly sourceExcerpt: string;
       readonly contentSha256: string;
     }[];
+  readonly charityNumberAssertions?:
+    readonly {
+      readonly charityNumber: string;
+      readonly sourceUrl: string;
+      readonly sourceExcerpt: string;
+      readonly contentSha256: string;
+    }[];
   readonly facts: readonly AutomaticResearchFact[];
   readonly visitedUrls: readonly string[];
   readonly truncatedPageCount: number;

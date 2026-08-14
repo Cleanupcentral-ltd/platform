@@ -78,6 +78,7 @@ const PERSISTENT_SOURCE_TYPES =
   new Set([
     "first_party_website",
     "companies_house",
+    "charity_commission",
   ]);
 
 function verifiedEvidence(
@@ -380,13 +381,17 @@ function confidenceScore(
       item.sourceType ===
         "first_party_website",
   );
-  const companiesHouse =
+  const officialRegister =
     persistentEvidence(
       prospect,
     ).filter(
       (item) =>
-        item.sourceType ===
+        [
           "companies_house",
+          "charity_commission",
+        ].includes(
+          item.sourceType,
+        ),
     );
   const currentSourceUrls =
     new Set(
@@ -398,18 +403,18 @@ function confidenceScore(
   if (
     firstParty.length > 0 &&
     (
-      companiesHouse.length > 0 ||
+      officialRegister.length > 0 ||
       currentSourceUrls.size > 1
     )
   ) {
     return {
       points: 2,
       explanation:
-        "First-party evidence is corroborated by Companies House or a second current source.",
+        "First-party evidence is corroborated by an official register or a second current source.",
       evidenceIds:
         evidenceIds([
           ...firstParty,
-          ...companiesHouse,
+          ...officialRegister,
           ...persistentEvidence(
             prospect,
           ),

@@ -330,3 +330,115 @@ test(
     );
   },
 );
+
+test(
+  "charity-number evidence uses the Charity Commission path without a Companies House name search",
+  async () => {
+    const capture: {
+      complete?:
+        CompleteAutomaticQualificationInput;
+    } = {};
+    let charityVerifications = 0;
+    let companiesHouseSearches = 0;
+
+    const charityResearch:
+      FirstPartyResearchResult = {
+        ...research,
+        canonicalWebsiteUrl:
+          "https://example.org/",
+        visitedUrls: [
+          "https://example.org/",
+        ],
+        organisationType: "charity",
+        charityNumberAssertions: [{
+          charityNumber: "1133537",
+          sourceUrl:
+            "https://example.org/",
+          sourceExcerpt:
+            "Registered charity - 1133537",
+          contentSha256:
+            "b".repeat(64),
+        }],
+      };
+
+    const service =
+      createAutomaticQualificationService({
+        repository:
+          repository(capture),
+        firstPartyProvider: {
+          async research() {
+            return charityResearch;
+          },
+        },
+        charityCommissionService: {
+          async verifyAutomatically() {
+            charityVerifications += 1;
+            return {
+              charityName:
+                "M.A. CENTRE UK",
+              charityNumber:
+                "1133537",
+              businessStatus:
+                "active",
+              evidenceIds: [],
+            };
+          },
+        },
+        companiesHouseService: {
+          async search() {
+            companiesHouseSearches += 1;
+            return [];
+          },
+          async verify() {
+            throw new Error(
+              "not used",
+            );
+          },
+          async verifyAutomatically() {
+            throw new Error(
+              "not used",
+            );
+          },
+        },
+        leadReviewService: {
+          async assess() {
+            return assessment(
+              false,
+              [
+                "unresolved_subscriber_type",
+              ],
+            );
+          },
+          async getProspect() {
+            return prospect(false);
+          },
+        },
+        batchSize: 5,
+        leaseSeconds: 180,
+        activationTotalLimit: null,
+      });
+
+    await service.runBatch();
+
+    assert.equal(
+      charityVerifications,
+      1,
+    );
+    assert.equal(
+      companiesHouseSearches,
+      0,
+    );
+    assert.equal(
+      capture.complete
+        ?.enrichmentStatus,
+      "auto_verified",
+    );
+    assert.ok(
+      Array.isArray(
+        capture.complete
+          ?.researchSummary
+          .charityNumbers,
+      ),
+    );
+  },
+);

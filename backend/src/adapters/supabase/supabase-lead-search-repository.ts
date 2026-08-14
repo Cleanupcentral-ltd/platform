@@ -29,6 +29,14 @@ const captureResponseSchema =
     }),
   ).length(1);
 
+const googleProspectResponseSchema =
+  z.array(
+    z.object({
+      place_id: z.string().min(1),
+      prospect_id: z.string().uuid(),
+    }),
+  );
+
 export interface SupabaseLeadSearchRepositoryOptions {
   readonly supabaseUrl: string;
   readonly secretKey: string;
@@ -226,6 +234,43 @@ implements LeadSearchRepository {
         parsed.data[0]!
           .created_prospect_ids,
     };
+  }
+
+  async resolveGoogleProspectIds(
+    placeIds: readonly string[],
+  ): Promise<ReadonlyMap<string, string>> {
+    if (placeIds.length === 0) {
+      return new Map();
+    }
+
+    const response = await this.request(
+      "/rpc/resolve_google_prospect_ids",
+      {
+        method: "POST",
+        headers: {
+          "content-type":
+            "application/json",
+        },
+        body: JSON.stringify({
+          p_place_ids: [...placeIds],
+        }),
+      },
+    );
+    const parsed =
+      googleProspectResponseSchema.safeParse(
+        await response.json(),
+      );
+    if (!parsed.success) {
+      throw new Error(
+        "Lead store returned invalid Google prospect references.",
+      );
+    }
+    return new Map(
+      parsed.data.map((row) => [
+        row.place_id,
+        row.prospect_id,
+      ]),
+    );
   }
 
   async failSearch(

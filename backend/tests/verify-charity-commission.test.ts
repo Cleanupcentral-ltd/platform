@@ -15,7 +15,7 @@ const FOUNDER_ID =
   "22222222-2222-4222-8222-222222222222";
 
 test(
-  "records exact first-party charity-number verification and active register status",
+  "records exact first-party charity-number verification and live R status as active",
   async () => {
     let recorded:
       RecordAutomaticCharityCommissionVerificationInput |
@@ -40,10 +40,99 @@ test(
           ) {
             assert.equal(
               registeredNumber,
-              "1133537",
+              "1160442",
             );
             assert.equal(suffix, 0);
 
+            return {
+              organisationNumber:
+                5058181,
+              registeredCharityNumber:
+                "1160442",
+              groupSubsidSuffix: 0,
+              charityName:
+                "HONOR OAK COMMUNITY ASSOCIATION",
+              registrationStatus: "R",
+              dateOfRegistration:
+                "2015-02-11T00:00:00",
+              dateOfRemoval: null,
+              officialUrl:
+                "https://api.charitycommission.gov.uk/register/api/charityRegNumber/1160442/0",
+            };
+          },
+        },
+      );
+
+    const result =
+      await service.verifyAutomatically(
+        FOUNDER_ID,
+        PROSPECT_ID,
+        1,
+        {
+          charityNumber:
+            "1160442",
+          sourceUrl:
+            "https://honoroakcommunitycentre.org/contact-us/",
+          sourceExcerpt:
+            "Honor Oak Community Association, Charity Number: 1160442",
+          contentSha256:
+            "a".repeat(64),
+        },
+      );
+
+    assert.equal(
+      result.businessStatus,
+      "active",
+    );
+    assert.equal(
+      result.charityName,
+      "HONOR OAK COMMUNITY ASSOCIATION",
+    );
+    assert.equal(
+      recorded
+        ?.firstPartyAssertion
+        .charityNumber,
+      "1160442",
+    );
+    assert.deepEqual(
+      recorded?.facts.map(
+        (fact) => [
+          fact.factName,
+          fact.factValue,
+        ],
+      ),
+      [
+        [
+          "registered_charity_name",
+          "HONOR OAK COMMUNITY ASSOCIATION",
+        ],
+        [
+          "charity_number",
+          "1160442",
+        ],
+        [
+          "business_status",
+          "active",
+        ],
+      ],
+    );
+  },
+);
+
+test(
+  "retains Registered status compatibility",
+  async () => {
+    const service =
+      createCharityCommissionVerificationService(
+        {
+          async recordAutomaticCharityCommissionVerification() {
+            return [
+              "33333333-3333-4333-8333-333333333333",
+            ];
+          },
+        },
+        {
+          async getByRegisteredNumber() {
             return {
               organisationNumber:
                 1234567,
@@ -58,7 +147,7 @@ test(
                 "2010-01-01",
               dateOfRemoval: null,
               officialUrl:
-                "https://api.charitycommission.gov.uk/register/charityRegNumber/1133537/0",
+                "https://api.charitycommission.gov.uk/register/api/charityRegNumber/1133537/0",
             };
           },
         },
@@ -75,47 +164,15 @@ test(
           sourceUrl:
             "https://www.bromleyvenuehire.co.uk/",
           sourceExcerpt:
-            "M.A.Centre, UK Registered charity - 1133537",
+            "M.A. Centre, UK Registered charity - 1133537",
           contentSha256:
-            "a".repeat(64),
+            "b".repeat(64),
         },
       );
 
     assert.equal(
       result.businessStatus,
       "active",
-    );
-    assert.equal(
-      result.charityName,
-      "M.A. CENTRE UK",
-    );
-    assert.equal(
-      recorded
-        ?.firstPartyAssertion
-        .charityNumber,
-      "1133537",
-    );
-    assert.deepEqual(
-      recorded?.facts.map(
-        (fact) => [
-          fact.factName,
-          fact.factValue,
-        ],
-      ),
-      [
-        [
-          "registered_charity_name",
-          "M.A. CENTRE UK",
-        ],
-        [
-          "charity_number",
-          "1133537",
-        ],
-        [
-          "business_status",
-          "active",
-        ],
-      ],
     );
   },
 );

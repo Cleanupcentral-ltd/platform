@@ -38,6 +38,7 @@ const automaticQualificationJobSchema = z.object({
   ]),
   website_url: z.string().nullable(),
   company_number: z.string().nullable(),
+  google_place_id: z.string().nullable(),
   attempt_count: z.number().int().min(1),
 });
 
@@ -242,7 +243,7 @@ implements CompanyEnrichmentRepository,
     leaseSeconds: number,
   ): Promise<readonly AutomaticQualificationJob[]> {
     const response = await this.request(
-      "/rpc/claim_automatic_qualification_jobs",
+      "/rpc/claim_automatic_qualification_jobs_v2",
       {
         method: "POST",
         headers: {
@@ -268,6 +269,7 @@ implements CompanyEnrichmentRepository,
       sector: job.sector,
       websiteUrl: job.website_url,
       companyNumber: job.company_number,
+      googlePlaceId: job.google_place_id,
       attemptCount: job.attempt_count,
     }));
   }
@@ -312,6 +314,20 @@ implements CompanyEnrichmentRepository,
         "Automatic research store returned an invalid response.",
       );
     }
+
+    await this.request(
+      "/rpc/promote_verified_google_prospect_identity",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          p_prospect_id: prospectId,
+        }),
+      },
+    );
+
     return parsed.data[0]!.evidence_ids;
   }
 

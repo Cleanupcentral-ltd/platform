@@ -37,6 +37,8 @@ import {
   type QueueFilter,
 } from "./redesign-helpers";
 
+import "./verification-footer.css";
+
 interface LeadReviewViewProps {
   readonly backendUrl: string;
   readonly accessToken: string;
@@ -144,7 +146,6 @@ export function LeadReviewView({
   setSelectedId,
   refreshProspects,
   markViewed,
-  onPrepareOutreach,
   onMessage,
   onError,
 }: LeadReviewViewProps) {
@@ -212,6 +213,9 @@ export function LeadReviewView({
     : prospects.find(
         (item) => item.id === selectedId,
       ) ?? null;
+  const selectedQueue = selectedSummary === null
+    ? null
+    : queueKey(selectedSummary);
 
   async function loadReview(
     prospectId: string,
@@ -284,26 +288,6 @@ export function LeadReviewView({
       await refreshCurrent();
       onMessage(
         "Founder-priority automatic check queued.",
-      );
-    } catch (error) {
-      onError(messageFrom(error));
-    } finally {
-      setWorking(false);
-    }
-  }
-
-  async function recalculate() {
-    if (selectedId === null) return;
-    setWorking(true);
-    try {
-      const result = await assessProspect(
-        backendUrl,
-        accessToken,
-        selectedId,
-      );
-      await refreshCurrent();
-      onMessage(
-        `Score recalculated: ${result.totalScore}/10.`,
       );
     } catch (error) {
       onError(messageFrom(error));
@@ -636,52 +620,6 @@ export function LeadReviewView({
                   </div>
                 )}
 
-              <div className="le-evidence-actions-bar">
-                {selectedSummary !== null &&
-                  ![
-                    "ready",
-                    "excluded",
-                  ].includes(
-                    queueKey(selectedSummary),
-                  ) && (
-                    <button
-                      type="button"
-                      className="le-dark-button"
-                      disabled={working}
-                      onClick={() =>
-                        void retryAutomaticCheck()
-                      }
-                    >
-                      Run automatic check
-                    </button>
-                  )}
-                <button
-                  type="button"
-                  className="le-dark-outline"
-                  disabled={working}
-                  onClick={() =>
-                    void recalculate()
-                  }
-                >
-                  Recalculate score
-                </button>
-                {selectedSummary !== null &&
-                  queueKey(selectedSummary) ===
-                    "ready" && (
-                    <button
-                      type="button"
-                      className="le-gold-button"
-                      onClick={() =>
-                        onPrepareOutreach(
-                          selectedSummary.id,
-                        )
-                      }
-                    >
-                      Prepare outreach
-                    </button>
-                  )}
-              </div>
-
               <div className="le-evidence-list">
                 {review.evidence.map(
                   (evidence) => (
@@ -929,25 +867,56 @@ export function LeadReviewView({
               </details>
 
               {selectedSummary !== null &&
-                queueKey(selectedSummary) !==
-                  "excluded" && (
-                  <div className="le-exclude-zone">
-                    <div>
-                      <strong>Exclude prospect</strong>
-                      <p>
-                        Adds a durable do-not-contact record. Use only when the prospect should not be contacted.
-                      </p>
+                selectedQueue !== "ready" && (
+                  <div
+                    className={`le-verification-footer le-verification-footer-${selectedQueue}`}
+                  >
+                    <div className="le-verification-footer-copy">
+                      <span>VERIFICATION STATUS</span>
+                      <strong>
+                        {selectedQueue === "review" &&
+                          "Verification Unresolved"}
+                        {selectedQueue === "queued" &&
+                          "Awaiting Verification"}
+                        {selectedQueue === "processing" &&
+                          "Verification in progress"}
+                        {selectedQueue === "excluded" &&
+                          "Excluded"}
+                      </strong>
+                      {selectedQueue === "excluded" && (
+                        <p>
+                          This prospect is excluded from outreach. No verification action is available.
+                        </p>
+                      )}
                     </div>
-                    <button
-                      type="button"
-                      className="le-danger-button"
-                      disabled={working}
-                      onClick={() =>
-                        void excludeProspect()
-                      }
-                    >
-                      Exclude prospect
-                    </button>
+
+                    {(selectedQueue === "review" ||
+                      selectedQueue === "queued") && (
+                      <div className="le-verification-footer-actions">
+                        <button
+                          type="button"
+                          className="le-dark-button"
+                          disabled={working}
+                          onClick={() =>
+                            void retryAutomaticCheck()
+                          }
+                        >
+                          {selectedQueue === "review"
+                            ? "Retry automatic check"
+                            : "Run automatic check now"}
+                        </button>
+                        <button
+                          type="button"
+                          className="le-danger-button"
+                          disabled={working}
+                          onClick={() =>
+                            void excludeProspect()
+                          }
+                        >
+                          Exclude prospect
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
             </>

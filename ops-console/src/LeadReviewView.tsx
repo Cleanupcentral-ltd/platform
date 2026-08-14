@@ -43,6 +43,7 @@ import {
 
 import "./verification-footer.css";
 import "./evidence-view.css";
+import "./evidence-review-layout.css";
 
 interface LeadReviewViewProps {
   readonly backendUrl: string;
@@ -137,6 +138,17 @@ const BLOCKER_LABELS:
       "The available email is not approved for outreach.",
   };
 
+const COMPANY_TYPE_LABELS:
+  Readonly<Record<string, string>> = {
+    ltd: "Private limited company",
+    plc: "Public limited company",
+    llp: "Limited liability partnership",
+    "private-limited-guarant-nsc":
+      "Private company limited by guarantee",
+    "private-limited-guarant-nsc-limited-exemption":
+      "Private company limited by guarantee",
+  };
+
 function messageFrom(error: unknown): string {
   return error instanceof Error
     ? error.message
@@ -150,6 +162,21 @@ function sourceLabel(value: string): string {
   } catch {
     return "Source";
   }
+}
+
+function companyTypeLabel(
+  value: string | null,
+): string | null {
+  if (value === null) return null;
+  return COMPANY_TYPE_LABELS[value] ??
+    value.replaceAll("-", " ");
+}
+
+function titleCase(value: string): string {
+  return value
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (letter) =>
+      letter.toUpperCase());
 }
 
 export function LeadReviewView({
@@ -230,6 +257,85 @@ export function LeadReviewView({
         ),
     [review],
   );
+
+  const detailedEvidenceGroups = useMemo(
+    () => evidenceGroups.filter((group) =>
+      ![
+        "website_url",
+        "google_place_id",
+        "company_number",
+      ].includes(
+        group.representative.fieldName,
+      )),
+    [evidenceGroups],
+  );
+
+  const verifiedWebsite = useMemo(
+    () => evidenceGroups.find((group) =>
+      group.status === "verified" &&
+      group.representative.fieldName ===
+        "website_url") ?? null,
+    [evidenceGroups],
+  );
+
+  const verifiedPhone = useMemo(() => {
+    if (review === null) return null;
+    return review.contacts.find((contact) =>
+      contact.contactType === "phone" &&
+      contact.verificationStatus === "verified") ??
+      null;
+  }, [review]);
+
+  const mapEvidence = useMemo(() => {
+    if (review === null) return null;
+    return review.evidence.find((item) =>
+      item.sourceType === "google_places" &&
+      item.fieldName === "google_place_id") ??
+      null;
+  }, [review]);
+
+  const companiesHouseEvidence = useMemo(() => {
+    if (review === null) return [];
+    return review.evidence.filter((item) =>
+      item.sourceType === "companies_house" &&
+      item.verificationStatus === "verified");
+  }, [review]);
+
+  const companiesHouseNumber = useMemo(
+    () => companiesHouseEvidence.find((item) =>
+      item.fieldName === "company_number") ?? null,
+    [companiesHouseEvidence],
+  );
+
+  const companiesHouseName = useMemo(
+    () => companiesHouseEvidence.find((item) =>
+      item.fieldName === "business_name")
+      ?.fieldValue ?? null,
+    [companiesHouseEvidence],
+  );
+
+  const companiesHouseStatus = useMemo(
+    () => companiesHouseEvidence.find((item) =>
+      item.fieldName === "business_status")
+      ?.fieldValue ?? null,
+    [companiesHouseEvidence],
+  );
+
+  const companiesHouseSubscriber = useMemo(
+    () => companiesHouseEvidence.find((item) =>
+      item.fieldName === "subscriber_type")
+      ?.fieldValue ?? null,
+    [companiesHouseEvidence],
+  );
+
+  const verifiedCompanyMatch = useMemo(() => {
+    if (companiesHouseNumber === null) {
+      return null;
+    }
+    return companyMatches.find((company) =>
+      company.companyNumber ===
+        companiesHouseNumber.fieldValue) ?? null;
+  }, [companiesHouseNumber, companyMatches]);
 
   const verifiedFactCount = useMemo(
     () => evidenceGroups.filter(
@@ -469,6 +575,72 @@ export function LeadReviewView({
   const controlled =
     CONTROLLED_VALUES[factName];
 
+  const companySearch = (
+    <>
+      <form
+        className="le-company-search"
+        onSubmit={searchCompaniesHouse}
+      >
+        <input
+          value={companyQuery}
+          onChange={(event) =>
+            setCompanyQuery(
+              event.target.value,
+            )
+          }
+          required
+        />
+        <button
+          type="submit"
+          className="le-dark-outline"
+          disabled={working}
+        >
+          Search
+        </button>
+      </form>
+      <div className="le-company-matches">
+        {companyMatches.map(
+          (company) => (
+            <div
+              className="le-company-match"
+              key={company.companyNumber}
+            >
+              <div>
+                <strong>
+                  {company.companyName}
+                </strong>
+                <span>
+                  {company.companyNumber}
+                  {" · "}
+                  {company.companyStatus}
+                </span>
+                <a
+                  href={company.officialUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Official record ↗
+                </a>
+              </div>
+              <button
+                type="button"
+                className="le-dark-outline"
+                disabled={working}
+                onClick={() =>
+                  void confirmCompany(
+                    company.companyNumber,
+                  )
+                }
+              >
+                Confirm match
+              </button>
+            </div>
+          ),
+        )}
+      </div>
+    </>
+  );
+
   return (
     <section className="le-view">
       <div className="le-view-heading">
@@ -580,309 +752,367 @@ export function LeadReviewView({
           )}
         </div>
 
-        <aside className="le-evidence-panel">
-          {review === null ? (
-            <div className="le-evidence-empty">
-              <p className="le-dark-overline">
-                EVIDENCE REVIEW
-              </p>
-              <h3>
-                Choose a prospect to inspect.
-              </h3>
-              <p>
-                Seen / Unseen remains a separate Find Prospects state; this panel is only for qualification evidence.
-              </p>
+        <div
+          className={
+            selectedSummary === null
+              ? "le-evidence-column"
+              : "le-evidence-column has-selection"
+          }
+        >
+          {selectedSummary !== null && (
+            <div className="le-mobile-selected-prospect">
+              <span className="le-row-copy">
+                <strong>
+                  {selectedSummary.businessName}
+                </strong>
+                <small>
+                  {selectedSummary.primaryPostcode ??
+                    "Postcode pending"}
+                  {" · "}
+                  {sectorLabel(
+                    selectedSummary.sector,
+                  )}
+                </small>
+              </span>
+              <span className="le-row-score">
+                {score(selectedSummary)}/10
+              </span>
+              <span
+                className={
+                  queueClass(selectedSummary)
+                }
+              >
+                {queueLabel(selectedSummary)}
+              </span>
             </div>
-          ) : (
-            <>
-              <div className="le-evidence-heading">
-                <div>
-                  <p className="le-dark-overline">
-                    EVIDENCE REVIEW
-                  </p>
-                  <h3>{review.businessName}</h3>
-                  <p>
-                    {review.primaryPostcode ??
-                      "Postcode pending"}
-                    {" · "}
-                    {sectorLabel(review.sector)}
-                  </p>
-                </div>
-                <span className="le-score le-score-dark">
-                  {review.latestAssessment
-                    ?.totalScore ?? 0}
-                </span>
+          )}
+
+          <aside
+            className="le-evidence-panel"
+            id="lead-evidence-review"
+          >
+            {review === null ? (
+              <div className="le-evidence-empty">
+                <p className="le-dark-overline">
+                  EVIDENCE REVIEW
+                </p>
+                <h3>
+                  Choose a prospect to inspect.
+                </h3>
+                <p>
+                  Seen / Unseen remains a separate Find Prospects state; this panel is only for qualification evidence.
+                </p>
               </div>
-
-              {selectedSummary !== null && (
-                <div className="le-evidence-statusbar">
-                  <span
-                    className={
-                      queueClass(selectedSummary)
-                    }
-                  >
-                    {queueLabel(selectedSummary)}
-                  </span>
-                  <span>
-                    {verifiedFactCount} verified facts
+            ) : (
+              <>
+                <div className="le-evidence-heading">
+                  <div>
+                    <p className="le-dark-overline">
+                      EVIDENCE REVIEW
+                    </p>
+                    <h3>{review.businessName}</h3>
+                    <p>
+                      {review.primaryPostcode ??
+                        "Postcode pending"}
+                      {" · "}
+                      {sectorLabel(review.sector)}
+                    </p>
+                  </div>
+                  <span className="le-score le-score-dark">
+                    {review.latestAssessment
+                      ?.totalScore ?? 0}
                   </span>
                 </div>
-              )}
 
-              {review.latestAssessment !== null &&
-                review.latestAssessment.blockers.length > 0 && (
-                  <div className="le-blocker-panel">
-                    <strong>Current blockers</strong>
-                    <ul>
-                      {review.latestAssessment.blockers.map(
-                        (blocker) => (
-                          <li key={blocker}>
-                            {BLOCKER_LABELS[blocker] ??
-                              blocker}
-                          </li>
-                        ),
-                      )}
-                    </ul>
+                {selectedSummary !== null && (
+                  <div className="le-evidence-statusbar">
+                    <span
+                      className={
+                        queueClass(selectedSummary)
+                      }
+                    >
+                      {queueLabel(selectedSummary)}
+                    </span>
+                    <span>
+                      {verifiedFactCount} verified facts
+                    </span>
                   </div>
                 )}
 
-              <details className="le-dark-details le-company-verification-primary">
-                <summary>
-                  Companies House verification
-                </summary>
-                <form
-                  className="le-company-search"
-                  onSubmit={searchCompaniesHouse}
-                >
-                  <input
-                    value={companyQuery}
-                    onChange={(event) =>
-                      setCompanyQuery(
-                        event.target.value,
-                      )
-                    }
-                    required
-                  />
-                  <button
-                    type="submit"
-                    className="le-dark-outline"
-                    disabled={working}
-                  >
-                    Search
-                  </button>
-                </form>
-                <div className="le-company-matches">
-                  {companyMatches.map(
-                    (company) => (
-                      <div
-                        className="le-company-match"
-                        key={company.companyNumber}
-                      >
+                <section className="le-evidence-quick-block">
+                  <p className="le-evidence-section-title">
+                    VERIFIED EVIDENCE
+                  </p>
+                  <div className="le-evidence-quick-list">
+                    <div>
+                      <span>Business website</span>
+                      {verifiedWebsite === null ? (
+                        <strong>Not verified</strong>
+                      ) : (
+                        <a
+                          href={
+                            verifiedWebsite
+                              .representative
+                              .sourceUrl
+                          }
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          Source ↗
+                        </a>
+                      )}
+                    </div>
+                    <div>
+                      <span>Public contact number</span>
+                      <strong>
+                        {verifiedPhone?.contactValue ??
+                          "Not verified"}
+                      </strong>
+                    </div>
+                    <div>
+                      <span>Location source</span>
+                      {mapEvidence === null ? (
+                        <strong>No map source</strong>
+                      ) : (
+                        <a
+                          href={mapEvidence.sourceUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          Map ↗
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                </section>
+
+                {review.latestAssessment !== null &&
+                  review.latestAssessment.blockers.length > 0 && (
+                    <div className="le-blocker-panel">
+                      <strong>Current blockers</strong>
+                      <ul>
+                        {review.latestAssessment.blockers.map(
+                          (blocker) => (
+                            <li key={blocker}>
+                              {BLOCKER_LABELS[blocker] ??
+                                blocker}
+                            </li>
+                          ),
+                        )}
+                      </ul>
+                    </div>
+                  )}
+
+                <section className="le-company-assist">
+                  <p className="le-evidence-section-title">
+                    COMPANIES HOUSE ASSIST
+                  </p>
+
+                  {companiesHouseNumber !== null ? (
+                    <>
+                      <p className="le-company-assist-copy">
+                        Automatically confirmed against Companies House.
+                      </p>
+                      <div className="le-company-confirmed-card">
                         <div>
                           <strong>
-                            {company.companyName}
+                            {companiesHouseName ??
+                              review.businessName}
                           </strong>
                           <span>
-                            {company.companyNumber}
+                            {companiesHouseStatus === null
+                              ? "Status verified"
+                              : titleCase(
+                                  companiesHouseStatus,
+                                )}
                             {" · "}
-                            {company.companyStatus}
+                            {companyTypeLabel(
+                              verifiedCompanyMatch
+                                ?.companyType ?? null,
+                            ) ??
+                              (companiesHouseSubscriber ===
+                                null
+                                ? "Companies House record"
+                                : `${titleCase(
+                                    companiesHouseSubscriber,
+                                  )} subscriber`)}
                           </span>
+                          <small>
+                            Company number: {companiesHouseNumber.fieldValue}
+                          </small>
+                          {verifiedCompanyMatch
+                            ?.registeredOfficeAddress
+                            .formatted !== null &&
+                            verifiedCompanyMatch
+                              ?.registeredOfficeAddress
+                              .formatted !== undefined && (
+                              <small>
+                                Registered office: {verifiedCompanyMatch.registeredOfficeAddress.formatted}
+                              </small>
+                            )}
                           <a
-                            href={company.officialUrl}
+                            href={
+                              companiesHouseNumber
+                                .sourceUrl
+                            }
                             target="_blank"
                             rel="noreferrer"
                           >
                             Official record ↗
                           </a>
                         </div>
-                        <button
-                          type="button"
-                          className="le-dark-outline"
-                          disabled={working}
-                          onClick={() =>
-                            void confirmCompany(
-                              company.companyNumber,
-                            )
-                          }
-                        >
-                          Confirm match
-                        </button>
+                        <span className="le-company-verified-badge">
+                          VERIFIED
+                        </span>
                       </div>
-                    ),
+                      <details className="le-company-assist-search">
+                        <summary>
+                          Check a different Companies House match
+                        </summary>
+                        {companySearch}
+                      </details>
+                    </>
+                  ) : (
+                    <>
+                      <p className="le-company-assist-copy">
+                        No Companies House match has been confirmed yet. Search the official register when company verification is appropriate for this organisation.
+                      </p>
+                      {companySearch}
+                    </>
                   )}
-                </div>
-              </details>
+                </section>
 
-              <div className="le-evidence-list">
-                {evidenceGroups.map(
-                  (group) => (
-                    <div
-                      className="le-evidence-row"
-                      key={group.key}
-                    >
-                      <div>
-                        <strong>{group.label}</strong>
-                        <span>{group.value}</span>
-                        <div className="le-evidence-source-stack">
-                          <a
-                            href={group.representative.sourceUrl}
-                            target="_blank"
-                            rel="noreferrer"
+                {detailedEvidenceGroups.length > 0 && (
+                  <section className="le-detailed-evidence">
+                    <p className="le-evidence-section-title">
+                      OTHER EVIDENCE
+                    </p>
+                    <div className="le-evidence-list">
+                      {detailedEvidenceGroups.map(
+                        (group) => (
+                          <div
+                            className="le-evidence-row"
+                            key={group.key}
                           >
-                            View source ↗
-                          </a>
-                          {group.sources.length > 1 && (
-                            <details className="le-evidence-source-details">
-                              <summary>
-                                {group.sources.length} evidence sources
-                              </summary>
-                              <div>
-                                {group.sources.map(
-                                  (source) => (
-                                    <a
-                                      key={source.id}
-                                      href={source.sourceUrl}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                    >
-                                      {sourceLabel(
-                                        source.sourceUrl,
-                                      )} ↗
-                                    </a>
-                                  ),
+                            <div>
+                              <strong>{group.label}</strong>
+                              <span>{group.value}</span>
+                              <div className="le-evidence-source-stack">
+                                <a
+                                  href={group.representative.sourceUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                >
+                                  View source ↗
+                                </a>
+                                {group.sources.length > 1 && (
+                                  <details className="le-evidence-source-details">
+                                    <summary>
+                                      {group.sources.length} evidence sources
+                                    </summary>
+                                    <div>
+                                      {group.sources.map(
+                                        (source) => (
+                                          <a
+                                            key={source.id}
+                                            href={source.sourceUrl}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                          >
+                                            {sourceLabel(
+                                              source.sourceUrl,
+                                            )} ↗
+                                          </a>
+                                        ),
+                                      )}
+                                    </div>
+                                  </details>
                                 )}
                               </div>
-                            </details>
-                          )}
-                        </div>
-                      </div>
-                      <div className="le-evidence-row-side">
-                        <span
-                          className={`le-evidence-state le-evidence-${group.status}`}
-                        >
-                          {group.status}
-                        </span>
-                        {group.status ===
-                          "unverified" && (
-                          <div className="le-mini-actions">
-                            <button
-                              type="button"
-                              disabled={working}
-                              onClick={() =>
-                                void decide(
-                                  group.representative.id,
-                                  "verified",
-                                )
-                              }
-                            >
-                              Verify
-                            </button>
-                            <button
-                              type="button"
-                              disabled={working}
-                              onClick={() =>
-                                void decide(
-                                  group.representative.id,
-                                  "rejected",
-                                )
-                              }
-                            >
-                              Reject
-                            </button>
+                            </div>
+                            <div className="le-evidence-row-side">
+                              <span
+                                className={`le-evidence-state le-evidence-${group.status}`}
+                              >
+                                {group.status}
+                              </span>
+                              {group.status ===
+                                "unverified" && (
+                                <div className="le-mini-actions">
+                                  <button
+                                    type="button"
+                                    disabled={working}
+                                    onClick={() =>
+                                      void decide(
+                                        group.representative.id,
+                                        "verified",
+                                      )
+                                    }
+                                  >
+                                    Verify
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={working}
+                                    onClick={() =>
+                                      void decide(
+                                        group.representative.id,
+                                        "rejected",
+                                      )
+                                    }
+                                  >
+                                    Reject
+                                  </button>
+                                </div>
+                              )}
+                            </div>
                           </div>
-                        )}
-                      </div>
-                    </div>
-                  ),
-                )}
-              </div>
-
-              <details className="le-dark-details">
-                <summary>
-                  Add verified evidence manually
-                </summary>
-                <form
-                  className="le-dark-form"
-                  onSubmit={submitEvidence}
-                >
-                  <label>
-                    <span>Source type</span>
-                    <select
-                      value={sourceType}
-                      onChange={(event) =>
-                        setSourceType(
-                          event.target.value as
-                            VerificationSourceType,
-                        )
-                      }
-                    >
-                      <option value="first_party_website">
-                        First-party website
-                      </option>
-                      <option value="companies_house">
-                        Companies House
-                      </option>
-                    </select>
-                  </label>
-                  <label>
-                    <span>Fact</span>
-                    <select
-                      value={factName}
-                      onChange={(event) => {
-                        const next =
-                          event.target.value as
-                            VerificationFactName;
-                        setFactName(next);
-                        setFactValue("");
-                      }}
-                    >
-                      {FACT_OPTIONS.map(
-                        (item) => (
-                          <option
-                            key={item.value}
-                            value={item.value}
-                          >
-                            {item.label}
-                          </option>
                         ),
                       )}
-                    </select>
-                  </label>
-                  <label className="le-span-2">
-                    <span>Source URL</span>
-                    <input
-                      name="sourceUrl"
-                      type="url"
-                      placeholder="https://"
-                      required
-                    />
-                  </label>
-                  <label className="le-span-2">
-                    <span>Verified value</span>
-                    {controlled === undefined ? (
-                      <input
-                        value={factValue}
-                        onChange={(event) =>
-                          setFactValue(
-                            event.target.value,
-                          )
-                        }
-                        required
-                      />
-                    ) : (
+                    </div>
+                  </section>
+                )}
+
+                <details className="le-dark-details">
+                  <summary>
+                    Add verified evidence manually
+                  </summary>
+                  <form
+                    className="le-dark-form"
+                    onSubmit={submitEvidence}
+                  >
+                    <label>
+                      <span>Source type</span>
                       <select
-                        value={factValue}
+                        value={sourceType}
                         onChange={(event) =>
-                          setFactValue(
-                            event.target.value,
+                          setSourceType(
+                            event.target.value as
+                              VerificationSourceType,
                           )
                         }
-                        required
                       >
-                        <option value="">
-                          Choose value
+                        <option value="first_party_website">
+                          First-party website
                         </option>
-                        {controlled.map(
+                        <option value="companies_house">
+                          Companies House
+                        </option>
+                      </select>
+                    </label>
+                    <label>
+                      <span>Fact</span>
+                      <select
+                        value={factName}
+                        onChange={(event) => {
+                          const next =
+                            event.target.value as
+                              VerificationFactName;
+                          setFactName(next);
+                          setFactValue("");
+                        }}
+                      >
+                        {FACT_OPTIONS.map(
                           (item) => (
                             <option
                               key={item.value}
@@ -893,81 +1123,128 @@ export function LeadReviewView({
                           ),
                         )}
                       </select>
-                    )}
-                  </label>
-                  <label className="le-span-2">
-                    <span>Supporting text</span>
-                    <textarea
-                      name="sourceExcerpt"
-                      rows={3}
-                    />
-                  </label>
-                  <button
-                    type="submit"
-                    className="le-gold-button"
-                    disabled={working}
-                  >
-                    Save verified evidence
-                  </button>
-                </form>
-              </details>
+                    </label>
+                    <label className="le-span-2">
+                      <span>Source URL</span>
+                      <input
+                        name="sourceUrl"
+                        type="url"
+                        placeholder="https://"
+                        required
+                      />
+                    </label>
+                    <label className="le-span-2">
+                      <span>Verified value</span>
+                      {controlled === undefined ? (
+                        <input
+                          value={factValue}
+                          onChange={(event) =>
+                            setFactValue(
+                              event.target.value,
+                            )
+                          }
+                          required
+                        />
+                      ) : (
+                        <select
+                          value={factValue}
+                          onChange={(event) =>
+                            setFactValue(
+                              event.target.value,
+                            )
+                          }
+                          required
+                        >
+                          <option value="">
+                            Choose value
+                          </option>
+                          {controlled.map(
+                            (item) => (
+                              <option
+                                key={item.value}
+                                value={item.value}
+                              >
+                                {item.label}
+                              </option>
+                            ),
+                          )}
+                        </select>
+                      )}
+                    </label>
+                    <label className="le-span-2">
+                      <span>Supporting text</span>
+                      <textarea
+                        name="sourceExcerpt"
+                        rows={3}
+                      />
+                    </label>
+                    <button
+                      type="submit"
+                      className="le-gold-button"
+                      disabled={working}
+                    >
+                      Save verified evidence
+                    </button>
+                  </form>
+                </details>
 
-              {selectedSummary !== null &&
-                selectedQueue !== "ready" && (
-                  <div
-                    className={`le-verification-footer le-verification-footer-${selectedQueue}`}
-                  >
-                    <div className="le-verification-footer-copy">
-                      <span>VERIFICATION STATUS</span>
-                      <strong>
-                        {selectedQueue === "review" &&
-                          "Verification Unresolved"}
-                        {selectedQueue === "queued" &&
-                          "Awaiting Verification"}
-                        {selectedQueue === "processing" &&
-                          "Verification in progress"}
-                        {selectedQueue === "excluded" &&
-                          "Excluded"}
-                      </strong>
-                      {selectedQueue === "excluded" && (
-                        <p>
-                          This prospect is excluded from outreach. No verification action is available.
-                        </p>
+                {selectedSummary !== null &&
+                  selectedQueue !== "ready" && (
+                    <div
+                      className={`le-verification-footer le-verification-footer-${selectedQueue}`}
+                    >
+                      <div className="le-verification-footer-copy">
+                        <span>VERIFICATION STATUS</span>
+                        <strong>
+                          {selectedQueue === "review" &&
+                            "Verification Unresolved"}
+                          {selectedQueue === "queued" &&
+                            "Awaiting Verification"}
+                          {selectedQueue === "processing" &&
+                            "Verification in progress"}
+                          {selectedQueue === "excluded" &&
+                            "Excluded"}
+                        </strong>
+                        {selectedQueue === "excluded" && (
+                          <p>
+                            This prospect is excluded from outreach. No verification action is available.
+                          </p>
+                        )}
+                      </div>
+
+                      {(selectedQueue === "review" ||
+                        selectedQueue === "queued") && (
+                        <div className="le-verification-footer-actions">
+                          <button
+                            type="button"
+                            className="le-dark-button"
+                            disabled={working}
+                            onClick={() =>
+                              void retryAutomaticCheck()
+                            }
+                          >
+                            {selectedQueue === "review"
+                              ? "Retry automatic check"
+                              : "Run automatic check now"}
+                          </button>
+                          <button
+                            type="button"
+                            className="le-danger-button"
+                            disabled={working}
+                            onClick={() =>
+                              void excludeProspect()
+                            }
+                          >
+                            Exclude prospect
+                          </button>
+                        </div>
                       )}
                     </div>
-
-                    {(selectedQueue === "review" ||
-                      selectedQueue === "queued") && (
-                      <div className="le-verification-footer-actions">
-                        <button
-                          type="button"
-                          className="le-dark-button"
-                          disabled={working}
-                          onClick={() =>
-                            void retryAutomaticCheck()
-                          }
-                        >
-                          {selectedQueue === "review"
-                            ? "Retry automatic check"
-                            : "Run automatic check now"}
-                        </button>
-                        <button
-                          type="button"
-                          className="le-danger-button"
-                          disabled={working}
-                          onClick={() =>
-                            void excludeProspect()
-                          }
-                        >
-                          Exclude prospect
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
-            </>
-          )}
-        </aside>
+                  )}
+              </>
+            )}
+          </aside>
+        </div>
       </div>
     </section>
   );

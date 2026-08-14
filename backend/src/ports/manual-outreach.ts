@@ -21,7 +21,7 @@ export interface ManualOutreachRepository {
     prospectId: string,
   ): Promise<readonly OutreachActivityRecord[]>;
 
-  listFollowUps?(
+  listFollowUps(
     limit: number,
   ): Promise<readonly ManualOutreachFollowUp[]>;
 

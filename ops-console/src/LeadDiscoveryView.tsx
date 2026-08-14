@@ -31,6 +31,8 @@ import {
   score,
 } from "./redesign-helpers";
 
+import "./lead-discovery-editorial.css";
+
 interface LeadDiscoveryViewProps {
   readonly backendUrl: string;
   readonly accessToken: string;
@@ -42,6 +44,9 @@ interface LeadDiscoveryViewProps {
     prospectId: string,
     ready: boolean,
   ) => void;
+  readonly exportEnabled?: boolean;
+  readonly exporting?: boolean;
+  readonly onExportCsv?: () => void;
   readonly onMessage: (
     message: string,
   ) => void;
@@ -77,18 +82,42 @@ function nullable(value: FormDataEntryValue | null):
   return cleaned === "" ? null : cleaned;
 }
 
+function compactSectorLabel(
+  sector: LeadSector | null,
+): string {
+  switch (sector) {
+    case "short_let_serviced_accommodation":
+      return "SHORT-LET / SERVICED";
+    case "offices_coworking":
+      return "OFFICE / COWORKING";
+    case "community_halls_event_venues":
+      return "COMMUNITY / EVENTS";
+    case "estate_letting_agents":
+      return "ESTATE AGENCY";
+    case "university_accommodation":
+      return "UNIVERSITY ACCOMMODATION";
+    case "other_commercial_spaces":
+      return "COMMERCIAL SPACE";
+    default:
+      return "LOCAL BUSINESS";
+  }
+}
+
 export function LeadDiscoveryView({
   backendUrl,
   accessToken,
   prospects,
   refreshProspects,
   onOpenProspect,
+  exportEnabled = false,
+  exporting = false,
+  onExportCsv,
   onMessage,
   onError,
 }: LeadDiscoveryViewProps) {
   const [searchMode, setSearchMode] =
     useState<"postcode" | "borough">(
-      "borough",
+      "postcode",
     );
   const [postcode, setPostcode] =
     useState("");
@@ -249,49 +278,50 @@ export function LeadDiscoveryView({
   }
 
   return (
-    <section className="le-view">
-      <div className="le-view-heading">
-        <div>
-          <p className="le-overline">
-            PROSPECT DISCOVERY
-          </p>
-          <h2>
-            Find local businesses worth reviewing.
-          </h2>
-          <p>
-            Search public business data by postcode or London borough. New results enter the existing automatic verification journey in the background.
-          </p>
-        </div>
+    <section className="le-view le-discovery">
+      <div className="le-discovery-heading">
+        <p className="le-overline">
+          LOCAL DISCOVERY
+        </p>
+        <h2>Build your local list</h2>
       </div>
 
       <form
         className="le-search-panel"
         onSubmit={submitSearch}
       >
-        <label>
-          <span>Search by</span>
-          <select
-            value={searchMode}
-            onChange={(event) =>
-              setSearchMode(
-                event.target.value as
-                  "postcode" | "borough",
-              )
-            }
-          >
-            <option value="postcode">
-              Postcode
-            </option>
-            <option value="borough">
-              Borough
-            </option>
-          </select>
-        </label>
+        <fieldset className="le-search-mode">
+          <legend>Search by</legend>
+          <label>
+            <input
+              type="radio"
+              name="searchMode"
+              value="postcode"
+              checked={searchMode === "postcode"}
+              onChange={() =>
+                setSearchMode("postcode")
+              }
+            />
+            <span>Postcode</span>
+          </label>
+          <label>
+            <input
+              type="radio"
+              name="searchMode"
+              value="borough"
+              checked={searchMode === "borough"}
+              onChange={() =>
+                setSearchMode("borough")
+              }
+            />
+            <span>Borough</span>
+          </label>
+        </fieldset>
 
         {searchMode === "postcode" ? (
           <>
             <label>
-              <span>UK postcode</span>
+              <span>Postcode</span>
               <input
                 value={postcode}
                 onChange={(event) =>
@@ -304,24 +334,27 @@ export function LeadDiscoveryView({
             </label>
             <label>
               <span>Radius</span>
-              <select
-                value={radiusMiles}
-                onChange={(event) =>
-                  setRadiusMiles(
-                    event.target.value,
-                  )
-                }
-              >
-                {[1, 2, 3, 5, 10, 15, 20, 30]
-                  .map((value) => (
-                    <option
-                      key={value}
-                      value={value}
-                    >
-                      {value} miles
-                    </option>
-                  ))}
-              </select>
+              <div className="le-radius-control">
+                <select
+                  value={radiusMiles}
+                  onChange={(event) =>
+                    setRadiusMiles(
+                      event.target.value,
+                    )
+                  }
+                >
+                  {[1, 2, 3, 5, 10, 15, 20, 30]
+                    .map((value) => (
+                      <option
+                        key={value}
+                        value={value}
+                      >
+                        {value}
+                      </option>
+                    ))}
+                </select>
+                <span>miles</span>
+              </div>
             </label>
           </>
         ) : (
@@ -364,7 +397,10 @@ export function LeadDiscoveryView({
                   key={item.value}
                   value={item.value}
                 >
-                  {item.label}
+                  {item.value ===
+                  ALL_LEAD_SECTORS
+                    ? "All sectors"
+                    : item.label}
                 </option>
               ),
             )}
@@ -373,65 +409,80 @@ export function LeadDiscoveryView({
 
         <button
           type="submit"
-          className="le-primary"
+          className="le-primary le-discovery-search-button"
           disabled={searching}
         >
           {searching
             ? "Searching…"
-            : "Search businesses"}
+            : "Search area →"}
         </button>
       </form>
 
       {hasSearched && (
         <div className="le-google-results">
-          <div className="le-results-toolbar">
-            <div className="le-view-filters">
-              <button
-                type="button"
-                className={
-                  resultFilter === "all"
-                    ? "is-active"
-                    : ""
-                }
-                onClick={() =>
-                  setResultFilter("all")
-                }
-              >
-                All ({results.length})
-              </button>
-              <button
-                type="button"
-                className={
-                  resultFilter === "unseen"
-                    ? "is-active"
-                    : ""
-                }
-                onClick={() =>
-                  setResultFilter("unseen")
-                }
-              >
-                Unseen ({unseenCount})
-              </button>
-              <button
-                type="button"
-                className={
-                  resultFilter === "seen"
-                    ? "is-active"
-                    : ""
-                }
-                onClick={() =>
-                  setResultFilter("seen")
-                }
-              >
-                Seen ({results.length - unseenCount})
-              </button>
+          <div className="le-discovery-results-heading">
+            <div className="le-discovery-results-copy">
+              <p className="le-overline">
+                SEARCH RESULTS
+              </p>
+              <h3>A sharper local shortlist</h3>
             </div>
-            <span
-              className="le-google-attribution"
-              translate="no"
-            >
-              Google Maps
-            </span>
+            <div className="le-discovery-results-actions">
+              <div className="le-view-filters">
+                <button
+                  type="button"
+                  className={
+                    resultFilter === "all"
+                      ? "is-active"
+                      : ""
+                  }
+                  onClick={() =>
+                    setResultFilter("all")
+                  }
+                >
+                  All <strong>{results.length}</strong>
+                </button>
+                <button
+                  type="button"
+                  className={
+                    resultFilter === "unseen"
+                      ? "is-active"
+                      : ""
+                  }
+                  onClick={() =>
+                    setResultFilter("unseen")
+                  }
+                >
+                  Unseen <strong>{unseenCount}</strong>
+                </button>
+                <button
+                  type="button"
+                  className={
+                    resultFilter === "seen"
+                      ? "is-active"
+                      : ""
+                  }
+                  onClick={() =>
+                    setResultFilter("seen")
+                  }
+                >
+                  Seen <strong>{results.length - unseenCount}</strong>
+                </button>
+              </div>
+              {exportEnabled &&
+                onExportCsv !== undefined && (
+                  <button
+                    type="button"
+                    className="le-founder-export-inline"
+                    disabled={exporting}
+                    onClick={onExportCsv}
+                  >
+                    {exporting
+                      ? "Preparing CSV…"
+                      : "Founder Download CSV ↓"}
+                  </button>
+                )}
+            </div>
           </div>
 
           {resultRows.length === 0 ? (
@@ -456,6 +507,11 @@ export function LeadDiscoveryView({
                 const contactEmail =
                   row.prospect?.publicEmail ??
                   null;
+                const cardSector =
+                  row.prospect?.sector ??
+                  (sector === ALL_LEAD_SECTORS
+                    ? null
+                    : sector);
                 return (
                   <article
                     className="le-result-card"
@@ -463,12 +519,19 @@ export function LeadDiscoveryView({
                   >
                     <div className="le-result-top">
                       <div>
-                        {row.viewState ===
-                          "unseen" && (
-                            <span className="le-new-badge">
-                              NEW
-                            </span>
-                          )}
+                        <div className="le-result-kicker">
+                          <span className="le-result-sector">
+                            {compactSectorLabel(
+                              cardSector,
+                            )}
+                          </span>
+                          {row.viewState ===
+                            "unseen" && (
+                              <span className="le-new-badge">
+                                NEW
+                              </span>
+                            )}
+                        </div>
                         <h3>
                           {row.result.businessName}
                         </h3>
@@ -578,6 +641,12 @@ export function LeadDiscoveryView({
               })}
             </div>
           )}
+          <span
+            className="le-google-attribution le-discovery-attribution"
+            translate="no"
+          >
+            Google Maps
+          </span>
         </div>
       )}
 

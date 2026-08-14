@@ -33,11 +33,12 @@ export function ManualOutreachGate() {
 
   useEffect(() => {
     if (client === null) return;
+    const activeClient = client;
     let active = true;
 
     async function refresh() {
       const session =
-        await client.auth.getSession();
+        await activeClient.auth.getSession();
       if (
         !active ||
         session.error ||
@@ -49,8 +50,8 @@ export function ManualOutreachGate() {
 
       const [user, assurance] =
         await Promise.all([
-          client.auth.getUser(),
-          client.auth.mfa
+          activeClient.auth.getUser(),
+          activeClient.auth.mfa
             .getAuthenticatorAssuranceLevel(),
         ]);
 
@@ -73,7 +74,7 @@ export function ManualOutreachGate() {
 
     void refresh();
     const { data } =
-      client.auth.onAuthStateChange(
+      activeClient.auth.onAuthStateChange(
         () => void refresh(),
       );
 

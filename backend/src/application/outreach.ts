@@ -54,8 +54,8 @@ export class OutreachError extends Error {
 export interface OutreachDraftPreview {
   readonly prospectId: string;
   readonly businessName: string;
-  readonly sector: LeadProspectReview["sector"];
-  readonly sectorLabel: string;
+  readonly sector?: LeadProspectReview["sector"];
+  readonly sectorLabel?: string;
   readonly templateId: string;
   readonly contactId: string;
   readonly recipientEmail: string;
@@ -464,6 +464,12 @@ export function createManualOutreachService(options: {
     },
 
     async listFollowUps(_founderId) {
+      if (
+        options.repository.listFollowUps ===
+          undefined
+      ) {
+        return [];
+      }
       try {
         return await options.repository
           .listFollowUps(1_000);

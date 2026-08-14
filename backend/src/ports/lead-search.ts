@@ -136,6 +136,10 @@ export interface LeadSearchRepository {
     input: CaptureLeadResultsInput,
   ): Promise<CaptureLeadResultsOutcome>;
 
+  resolveGoogleProspectIds?(
+    placeIds: readonly string[],
+  ): Promise<ReadonlyMap<string, string>>;
+
   failSearch(searchRunId: string): Promise<void>;
 }
 

@@ -15,7 +15,7 @@ test(
       new CharityCommissionClient({
         apiKey: "private-test-key",
         apiBaseUrl:
-          "https://api.charitycommission.gov.uk/register",
+          "https://api.charitycommission.gov.uk/register/api",
         timeoutMs: 1_000,
         fetchFunction:
           (async (input, init) => {
@@ -54,7 +54,7 @@ test(
 
     assert.equal(
       requestedUrl,
-      "https://api.charitycommission.gov.uk/register/charityRegNumber/1133537/0",
+      "https://api.charitycommission.gov.uk/register/api/charityRegNumber/1133537/0",
     );
     assert.equal(
       requestedKey,

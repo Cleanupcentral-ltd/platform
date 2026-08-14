@@ -51,6 +51,7 @@ export type SearchLeadsInput =
     };
 
 export interface SearchLeadSummary {
+  readonly prospectId?: string;
   readonly businessName: string;
   readonly formattedAddress: string | null;
   readonly primaryPostcode: string | null;
@@ -723,6 +724,28 @@ export function createLeadSearchService(
         );
       }
 
+      let prospectIdsByPlace:
+        ReadonlyMap<string, string> =
+          new Map();
+      if (
+        repository.resolveGoogleProspectIds !==
+          undefined
+      ) {
+        try {
+          prospectIdsByPlace =
+            await repository.resolveGoogleProspectIds(
+              providerResults.map(
+                (result) =>
+                  result.providerPlaceId,
+              ),
+            );
+        } catch {
+          // Search and capture have already succeeded. The optional
+          // reference only improves exact UI association and can fall
+          // back to the existing matching logic if this read fails.
+        }
+      }
+
       const automaticAssessment =
         await assessCapturedProspects(
           founderId,
@@ -752,30 +775,39 @@ export function createLeadSearchService(
         automaticAssessment,
         results:
           providerResults.map(
-            (result) => ({
-              businessName:
-                result.businessName,
-              formattedAddress:
-                result.formattedAddress,
-              primaryPostcode:
-                result.primaryPostcode,
-              websiteUrl:
-                result.websiteUrl,
-              phone: result.phone,
-              sourceUrl:
-                result.sourceUrl,
-              distanceMiles:
-                result.distanceMiles ===
-                  null
-                  ? null
-                  : Math.round(
-                      result
-                        .distanceMiles *
-                        100,
-                    ) / 100,
-              evidenceStatus:
-                "unverified" as const,
-            }),
+            (result) => {
+              const prospectId =
+                prospectIdsByPlace.get(
+                  result.providerPlaceId,
+                );
+              return {
+                ...(prospectId === undefined
+                  ? {}
+                  : { prospectId }),
+                businessName:
+                  result.businessName,
+                formattedAddress:
+                  result.formattedAddress,
+                primaryPostcode:
+                  result.primaryPostcode,
+                websiteUrl:
+                  result.websiteUrl,
+                phone: result.phone,
+                sourceUrl:
+                  result.sourceUrl,
+                distanceMiles:
+                  result.distanceMiles ===
+                    null
+                    ? null
+                    : Math.round(
+                        result
+                          .distanceMiles *
+                          100,
+                      ) / 100,
+                evidenceStatus:
+                  "unverified" as const,
+              };
+            },
           ),
       };
     },

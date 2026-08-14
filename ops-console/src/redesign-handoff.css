@@ -1,0 +1,7 @@
+body.lead-engine-redesign-active {
+  background: #faf9f6;
+}
+
+body.lead-engine-redesign-active #root > .shell {
+  display: none;
+}

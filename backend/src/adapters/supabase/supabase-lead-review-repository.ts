@@ -65,6 +65,7 @@ const evidenceRowSchema = z.object({
     "founder_review",
     "automatic_first_party_company_number",
     "automatic_first_party_legal_operator",
+    "automatic_first_party_charity_number",
     "automatic_first_party_research",
   ]).optional().default("founder_review"),
 });

@@ -1,5 +1,7 @@
--- Figma redesign: restore Google discovery without restoring durable Google content.
+-- Figma redesign: additive Google compliance bridge.
 -- Google Places details remain transient; durable Google evidence remains Place ID only.
+-- This migration deliberately does NOT re-enable Google search. Re-enablement is
+-- a separate final migration after the backend and console are deployed.
 
 create or replace function
 lead_engine.resolve_google_prospect_ids(
@@ -173,7 +175,6 @@ set search_path = ''
 as $promote_verified_google_prospect_identity$
 declare
   v_business_name text;
-  v_website_url text;
 begin
   if not exists (
     select 1
@@ -199,34 +200,18 @@ begin
     evidence.id desc
   limit 1;
 
-  select evidence.field_value
-  into v_website_url
-  from lead_engine.evidence as evidence
-  where
-    evidence.prospect_id = p_prospect_id and
-    evidence.source_type = 'first_party_website' and
-    evidence.field_name = 'website_url' and
-    evidence.verification_status = 'verified'
-  order by
-    evidence.verified_at desc nulls last,
-    evidence.captured_at desc,
-    evidence.id desc
-  limit 1;
-
-  if v_business_name is null and v_website_url is null then
+  if v_business_name is null then
     return;
   end if;
 
+  -- business_name is safe to promote from verified first-party evidence.
+  -- Do not update website_url here: that column has an enrichment refresh
+  -- trigger and changing it during a claimed qualification would reset the
+  -- in-flight job. The verified first-party website remains durable evidence,
+  -- while future Google jobs re-resolve the live website transiently by Place ID.
   update lead_engine.prospects
   set
-    business_name = coalesce(
-      v_business_name,
-      business_name
-    ),
-    website_url = coalesce(
-      v_website_url,
-      website_url
-    ),
+    business_name = v_business_name,
     updated_at = now()
   where id = p_prospect_id;
 end
@@ -242,13 +227,4 @@ to service_role;
 
 comment on function
 lead_engine.promote_verified_google_prospect_identity(uuid) is
-  'Promotes durable Google-discovered prospect identity only from independently verified first-party evidence. Google Places content is never copied into durable identity fields.';
-
--- This trigger was intentionally installed while the compliant UI and
--- Place-ID re-resolution path were incomplete. The migration is applied only
--- after the redesigned flow passes its regression and policy gates.
-drop trigger if exists pause_google_search_until_redesign
-  on lead_engine.search_runs;
-
-drop function if exists
-lead_engine.pause_google_search_until_redesign();
+  'Promotes only the durable business name from independently verified first-party evidence for Google-discovered prospects; website_url remains evidence to avoid resetting the active qualification job.';

@@ -27,6 +27,16 @@ function visibleText(value: string): string {
   );
 }
 
+function nationalFromInternational(
+  value: string,
+): string {
+  const withoutOptionalTrunk =
+    value.startsWith("0")
+      ? value.slice(1)
+      : value;
+  return `0${withoutOptionalTrunk}`;
+}
+
 export function normalizePublicPhone(
   rawValue: string,
 ): string | null {
@@ -47,10 +57,14 @@ export function normalizePublicPhone(
 
   if (startsPlus44) {
     if (!digits.startsWith("44")) return null;
-    digits = `0${digits.slice(2)}`;
+    digits = nationalFromInternational(
+      digits.slice(2),
+    );
   } else if (starts0044) {
     if (!digits.startsWith("0044")) return null;
-    digits = `0${digits.slice(4)}`;
+    digits = nationalFromInternational(
+      digits.slice(4),
+    );
   }
 
   if (

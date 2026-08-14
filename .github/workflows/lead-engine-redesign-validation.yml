@@ -27,8 +27,14 @@ jobs:
         run: npm ci
       - name: Typecheck backend and tests
         run: npm run typecheck
-      - name: Test transient Google Place Details adapter
-        run: node --import tsx --test tests/google-places-place-details.test.ts
+      - name: Run changed-path backend regression tests
+        run: >-
+          node --import tsx --test
+          tests/google-places-place-details.test.ts
+          tests/google-qualification-bridge.test.ts
+          tests/qualify-leads.test.ts
+          tests/search-leads.test.ts
+          tests/manual-sector-outreach.test.ts
 
   ops-console:
     runs-on: ubuntu-latest

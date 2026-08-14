@@ -1,0 +1,35 @@
+name: Apply Find Prospects Figma patch
+
+on:
+  push:
+    branches:
+      - agent/match-find-prospects-figma
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.head_commit.message != 'Match Find Prospects Figma layout'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/match-find-prospects-figma
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Apply exact Find Prospects patch
+        run: python ops-console/scripts/apply-find-prospects-figma.py
+      - name: Commit patched files
+        run: |
+          git config user.name "cleanupcentral-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add ops-console/src/LeadDiscoveryView.tsx ops-console/src/LeadEngineRedesign.tsx
+          if git diff --cached --quiet; then
+            echo "No patch changes to commit."
+            exit 0
+          fi
+          git commit -m "Match Find Prospects Figma layout"
+          git push origin HEAD:agent/match-find-prospects-figma

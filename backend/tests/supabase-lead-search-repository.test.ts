@@ -147,3 +147,57 @@ test(
     });
   },
 );
+
+test(
+  "stores borough search provenance without inventing a postcode radius",
+  async () => {
+    let body:
+      Record<string, unknown> = {};
+    const repository =
+      new SupabaseLeadSearchRepository({
+        supabaseUrl:
+          "https://example.supabase.co",
+        secretKey:
+          "sb_secret_private",
+        timeoutMs: 1_000,
+        fetchFunction:
+          (async (_input, init) => {
+            body = JSON.parse(
+              String(init?.body),
+            ) as
+              Record<string, unknown>;
+            return Response.json([
+              { id: SEARCH_RUN_ID },
+            ]);
+          }) as typeof fetch,
+      });
+
+    await repository.startSearch({
+      founderId:
+        "79b42d3d-78be-42fc-9d91-5d97566d2ed0",
+      searchMode: "borough",
+      postcode: null,
+      radiusMiles: null,
+      borough: "Bromley",
+      sector:
+        "offices_coworking",
+    });
+
+    assert.equal(
+      body.search_mode,
+      "borough",
+    );
+    assert.equal(
+      body.borough,
+      "Bromley",
+    );
+    assert.equal(
+      body.postcode,
+      null,
+    );
+    assert.equal(
+      body.radius_miles,
+      null,
+    );
+  },
+);

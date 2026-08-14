@@ -124,3 +124,63 @@ test(
   },
 );
 
+test(
+  "Google Places borough search uses an explicit London borough query without a fake radius",
+  async () => {
+    let requestBody = "";
+    const provider =
+      new GooglePlacesLeadSearchProvider({
+        apiKey: "private-key",
+        apiBaseUrl:
+          "https://places.googleapis.com/v1",
+        timeoutMs: 1_000,
+        fetchFunction:
+          (async (_input, init) => {
+            requestBody =
+              String(init?.body ?? "");
+            return Response.json({
+              places: [{
+                id: "bromley-place",
+                displayName: {
+                  text: "Bromley Workspace",
+                },
+                formattedAddress:
+                  "1 High Street, Bromley BR1 1AA",
+                postalAddress: {
+                  postalCode:
+                    "BR1 1AA",
+                },
+                location: {
+                  latitude: 51.4,
+                  longitude: 0.02,
+                },
+              }],
+            });
+          }) as typeof fetch,
+      });
+
+    const results =
+      await provider.search({
+        mode: "borough",
+        borough: "Bromley",
+        sector:
+          "offices_coworking",
+      });
+
+    const body =
+      JSON.parse(requestBody) as
+        Record<string, unknown>;
+    assert.equal(
+      body.textQuery,
+      "offices and coworking spaces in Bromley, London",
+    );
+    assert.equal(
+      "locationBias" in body,
+      false,
+    );
+    assert.equal(
+      results[0]?.distanceMiles,
+      null,
+    );
+  },
+);

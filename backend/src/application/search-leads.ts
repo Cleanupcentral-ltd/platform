@@ -1,5 +1,9 @@
 import { createHash } from "node:crypto";
 
+import {
+  canonicalLondonBorough,
+} from "../domain/london-boroughs.js";
+
 import type {
   LeadReviewService,
 } from "./review-leads.js";
@@ -18,6 +22,7 @@ import type {
 export type LeadSearchFailure =
   | "disabled"
   | "invalid_postcode"
+  | "invalid_borough"
   | "postcode_provider_unavailable"
   | "search_provider_unavailable"
   | "repository_unavailable";
@@ -32,11 +37,18 @@ export class LeadSearchError extends Error {
   }
 }
 
-export interface SearchLeadsInput {
-  readonly postcode: string;
-  readonly radiusMiles: number;
-  readonly sector: LeadSector;
-}
+export type SearchLeadsInput =
+  | {
+      readonly mode?: "postcode";
+      readonly postcode: string;
+      readonly radiusMiles: number;
+      readonly sector: LeadSector;
+    }
+  | {
+      readonly mode: "borough";
+      readonly borough: string;
+      readonly sector: LeadSector;
+    };
 
 export interface SearchLeadSummary {
   readonly businessName: string;
@@ -45,15 +57,18 @@ export interface SearchLeadSummary {
   readonly websiteUrl: string | null;
   readonly phone: string | null;
   readonly sourceUrl: string;
-  readonly distanceMiles: number;
+  readonly distanceMiles:
+    number | null;
   readonly evidenceStatus: "unverified";
 }
 
 export interface SearchLeadsOutcome {
   readonly searchRunId: string;
-  readonly postcode: string;
+  readonly mode: "postcode" | "borough";
+  readonly postcode: string | null;
+  readonly borough: string | null;
   readonly sector: LeadSector;
-  readonly radiusMiles: number;
+  readonly radiusMiles: number | null;
   readonly resultCount: number;
   readonly createdCount: number;
   readonly automaticAssessment:
@@ -299,13 +314,15 @@ function providerCapture(
         ? null
         : result.types.join(","),
     ),
-    evidenceFor(
-      result.sourceUrl,
-      "google_places",
-      excerpt,
-      "distance_miles",
-      result.distanceMiles.toFixed(2),
-    ),
+    result.distanceMiles === null
+      ? null
+      : evidenceFor(
+          result.sourceUrl,
+          "google_places",
+          excerpt,
+          "distance_miles",
+          result.distanceMiles.toFixed(2),
+        ),
   ].filter(
     (
       item,
@@ -522,17 +539,42 @@ export function createLeadSearchService(
         repository,
       } = dependencies();
 
-      let located;
-      try {
-        located =
-          await postcodeLocator.locate(
-            input.postcode,
-          );
-      } catch (error) {
-        throw providerFailure(
-          error,
-          "postcode_provider_unavailable",
+      const boroughMode =
+        input.mode === "borough";
+      const canonicalBorough =
+        boroughMode
+          ? canonicalLondonBorough(
+              input.borough,
+            )
+          : null;
+      if (
+        boroughMode &&
+        canonicalBorough === null
+      ) {
+        throw new LeadSearchError(
+          "invalid_borough",
         );
+      }
+
+      let located:
+        | Awaited<
+            ReturnType<
+              PostcodeLocator["locate"]
+            >
+          >
+        | null = null;
+      if (!boroughMode) {
+        try {
+          located =
+            await postcodeLocator.locate(
+              input.postcode,
+            );
+        } catch (error) {
+          throw providerFailure(
+            error,
+            "postcode_provider_unavailable",
+          );
+        }
       }
 
       let searchRunId: string;
@@ -540,10 +582,18 @@ export function createLeadSearchService(
         searchRunId =
           await repository.startSearch({
             founderId,
+            searchMode:
+              boroughMode
+                ? "borough"
+                : "postcode",
             postcode:
-              located.postcode,
+              located?.postcode ?? null,
             radiusMiles:
-              input.radiusMiles,
+              boroughMode
+                ? null
+                : input.radiusMiles,
+            borough:
+              canonicalBorough,
             sector: input.sector,
           });
       } catch {
@@ -557,13 +607,76 @@ export function createLeadSearchService(
 
       try {
         providerResults =
-          await searchProvider.search({
-            sector: input.sector,
-            center:
-              located.coordinates,
-            radiusMiles:
-              input.radiusMiles,
-          });
+          await searchProvider.search(
+            boroughMode
+              ? {
+                  mode: "borough",
+                  borough:
+                    canonicalBorough!,
+                  sector:
+                    input.sector,
+                }
+              : {
+                  mode: "postcode",
+                  sector:
+                    input.sector,
+                  center:
+                    located!.coordinates,
+                  radiusMiles:
+                    input.radiusMiles,
+                },
+          );
+
+        if (boroughMode) {
+          const verifyBorough =
+            postcodeLocator
+              .filterToBorough;
+          if (
+            verifyBorough ===
+              undefined
+          ) {
+            throw new LeadSearchError(
+              "postcode_provider_unavailable",
+            );
+          }
+          const matchingPostcodes =
+            new Set(
+              (
+                await verifyBorough.call(
+                  postcodeLocator,
+                  canonicalBorough!,
+                  providerResults
+                    .map(
+                      (result) =>
+                        result
+                          .primaryPostcode,
+                    )
+                    .filter(
+                      (
+                        value,
+                      ): value is string =>
+                        value !== null,
+                    ),
+                )
+              ).map(
+                (postcode) =>
+                  postcode
+                    .replace(/\s/g, "")
+                    .toUpperCase(),
+              ),
+            );
+          providerResults =
+            providerResults.filter(
+              (result) =>
+                result.primaryPostcode !==
+                  null &&
+                matchingPostcodes.has(
+                  result.primaryPostcode
+                    .replace(/\s/g, "")
+                    .toUpperCase(),
+                ),
+            );
+        }
       } catch (error) {
         try {
           await repository.failSearch(
@@ -574,7 +687,9 @@ export function createLeadSearchService(
         }
         throw providerFailure(
           error,
-          "search_provider_unavailable",
+          boroughMode
+            ? "postcode_provider_unavailable"
+            : "search_provider_unavailable",
         );
       }
 
@@ -617,11 +732,19 @@ export function createLeadSearchService(
 
       return {
         searchRunId,
+        mode:
+          boroughMode
+            ? "borough" as const
+            : "postcode" as const,
         postcode:
-          located.postcode,
+          located?.postcode ?? null,
+        borough:
+          canonicalBorough,
         sector: input.sector,
         radiusMiles:
-          input.radiusMiles,
+          boroughMode
+            ? null
+            : input.radiusMiles,
         resultCount:
           persisted.resultCount,
         createdCount:
@@ -642,10 +765,14 @@ export function createLeadSearchService(
               sourceUrl:
                 result.sourceUrl,
               distanceMiles:
-                Math.round(
-                  result.distanceMiles *
-                    100,
-                ) / 100,
+                result.distanceMiles ===
+                  null
+                  ? null
+                  : Math.round(
+                      result
+                        .distanceMiles *
+                        100,
+                    ) / 100,
               evidenceStatus:
                 "unverified" as const,
             }),

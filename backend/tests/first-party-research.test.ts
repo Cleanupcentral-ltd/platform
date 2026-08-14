@@ -295,3 +295,41 @@ test(
     );
   },
 );
+
+test(
+  "extracts an explicit first-party legal operator without treating ordinary bylines as operators",
+  async () => {
+    const client =
+      new FirstPartyResearchClient({
+        timeoutMs: 1_000,
+        maximumBytes: 20_000,
+        async resolveHost() {
+          return ["8.8.8.8"];
+        },
+        fetchFunction:
+          (async () => html([
+            "<h1>St John's Hall</h1>",
+            "<p>Community hall and venue hire.</p>",
+            "<p>info@example.com</p>",
+            "<footer>©2017 by Ananda Ventures Ltd</footer>",
+            "<p>Website designed by Example Web Ltd</p>",
+          ].join(""))) as typeof fetch,
+      });
+
+    const result =
+      await client.research(
+        "https://example.com/",
+        "St John's Hall",
+        "community_halls_event_venues",
+      );
+
+    assert.deepEqual(
+      result.legalOperatorAssertions
+        ?.map(
+          (item) =>
+            item.operatorName,
+        ),
+      ["Ananda Ventures Ltd"],
+    );
+  },
+);

@@ -217,3 +217,56 @@ test(
   },
 );
 
+test(
+  "borough selection is sent as borough mode without a fake postcode",
+  async () => {
+    let body:
+      Record<string, unknown> = {};
+
+    await searchLeadSelection(
+      "https://backend.example",
+      "founder-aal2-token",
+      {
+        mode: "borough",
+        borough: "Bromley",
+        sector:
+          "offices_coworking",
+      },
+      (async (_input, init) => {
+        body = JSON.parse(
+          String(init?.body),
+        ) as
+          Record<string, unknown>;
+        return Response.json({
+          success: true,
+          search: {
+            searchRunId:
+              "borough-run",
+            mode: "borough",
+            postcode: null,
+            borough: "Bromley",
+            sector:
+              "offices_coworking",
+            radiusMiles: null,
+            resultCount: 0,
+            createdCount: 0,
+            results: [],
+          },
+        });
+      }) as typeof fetch,
+    );
+
+    assert.equal(
+      body.mode,
+      "borough",
+    );
+    assert.equal(
+      body.borough,
+      "Bromley",
+    );
+    assert.equal(
+      "postcode" in body,
+      false,
+    );
+  },
+);

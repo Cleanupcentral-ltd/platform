@@ -175,15 +175,48 @@ implements LeadSearchProvider {
   ): Promise<
     readonly LeadProviderResult[]
   > {
+    const boroughMode =
+      input.mode === "borough";
     const radiusMeters =
-      input.radiusMiles *
-      METERS_PER_MILE;
+      boroughMode
+        ? null
+        : input.radiusMiles *
+          METERS_PER_MILE;
     const controller =
       new AbortController();
     const timeout = setTimeout(
       () => controller.abort(),
       this.timeoutMs,
     );
+
+    const textQuery = boroughMode
+      ? `${SECTOR_SEARCH_TERMS[input.sector]} in ${input.borough}, London`
+      : SECTOR_SEARCH_TERMS[
+          input.sector
+        ];
+    const body = boroughMode
+      ? {
+          textQuery,
+          pageSize:
+            GOOGLE_PLACES_RESULT_LIMIT,
+          languageCode: "en",
+          regionCode: "gb",
+        }
+      : {
+          textQuery,
+          pageSize:
+            GOOGLE_PLACES_RESULT_LIMIT,
+          languageCode: "en",
+          regionCode: "gb",
+          locationBias: {
+            circle: {
+              center:
+                input.center,
+              radius:
+                radiusMeters!,
+            },
+          },
+        };
 
     let response: Response;
     try {
@@ -200,24 +233,7 @@ implements LeadSearchProvider {
               "x-goog-fieldmask":
                 GOOGLE_PLACES_FIELD_MASK,
             },
-            body: JSON.stringify({
-              textQuery:
-                SECTOR_SEARCH_TERMS[
-                  input.sector
-                ],
-              pageSize:
-                GOOGLE_PLACES_RESULT_LIMIT,
-              languageCode: "en",
-              regionCode: "gb",
-              locationBias: {
-                circle: {
-                  center:
-                    input.center,
-                  radius:
-                    radiusMeters,
-                },
-              },
-            }),
+            body: JSON.stringify(body),
             signal:
               controller.signal,
           },
@@ -260,10 +276,12 @@ implements LeadSearchProvider {
     return parsed.data.places
       .map((place) => {
         const distance =
-          distanceMeters(
-            input.center,
-            place.location,
-          );
+          boroughMode
+            ? null
+            : distanceMeters(
+                input.center,
+                place.location,
+              );
 
         return {
           result: {
@@ -292,25 +310,39 @@ implements LeadSearchProvider {
             coordinates:
               place.location,
             distanceMiles:
-              distance /
-              METERS_PER_MILE,
+              distance === null
+                ? null
+                : distance /
+                  METERS_PER_MILE,
           },
           distance,
         };
       })
       .filter(
         ({ distance }) =>
-          distance <= radiusMeters,
+          distance === null ||
+          distance <= radiusMeters!,
       )
       .sort(
-        (left, right) =>
-          left.distance -
-            right.distance ||
-          left.result.businessName
+        (left, right) => {
+          if (
+            left.distance !== null &&
+            right.distance !== null &&
+            left.distance !==
+              right.distance
+          ) {
+            return (
+              left.distance -
+              right.distance
+            );
+          }
+          return left.result
+            .businessName
             .localeCompare(
               right.result
                 .businessName,
-            ),
+            );
+        },
       )
       .map(({ result }) => result);
   }

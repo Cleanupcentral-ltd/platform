@@ -11,6 +11,7 @@ import type {
 } from "../src/ports/companies-house.js";
 
 import type {
+  FirstPartyLegalOperatorAssertion,
   LeadReviewRepository,
   RecordAutomaticCompaniesHouseVerificationInput,
   RecordCompaniesHouseVerificationInput,
@@ -376,5 +377,145 @@ test(
         companyType,
       );
     }
+  },
+);
+
+test(
+  "automatically verifies an exact first-party legal operator and rejects fuzzy legal names",
+  async () => {
+    let automaticOperator:
+      FirstPartyLegalOperatorAssertion |
+      undefined;
+
+    const repo =
+      repository({});
+    repo.recordAutomaticLegalOperatorVerification =
+      async (input) => {
+        automaticOperator =
+          input.firstPartyAssertion;
+        return [
+          "55555555-5555-4555-8555-555555555555",
+        ];
+      };
+
+    const exactProvider:
+      CompaniesHouseProvider = {
+        async search() {
+          return [{
+            companyName:
+              "ANANDA VENTURES LTD",
+            companyNumber:
+              "10419704",
+            companyStatus: "active",
+            companyType: "ltd",
+            registeredOfficeAddress: {
+              formatted: null,
+              postcode: null,
+            },
+            dateOfCreation: null,
+            officialUrl:
+              "https://find-and-update.company-information.service.gov.uk/company/10419704",
+          }];
+        },
+        async getProfile() {
+          return {
+            companyName:
+              "ANANDA VENTURES LTD",
+            companyNumber:
+              "10419704",
+            companyStatus: "active",
+            companyType: "ltd",
+            registeredOfficeAddress: {
+              formatted: null,
+              postcode: null,
+            },
+            dateOfCreation: null,
+            officialUrl:
+              "https://find-and-update.company-information.service.gov.uk/company/10419704",
+            sicCodes: [],
+          };
+        },
+      };
+
+    const service =
+      createCompaniesHouseVerificationService(
+        repo,
+        reviewService(),
+        exactProvider,
+      );
+
+    const assertion:
+      FirstPartyLegalOperatorAssertion = {
+        operatorName:
+          "Ananda Ventures Ltd",
+        sourceUrl:
+          "https://example.com/",
+        sourceExcerpt:
+          "©2017 by Ananda Ventures Ltd",
+        contentSha256:
+          "a".repeat(64),
+      };
+
+    const verified =
+      await service
+        .verifyAutomaticallyByLegalOperator!(
+          FOUNDER_ID,
+          PROSPECT_ID,
+          1,
+          assertion,
+        );
+
+    assert.equal(
+      verified.companyNumber,
+      "10419704",
+    );
+    assert.equal(
+      automaticOperator?.operatorName,
+      "Ananda Ventures Ltd",
+    );
+
+    const fuzzyProvider:
+      CompaniesHouseProvider = {
+        ...exactProvider,
+        async search() {
+          return [{
+            companyName:
+              "ANANDA VENTURES GROUP LTD",
+            companyNumber:
+              "10419704",
+            companyStatus: "active",
+            companyType: "ltd",
+            registeredOfficeAddress: {
+              formatted: null,
+              postcode: null,
+            },
+            dateOfCreation: null,
+            officialUrl:
+              "https://find-and-update.company-information.service.gov.uk/company/10419704",
+          }];
+        },
+      };
+
+    const fuzzy =
+      createCompaniesHouseVerificationService(
+        repo,
+        reviewService(),
+        fuzzyProvider,
+      );
+
+    await assert.rejects(
+      fuzzy
+        .verifyAutomaticallyByLegalOperator!(
+          FOUNDER_ID,
+          PROSPECT_ID,
+          1,
+          assertion,
+        ),
+      (error: unknown) =>
+        error instanceof
+          CompaniesHouseVerificationError &&
+        error.failure ===
+          "company_not_found",
+    );
   },
 );

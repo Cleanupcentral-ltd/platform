@@ -16,12 +16,9 @@ export function defaultReviewQueueFilter(
   automaticQualificationEnabled: boolean,
   companyEnrichmentEnabled: boolean,
 ): ReviewQueueFilter {
-  if (automaticQualificationEnabled) {
-    return "ready_for_outreach";
-  }
-  return companyEnrichmentEnabled
-    ? "exceptions"
-    : "all";
+  void automaticQualificationEnabled;
+  void companyEnrichmentEnabled;
+  return "all";
 }
 
 export function filterProspectQueue(

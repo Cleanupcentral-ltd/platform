@@ -52,6 +52,42 @@ export const LEAD_SEARCH_SECTOR_OPTIONS = [
 export type LeadSearchSector =
   (typeof LEAD_SEARCH_SECTOR_OPTIONS)[number]["value"];
 
+export const LONDON_BOROUGH_OPTIONS = [
+  "Barking and Dagenham",
+  "Barnet",
+  "Bexley",
+  "Brent",
+  "Bromley",
+  "Camden",
+  "City of London",
+  "Croydon",
+  "Ealing",
+  "Enfield",
+  "Greenwich",
+  "Hackney",
+  "Hammersmith and Fulham",
+  "Haringey",
+  "Harrow",
+  "Havering",
+  "Hillingdon",
+  "Hounslow",
+  "Islington",
+  "Kensington and Chelsea",
+  "Kingston upon Thames",
+  "Lambeth",
+  "Lewisham",
+  "Merton",
+  "Newham",
+  "Redbridge",
+  "Richmond upon Thames",
+  "Southwark",
+  "Sutton",
+  "Tower Hamlets",
+  "Waltham Forest",
+  "Wandsworth",
+  "Westminster",
+] as const;
+
 export interface LeadSearchResult {
   readonly businessName: string;
   readonly formattedAddress: string | null;
@@ -59,33 +95,51 @@ export interface LeadSearchResult {
   readonly websiteUrl: string | null;
   readonly phone: string | null;
   readonly sourceUrl: string;
-  readonly distanceMiles: number;
+  readonly distanceMiles:
+    number | null;
   readonly evidenceStatus:
     "unverified";
 }
 
 export interface LeadSearchOutcome {
   readonly searchRunId: string;
-  readonly postcode: string;
+  readonly mode:
+    "postcode" | "borough";
+  readonly postcode: string | null;
+  readonly borough: string | null;
   readonly sector: LeadSector;
-  readonly radiusMiles: number;
+  readonly radiusMiles: number | null;
   readonly resultCount: number;
   readonly createdCount: number;
   readonly results:
     readonly LeadSearchResult[];
 }
 
-export interface LeadSearchInput {
-  readonly postcode: string;
-  readonly radiusMiles: number;
-  readonly sector: LeadSector;
-}
+export type LeadSearchInput =
+  | {
+      readonly mode?: "postcode";
+      readonly postcode: string;
+      readonly radiusMiles: number;
+      readonly sector: LeadSector;
+    }
+  | {
+      readonly mode: "borough";
+      readonly borough: string;
+      readonly sector: LeadSector;
+    };
 
-export interface LeadSearchSelectionInput {
-  readonly postcode: string;
-  readonly radiusMiles: number;
-  readonly sector: LeadSearchSector;
-}
+export type LeadSearchSelectionInput =
+  | {
+      readonly mode?: "postcode";
+      readonly postcode: string;
+      readonly radiusMiles: number;
+      readonly sector: LeadSearchSector;
+    }
+  | {
+      readonly mode: "borough";
+      readonly borough: string;
+      readonly sector: LeadSearchSector;
+    };
 
 export interface LeadSearchViewOutcome {
   readonly resultCount: number;
@@ -197,12 +251,21 @@ export async function searchLeadSelection(
         searchLeads(
           backendUrl,
           accessToken,
-          {
-            postcode: input.postcode,
-            radiusMiles:
-              input.radiusMiles,
-            sector: value,
-          },
+          input.mode === "borough"
+            ? {
+                mode: "borough",
+                borough:
+                  input.borough,
+                sector: value,
+              }
+            : {
+                mode: "postcode",
+                postcode:
+                  input.postcode,
+                radiusMiles:
+                  input.radiusMiles,
+                sector: value,
+              },
           fetchFunction,
         ),
     ),

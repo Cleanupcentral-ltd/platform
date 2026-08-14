@@ -5,6 +5,7 @@ import {
 
 import {
   captureManualLead,
+  LONDON_BOROUGH_OPTIONS,
   LEAD_SEARCH_SECTOR_OPTIONS,
   LEAD_SECTOR_OPTIONS,
   searchLeadSelection,
@@ -65,6 +66,12 @@ export function LeadSearchWorkspace({
   outlookDraftEnabled = false,
   exportEnabled = false,
 }: LeadSearchWorkspaceProps) {
+  const [searchMode, setSearchMode] =
+    useState<
+      "borough" | "postcode"
+    >("borough");
+  const [borough, setBorough] =
+    useState("");
   const [postcode, setPostcode] =
     useState("");
   const [radiusMiles, setRadiusMiles] =
@@ -136,12 +143,19 @@ export function LeadSearchWorkspace({
         await searchLeadSelection(
           backendUrl,
           accessToken,
-          {
-            postcode,
-            radiusMiles:
-              Number(radiusMiles),
-            sector,
-          },
+          searchMode === "borough"
+            ? {
+                mode: "borough",
+                borough,
+                sector,
+              }
+            : {
+                mode: "postcode",
+                postcode,
+                radiusMiles:
+                  Number(radiusMiles),
+                sector,
+              },
         ),
       );
     } catch (error) {
@@ -228,7 +242,7 @@ export function LeadSearchWorkspace({
           </p>
           <h2>Find local prospects</h2>
           <p>
-            Search public business data by UK postcode, radius and approved pilot sector.
+            Search public business data by London borough or UK postcode and approved pilot sector.
           </p>
           {reviewEnabled && (
             <a
@@ -282,35 +296,88 @@ export function LeadSearchWorkspace({
         className="search-form"
       >
         <label>
-          Postcode
-          <input
-            value={postcode}
+          Search by
+          <select
+            value={searchMode}
             onChange={(event) =>
-              setPostcode(
-                event.target.value,
+              setSearchMode(
+                event.target.value as
+                  "borough" |
+                  "postcode",
               )
             }
-            placeholder="BR1 5HP"
-            autoComplete="postal-code"
-            required
-          />
+          >
+            <option value="borough">
+              Borough
+            </option>
+            <option value="postcode">
+              Postcode
+            </option>
+          </select>
         </label>
-        <label>
-          Radius in miles
-          <input
-            type="number"
-            min="0.1"
-            max="30"
-            step="0.1"
-            value={radiusMiles}
-            onChange={(event) =>
-              setRadiusMiles(
-                event.target.value,
-              )
-            }
-            required
-          />
-        </label>
+
+        {searchMode === "borough" ? (
+          <label>
+            London borough
+            <input
+              value={borough}
+              onChange={(event) =>
+                setBorough(
+                  event.target.value,
+                )
+              }
+              list="london-borough-options"
+              placeholder="Bromley"
+              autoComplete="off"
+              required
+            />
+            <datalist
+              id="london-borough-options"
+            >
+              {LONDON_BOROUGH_OPTIONS.map(
+                (option) => (
+                  <option
+                    key={option}
+                    value={option}
+                  />
+                ),
+              )}
+            </datalist>
+          </label>
+        ) : (
+          <>
+            <label>
+              Postcode
+              <input
+                value={postcode}
+                onChange={(event) =>
+                  setPostcode(
+                    event.target.value,
+                  )
+                }
+                placeholder="BR1 5HP"
+                autoComplete="postal-code"
+                required
+              />
+            </label>
+            <label>
+              Radius in miles
+              <input
+                type="number"
+                min="0.1"
+                max="30"
+                step="0.1"
+                value={radiusMiles}
+                onChange={(event) =>
+                  setRadiusMiles(
+                    event.target.value,
+                  )
+                }
+                required
+              />
+            </label>
+          </>
+        )}
         <label>
           Sector
           <select
@@ -360,7 +427,7 @@ export function LeadSearchWorkspace({
           </div>
           {outcome.results.length === 0 ? (
             <p>
-              No businesses were returned inside this radius. Try another approved search or use manual capture below.
+              No businesses were returned for this search. Try another approved location or sector, or use manual capture below.
             </p>
           ) : (
             <div className="result-grid">
@@ -386,7 +453,10 @@ export function LeadSearchWorkspace({
                       <div>
                         <dt>Distance</dt>
                         <dd>
-                          {result.distanceMiles.toFixed(2)} miles
+                          {result.distanceMiles ===
+                          null
+                            ? "Borough verified"
+                            : `${result.distanceMiles.toFixed(2)} miles`}
                         </dd>
                       </div>
                       <div>

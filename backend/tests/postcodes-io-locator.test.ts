@@ -78,3 +78,61 @@ test(
   },
 );
 
+test(
+  "bulk-verifies borough membership from admin_district",
+  async () => {
+    let requestBody = "";
+    const locator =
+      new PostcodesIoLocator({
+        apiBaseUrl:
+          "https://api.postcodes.io",
+        timeoutMs: 1_000,
+        fetchFunction:
+          (async (_input, init) => {
+            requestBody =
+              String(init?.body ?? "");
+            return Response.json({
+              status: 200,
+              result: [
+                {
+                  query: "BR1 1AA",
+                  result: {
+                    postcode: "BR1 1AA",
+                    admin_district:
+                      "Bromley",
+                  },
+                },
+                {
+                  query: "SE6 1AA",
+                  result: {
+                    postcode: "SE6 1AA",
+                    admin_district:
+                      "Lewisham",
+                  },
+                },
+              ],
+            });
+          }) as typeof fetch,
+      });
+
+    const matched =
+      await locator.filterToBorough(
+        "Bromley",
+        ["BR1 1AA", "SE6 1AA"],
+      );
+
+    assert.deepEqual(
+      JSON.parse(requestBody),
+      {
+        postcodes: [
+          "BR11AA",
+          "SE61AA",
+        ],
+      },
+    );
+    assert.deepEqual(
+      matched,
+      ["BR1 1AA"],
+    );
+  },
+);

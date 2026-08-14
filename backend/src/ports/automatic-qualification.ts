@@ -61,6 +61,13 @@ export interface FirstPartyResearchResult {
       readonly sourceExcerpt: string;
       readonly contentSha256: string;
     }[];
+  readonly legalOperatorAssertions?:
+    readonly {
+      readonly operatorName: string;
+      readonly sourceUrl: string;
+      readonly sourceExcerpt: string;
+      readonly contentSha256: string;
+    }[];
   readonly facts: readonly AutomaticResearchFact[];
   readonly visitedUrls: readonly string[];
   readonly truncatedPageCount: number;

@@ -117,10 +117,15 @@ implements LeadSearchRepository {
               "return=representation",
           },
           body: JSON.stringify({
+            search_mode:
+              input.searchMode ??
+                "postcode",
             postcode:
               input.postcode,
             radius_miles:
               input.radiusMiles,
+            borough:
+              input.borough ?? null,
             sector: input.sector,
             status: "running",
             created_by:

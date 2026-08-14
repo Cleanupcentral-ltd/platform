@@ -14,6 +14,7 @@ import type {
 import type {
   CompaniesHouseVerifiedFact,
   FirstPartyCompanyNumberAssertion,
+  FirstPartyLegalOperatorAssertion,
   LeadReviewRepository,
 } from "../ports/lead-review.js";
 
@@ -81,6 +82,16 @@ export interface CompaniesHouseVerificationService {
   ): Promise<
     CompaniesHouseVerificationResult
   >;
+
+  verifyAutomaticallyByLegalOperator?(
+    actorId: string,
+    prospectId: string,
+    enrichmentAttemptCount: number,
+    firstPartyAssertion:
+      FirstPartyLegalOperatorAssertion,
+  ): Promise<
+    CompaniesHouseVerificationResult
+  >;
 }
 
 const CORPORATE_COMPANY_TYPES =
@@ -98,6 +109,15 @@ function sha256(value: string): string {
   return createHash("sha256")
     .update(value)
     .digest("hex");
+}
+
+function normalizedLegalName(
+  value: string,
+): string {
+  return value
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "")
+    .trim();
 }
 
 function normalizedCompanyNumber(
@@ -175,6 +195,9 @@ export function createCompaniesHouseVerificationService(
     firstPartyAssertion:
       FirstPartyCompanyNumberAssertion | null,
     enrichmentAttemptCount: number | null,
+    legalOperatorAssertion:
+      FirstPartyLegalOperatorAssertion | null =
+        null,
   ): Promise<CompaniesHouseVerificationResult> {
     await reviewService.getProspect(
       prospectId,
@@ -245,24 +268,55 @@ export function createCompaniesHouseVerificationService(
 
     let evidenceIds: readonly string[];
     try {
-      evidenceIds = firstPartyAssertion === null
-        ? await repository
-            .recordCompaniesHouseVerification({
+      if (
+        legalOperatorAssertion !== null
+      ) {
+        if (
+          repository
+            .recordAutomaticLegalOperatorVerification ===
+              undefined
+        ) {
+          throw new Error(
+            "Automatic legal-operator verification is unavailable.",
+          );
+        }
+        evidenceIds =
+          await repository
+            .recordAutomaticLegalOperatorVerification({
               prospectId,
               founderId,
-              sourceUrl: profile.officialUrl,
-              facts,
-            })
-        : await repository
-            .recordAutomaticCompaniesHouseVerification({
-              prospectId,
-              founderId,
-              sourceUrl: profile.officialUrl,
+              sourceUrl:
+                profile.officialUrl,
               facts,
               enrichmentAttemptCount:
                 enrichmentAttemptCount!,
-              firstPartyAssertion,
+              firstPartyAssertion:
+                legalOperatorAssertion,
             });
+      } else if (
+        firstPartyAssertion === null
+      ) {
+        evidenceIds = await repository
+          .recordCompaniesHouseVerification({
+            prospectId,
+            founderId,
+            sourceUrl:
+              profile.officialUrl,
+            facts,
+          });
+      } else {
+        evidenceIds = await repository
+          .recordAutomaticCompaniesHouseVerification({
+            prospectId,
+            founderId,
+            sourceUrl:
+              profile.officialUrl,
+            facts,
+            enrichmentAttemptCount:
+              enrichmentAttemptCount!,
+            firstPartyAssertion,
+          });
+      }
     } catch {
       throw new CompaniesHouseVerificationError(
         "repository_unavailable",
@@ -354,6 +408,76 @@ export function createCompaniesHouseVerificationService(
         companyNumber,
         firstPartyAssertion,
         enrichmentAttemptCount,
+      );
+    },
+
+    async verifyAutomaticallyByLegalOperator(
+      actorId,
+      prospectId,
+      enrichmentAttemptCount,
+      firstPartyAssertion,
+    ) {
+      const operatorName =
+        firstPartyAssertion
+          .operatorName
+          .replace(/\s+/g, " ")
+          .trim();
+      if (
+        operatorName.length < 4 ||
+        operatorName.length > 120
+      ) {
+        throw new CompaniesHouseVerificationError(
+          "invalid_query",
+        );
+      }
+
+      let matches:
+        readonly CompaniesHouseCompanySummary[];
+      try {
+        matches =
+          await provider.search(
+            operatorName,
+            5,
+          );
+      } catch (error) {
+        throw mapProviderError(error);
+      }
+
+      const normalized =
+        normalizedLegalName(
+          operatorName,
+        );
+      const exact = [
+        ...new Map(
+          matches
+            .filter(
+              (match) =>
+                normalizedLegalName(
+                  match.companyName,
+                ) === normalized,
+            )
+            .map(
+              (match) => [
+                match.companyNumber,
+                match,
+              ],
+            ),
+        ).values(),
+      ];
+
+      if (exact.length !== 1) {
+        throw new CompaniesHouseVerificationError(
+          "company_not_found",
+        );
+      }
+
+      return verifyCompany(
+        actorId,
+        prospectId,
+        exact[0]!.companyNumber,
+        null,
+        enrichmentAttemptCount,
+        firstPartyAssertion,
       );
     },
   };

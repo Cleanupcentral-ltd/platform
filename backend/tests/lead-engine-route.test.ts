@@ -60,13 +60,31 @@ const leadSearchService:
         founderId,
         USER_ID,
       );
+      const location =
+        input.mode === "borough"
+          ? {
+              mode:
+                "borough" as const,
+              postcode: null,
+              borough:
+                input.borough,
+              radiusMiles: null,
+            }
+          : {
+              mode:
+                "postcode" as const,
+              postcode:
+                input.postcode,
+              borough: null,
+              radiusMiles:
+                input.radiusMiles,
+            };
+
       return {
         searchRunId:
           "1f8a558b-f3b6-453b-b201-6d57323d0663",
-        postcode: input.postcode,
+        ...location,
         sector: input.sector,
-        radiusMiles:
-          input.radiusMiles,
         resultCount: 1,
         createdCount: 1,
         automaticAssessment: {

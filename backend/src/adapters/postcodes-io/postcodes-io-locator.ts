@@ -17,6 +17,27 @@ const responseSchema = z.object({
   }),
 });
 
+const bulkResponseSchema = z.object({
+  status: z.literal(200),
+  result: z.array(z.object({
+    query: z.string(),
+    result: z.object({
+      postcode: z.string().min(5),
+      admin_district:
+        z.string().nullable(),
+    }).nullable(),
+  })),
+});
+
+function normalizedPostcode(
+  value: string,
+): string {
+  return value
+    .trim()
+    .replace(/\s/g, "")
+    .toUpperCase();
+}
+
 export interface PostcodesIoLocatorOptions {
   readonly apiBaseUrl: string;
   readonly timeoutMs: number;
@@ -47,10 +68,7 @@ implements PostcodeLocator {
     postcode: string,
   ): Promise<LocatedPostcode> {
     const normalizedInput =
-      postcode
-        .trim()
-        .replace(/\s/g, "")
-        .toUpperCase();
+      normalizedPostcode(postcode);
 
     const controller =
       new AbortController();
@@ -125,6 +143,104 @@ implements PostcodeLocator {
           parsed.data.result.longitude,
       },
     };
+  }
+
+  async filterToBorough(
+    borough: string,
+    postcodes: readonly string[],
+  ): Promise<readonly string[]> {
+    const unique = [
+      ...new Set(
+        postcodes
+          .map(normalizedPostcode)
+          .filter(Boolean),
+      ),
+    ];
+    if (unique.length === 0) {
+      return [];
+    }
+    if (unique.length > 100) {
+      throw new LeadProviderError(
+        "postcode_provider_unavailable",
+      );
+    }
+
+    const controller =
+      new AbortController();
+    const timeout = setTimeout(
+      () => controller.abort(),
+      this.timeoutMs,
+    );
+
+    let response: Response;
+    try {
+      response =
+        await this.fetchFunction(
+          `${this.apiBaseUrl}/postcodes`,
+          {
+            method: "POST",
+            headers: {
+              accept:
+                "application/json",
+              "content-type":
+                "application/json",
+            },
+            body: JSON.stringify({
+              postcodes: unique,
+            }),
+            signal:
+              controller.signal,
+          },
+        );
+    } catch {
+      throw new LeadProviderError(
+        "postcode_provider_unavailable",
+      );
+    } finally {
+      clearTimeout(timeout);
+    }
+
+    if (!response.ok) {
+      throw new LeadProviderError(
+        "postcode_provider_unavailable",
+      );
+    }
+
+    let parsed:
+      ReturnType<
+        typeof bulkResponseSchema.safeParse
+      >;
+    try {
+      parsed =
+        bulkResponseSchema.safeParse(
+          await response.json(),
+        );
+    } catch {
+      throw new LeadProviderError(
+        "postcode_provider_unavailable",
+      );
+    }
+
+    if (!parsed.success) {
+      throw new LeadProviderError(
+        "postcode_provider_unavailable",
+      );
+    }
+
+    const wanted =
+      borough.trim().toLowerCase();
+    return parsed.data.result
+      .filter(
+        (item) =>
+          item.result !== null &&
+          item.result.admin_district
+            ?.trim()
+            .toLowerCase() === wanted,
+      )
+      .map(
+        (item) =>
+          item.result!.postcode,
+      );
   }
 }
 

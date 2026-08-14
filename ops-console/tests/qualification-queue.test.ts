@@ -48,15 +48,19 @@ function prospect(
 }
 
 test(
-  "Stage 4.2 defaults to Ready for outreach",
+  "Review queue defaults to All Prospects",
   () => {
     assert.equal(
       defaultReviewQueueFilter(true, true),
-      "ready_for_outreach",
+      "all",
     );
     assert.equal(
       defaultReviewQueueFilter(false, true),
-      "exceptions",
+      "all",
+    );
+    assert.equal(
+      defaultReviewQueueFilter(false, false),
+      "all",
     );
   },
 );

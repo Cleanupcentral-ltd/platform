@@ -73,6 +73,11 @@ const COMPANY_NUMBER_PATTERNS = [
   /\bregistered\s+(?:in|under)\s+(?:england(?:\s+and\s+wales)?|scotland|northern\s+ireland)?\s*(?:as\s+)?(?:company\s*)?(?:number|no\.?)?\s*[:#-]?\s*((?:[a-z]{2}\s*\d{6})|(?:\d{8}))\b/giu,
 ] as const;
 
+const LEGAL_OPERATOR_PATTERNS = [
+  /\b(?:operated|owned|managed|run)\s+by\s+([a-z0-9][a-z0-9&'().,\- ]{1,100}?\b(?:ltd|limited|llp|plc|cic))\b/giu,
+  /(?:©|\bcopyright\b)\s*(?:\d{4}(?:\s*[-–]\s*\d{4})?\s*)?(?:all\s+rights\s+reserved\s*)?by\s+([a-z0-9][a-z0-9&'().,\- ]{1,100}?\b(?:ltd|limited|llp|plc|cic))\b/giu,
+] as const;
+
 const GENERIC_MAILBOXES = new Set([
   "admin",
   "bookings",
@@ -500,6 +505,67 @@ function companyNumberAssertions(
     left.companyNumber.localeCompare(right.companyNumber));
 }
 
+function legalOperatorAssertions(
+  pages: readonly LoadedPage[],
+): NonNullable<
+  FirstPartyResearchResult[
+    "legalOperatorAssertions"
+  ]
+> {
+  const found = new Map<string, {
+    readonly operatorName: string;
+    readonly sourceUrl: string;
+    readonly sourceExcerpt: string;
+    readonly contentSha256: string;
+  }>();
+
+  for (const page of pages) {
+    for (
+      const pattern of
+        LEGAL_OPERATOR_PATTERNS
+    ) {
+      pattern.lastIndex = 0;
+      for (
+        const match of
+          page.text.matchAll(pattern)
+      ) {
+        const captured =
+          match[1]?.replace(
+            /\s+/g,
+            " ",
+          ).trim();
+        if (
+          captured === undefined ||
+          captured.length < 4 ||
+          captured.length > 120
+        ) continue;
+
+        const key = captured
+          .toLowerCase()
+          .replace(
+            /[^a-z0-9]+/g,
+            "",
+          );
+        if (found.has(key)) continue;
+
+        const support =
+          excerpt(page.text, match);
+        found.set(key, {
+          operatorName: captured,
+          sourceUrl:
+            page.url.toString(),
+          sourceExcerpt: support,
+          contentSha256: sha256(
+            `${page.url}\nlegal_operator_name\n${captured}\n${support}`,
+          ),
+        });
+      }
+    }
+  }
+
+  return [...found.values()];
+}
+
 function organisationType(
   hostname: string,
   text: string,
@@ -756,6 +822,7 @@ implements FirstPartyResearchProvider {
       return {
         canonicalWebsiteUrl: pages[0]?.url.toString() ?? start.toString(),
         companyNumberAssertions: [],
+        legalOperatorAssertions: [],
         facts: [],
         visitedUrls: pages.map((page) => page.url.toString()),
         truncatedPageCount: pages.filter((page) => page.truncated).length,
@@ -872,6 +939,8 @@ implements FirstPartyResearchProvider {
     return {
       canonicalWebsiteUrl: identityPage.url.toString(),
       companyNumberAssertions: companyNumberAssertions(pages),
+      legalOperatorAssertions:
+        legalOperatorAssertions(pages),
       facts,
       visitedUrls: pages.map((page) => page.url.toString()),
       truncatedPageCount: pages.filter((page) => page.truncated).length,

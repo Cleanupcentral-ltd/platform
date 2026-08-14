@@ -74,6 +74,7 @@ export interface LeadEvidenceRecord {
   readonly verificationMethod?:
     | "founder_review"
     | "automatic_first_party_company_number"
+    | "automatic_first_party_legal_operator"
     | "automatic_first_party_research";
 }
 
@@ -196,6 +197,20 @@ extends RecordCompaniesHouseVerificationInput {
     FirstPartyCompanyNumberAssertion;
 }
 
+export interface FirstPartyLegalOperatorAssertion {
+  readonly operatorName: string;
+  readonly sourceUrl: string;
+  readonly sourceExcerpt: string;
+  readonly contentSha256: string;
+}
+
+export interface RecordAutomaticLegalOperatorVerificationInput
+extends RecordCompaniesHouseVerificationInput {
+  readonly enrichmentAttemptCount: number;
+  readonly firstPartyAssertion:
+    FirstPartyLegalOperatorAssertion;
+}
+
 export interface LeadReviewRepository {
   listProspects(
     founderId: string,
@@ -231,6 +246,11 @@ export interface LeadReviewRepository {
   recordAutomaticCompaniesHouseVerification(
     input:
       RecordAutomaticCompaniesHouseVerificationInput,
+  ): Promise<readonly string[]>;
+
+  recordAutomaticLegalOperatorVerification?(
+    input:
+      RecordAutomaticLegalOperatorVerificationInput,
   ): Promise<readonly string[]>;
 
   decideEvidence(

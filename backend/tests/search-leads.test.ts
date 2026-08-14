@@ -327,3 +327,136 @@ test(
     );
   },
 );
+
+test(
+  "borough search filters Google results through official admin_district evidence",
+  async () => {
+    const captures:
+      CaptureLeadResultsInput[] = [];
+    let requestedBorough = "";
+
+    const service =
+      createLeadSearchService({
+        enabled: true,
+        postcodeLocator: {
+          async locate() {
+            throw new Error(
+              "postcode locate not used",
+            );
+          },
+          async filterToBorough(
+            borough,
+            postcodes,
+          ) {
+            requestedBorough = borough;
+            assert.deepEqual(
+              postcodes,
+              ["BR1 1AA", "SE6 1AA"],
+            );
+            return ["BR1 1AA"];
+          },
+        },
+        searchProvider: {
+          async search(input) {
+            assert.equal(
+              input.mode,
+              "borough",
+            );
+            return [
+              {
+                providerPlaceId:
+                  "bromley",
+                businessName:
+                  "Bromley Venue",
+                formattedAddress:
+                  "Bromley BR1 1AA",
+                primaryPostcode:
+                  "BR1 1AA",
+                websiteUrl: null,
+                phone: null,
+                sourceUrl:
+                  "https://maps.google.com/?cid=1",
+                businessStatus:
+                  "OPERATIONAL",
+                types: [],
+                coordinates: {
+                  latitude: 51.4,
+                  longitude: 0,
+                },
+                distanceMiles: null,
+              },
+              {
+                providerPlaceId:
+                  "lewisham",
+                businessName:
+                  "Lewisham Venue",
+                formattedAddress:
+                  "Lewisham SE6 1AA",
+                primaryPostcode:
+                  "SE6 1AA",
+                websiteUrl: null,
+                phone: null,
+                sourceUrl:
+                  "https://maps.google.com/?cid=2",
+                businessStatus:
+                  "OPERATIONAL",
+                types: [],
+                coordinates: {
+                  latitude: 51.44,
+                  longitude: -0.02,
+                },
+                distanceMiles: null,
+              },
+            ];
+          },
+        },
+        repository: repository(
+          (input) => {
+            captures.push(input);
+          },
+        ),
+      });
+
+    const result =
+      await service.search(
+        USER_ID,
+        {
+          mode: "borough",
+          borough: "bromley",
+          sector:
+            "community_halls_event_venues",
+        },
+      );
+
+    assert.equal(
+      requestedBorough,
+      "Bromley",
+    );
+    assert.equal(
+      result.mode,
+      "borough",
+    );
+    assert.equal(
+      result.borough,
+      "Bromley",
+    );
+    assert.equal(
+      result.results.length,
+      1,
+    );
+    assert.equal(
+      result.results[0]
+        ?.businessName,
+      "Bromley Venue",
+    );
+    assert.equal(
+      result.results[0]
+        ?.distanceMiles,
+      null,
+    );
+    assert.equal(
+      captures[0]?.results.length,
+      1,
+    );
+  },
+);

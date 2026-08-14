@@ -96,8 +96,11 @@ export interface LeadEngineRouteDependencies {
 const UK_POSTCODE =
   /^[A-Za-z]{1,2}\d[A-Za-z\d]?\s*\d[A-Za-z]{2}$/;
 
-const searchRequestSchema =
+const postcodeSearchRequestSchema =
   z.strictObject({
+    mode: z.literal("postcode")
+      .optional()
+      .default("postcode"),
     postcode: z.string()
       .trim()
       .min(5)
@@ -110,6 +113,24 @@ const searchRequestSchema =
       LEAD_SECTORS,
     ),
   });
+
+const boroughSearchRequestSchema =
+  z.strictObject({
+    mode: z.literal("borough"),
+    borough: z.string()
+      .trim()
+      .min(3)
+      .max(80),
+    sector: z.enum(
+      LEAD_SECTORS,
+    ),
+  });
+
+const searchRequestSchema =
+  z.union([
+    postcodeSearchRequestSchema,
+    boroughSearchRequestSchema,
+  ]);
 
 const nullableText = (maximum: number) =>
   z.string()
@@ -435,6 +456,13 @@ function mapLeadSearchError(
         code: "INVALID_POSTCODE",
         message:
           "Enter a valid UK postcode.",
+        statusCode: 400,
+      });
+    case "invalid_borough":
+      return new HttpError({
+        code: "INVALID_BOROUGH",
+        message:
+          "Choose a valid London borough.",
         statusCode: 400,
       });
     case "postcode_provider_unavailable":
@@ -1794,7 +1822,7 @@ export function registerLeadEngineRoutes(
         throw new HttpError({
           code: "VALIDATION_ERROR",
           message:
-            "Enter a valid postcode, radius up to 30 miles, and approved sector.",
+            "Choose a valid London borough, or enter a valid postcode with a radius up to 30 miles, plus an approved sector.",
           statusCode: 400,
         });
       }

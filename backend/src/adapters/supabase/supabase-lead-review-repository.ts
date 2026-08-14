@@ -9,9 +9,14 @@ import type {
   LeadProspectSummary,
   LeadReviewRepository,
   RecordAutomaticCompaniesHouseVerificationInput,
+  RecordAutomaticLegalOperatorVerificationInput,
   RecordCompaniesHouseVerificationInput,
   SaveLeadAssessmentInput,
 } from "../../ports/lead-review.js";
+
+import {
+  effectiveQualification,
+} from "../../domain/effective-qualification-state.js";
 
 import {
   COMPANY_ENRICHMENT_STATUSES,
@@ -58,6 +63,7 @@ const evidenceRowSchema = z.object({
   verification_method: z.enum([
     "founder_review",
     "automatic_first_party_company_number",
+    "automatic_first_party_legal_operator",
     "automatic_first_party_research",
   ]).optional().default("founder_review"),
 });
@@ -240,6 +246,76 @@ function mapEnrichment(
       : {
           researchCompletedAt:
             row.research_completed_at,
+        }),
+  };
+}
+
+function mapEffectiveEnrichment(
+  row: z.infer<
+    typeof enrichmentRowSchema
+  >,
+  assessment:
+    | z.infer<
+        typeof assessmentRowSchema
+      >
+    | null,
+  evidence:
+    readonly z.infer<
+      typeof evidenceRowSchema
+    >[],
+  automaticQualificationEnabled:
+    boolean,
+): CompanyEnrichmentRecord {
+  const mapped = mapEnrichment(row);
+  const effective =
+    effectiveQualification({
+      automaticQualificationEnabled,
+      storedState:
+        mapped.qualificationState,
+      storedReasons:
+        mapped.qualificationReasons,
+      enrichmentCompletedAt:
+        row.completed_at ??
+        row.research_completed_at,
+      assessment:
+        assessment === null
+          ? null
+          : {
+              eligibilityResult:
+                assessment
+                  .eligibility_result,
+              blockers:
+                assessment.blockers,
+              assessedAt:
+                assessment.assessed_at,
+            },
+      verifiedInactive:
+        evidence.some(
+          (item) =>
+            item.verification_status ===
+              "verified" &&
+            item.field_name ===
+              "business_status" &&
+            item.field_value
+              .trim()
+              .toLowerCase() ===
+              "inactive",
+        ),
+    });
+
+  return {
+    ...mapped,
+    ...(effective.state === undefined
+      ? {}
+      : {
+          qualificationState:
+            effective.state,
+        }),
+    ...(effective.reasons === undefined
+      ? {}
+      : {
+          qualificationReasons:
+            effective.reasons,
         }),
   };
 }
@@ -457,7 +533,13 @@ implements LeadReviewRepository {
         companyEnrichment:
           enrichment === undefined
             ? null
-            : mapEnrichment(enrichment),
+            : mapEffectiveEnrichment(
+                enrichment,
+                assessment,
+                prospectEvidence,
+                this
+                  .automaticQualificationEnabled,
+              ),
       };
     });
   }
@@ -598,8 +680,12 @@ implements LeadReviewRepository {
       companyEnrichment:
         enrichments[0] === undefined
           ? null
-          : mapEnrichment(
+          : mapEffectiveEnrichment(
               enrichments[0],
+              assessments[0] ?? null,
+              evidence,
+              this
+                .automaticQualificationEnabled,
             ),
     };
   }
@@ -734,6 +820,58 @@ implements LeadReviewRepository {
             (fact) => ({
               field_name: fact.factName,
               field_value: fact.factValue,
+              source_excerpt:
+                fact.sourceExcerpt,
+              content_sha256:
+                fact.contentSha256,
+            }),
+          ),
+        }),
+      },
+    );
+    return result[0]!.evidence_ids;
+  }
+
+  async recordAutomaticLegalOperatorVerification(
+    input:
+      RecordAutomaticLegalOperatorVerificationInput,
+  ): Promise<readonly string[]> {
+    const result = await this.json(
+      "/rpc/record_automatic_legal_operator_verification",
+      evidenceIdsResponseSchema,
+      {
+        method: "POST",
+        headers: {
+          "content-type":
+            "application/json",
+        },
+        body: JSON.stringify({
+          p_prospect_id:
+            input.prospectId,
+          p_actor_id:
+            input.founderId,
+          p_attempt_count:
+            input.enrichmentAttemptCount,
+          p_operator_name:
+            input.firstPartyAssertion
+              .operatorName,
+          p_website_source_url:
+            input.firstPartyAssertion
+              .sourceUrl,
+          p_website_source_excerpt:
+            input.firstPartyAssertion
+              .sourceExcerpt,
+          p_website_content_sha256:
+            input.firstPartyAssertion
+              .contentSha256,
+          p_companies_house_source_url:
+            input.sourceUrl,
+          p_facts: input.facts.map(
+            (fact) => ({
+              field_name:
+                fact.factName,
+              field_value:
+                fact.factValue,
               source_excerpt:
                 fact.sourceExcerpt,
               content_sha256:

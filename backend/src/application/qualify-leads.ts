@@ -277,6 +277,8 @@ ${support.sourceExcerpt}`,
 
     const assertions =
       research?.companyNumberAssertions ?? [];
+    const operatorAssertions =
+      research?.legalOperatorAssertions ?? [];
     if (
       job.companyNumber === null &&
       assertions.length === 1
@@ -328,6 +330,57 @@ ${support.sourceExcerpt}`,
       assertions.length > 1
     ) {
       reasons.push("multiple_company_numbers_found");
+    }
+
+    if (
+      job.companyNumber === null &&
+      enrichmentStatus === "no_match" &&
+      assertions.length === 0 &&
+      operatorAssertions.length === 1 &&
+      options.companiesHouseService
+        .verifyAutomaticallyByLegalOperator !==
+          undefined
+    ) {
+      try {
+        const verified =
+          await options.companiesHouseService
+            .verifyAutomaticallyByLegalOperator(
+              job.actorId,
+              job.prospectId,
+              job.attemptCount,
+              operatorAssertions[0]!,
+            );
+        enrichmentStatus =
+          "auto_verified";
+        discoveredCompanyNumber =
+          verified.companyNumber;
+      } catch (error) {
+        if (
+          error instanceof
+            CompaniesHouseVerificationError &&
+          [
+            "provider_rate_limited",
+            "provider_unavailable",
+            "repository_unavailable",
+          ].includes(error.failure)
+        ) {
+          return completeFailure(
+            job,
+            `companies_house_${error.failure}`,
+          );
+        }
+        reasons.push(
+          "legal_operator_not_confirmed",
+        );
+      }
+    } else if (
+      job.companyNumber === null &&
+      enrichmentStatus === "no_match" &&
+      operatorAssertions.length > 1
+    ) {
+      reasons.push(
+        "multiple_legal_operators_found",
+      );
     }
 
     if (
@@ -418,6 +471,11 @@ ${support.sourceExcerpt}`,
               research.truncatedPageCount,
             organisationType:
               research.organisationType,
+            legalOperatorNames:
+              operatorAssertions.map(
+                (item) =>
+                  item.operatorName,
+              ),
             verifiedFactCount:
               research.facts.length +
               additionalVerifiedFactCount,

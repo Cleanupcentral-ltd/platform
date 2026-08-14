@@ -37,6 +37,11 @@ export class LeadProviderError extends Error {
 
 export interface PostcodeLocator {
   locate(postcode: string): Promise<LocatedPostcode>;
+
+  filterToBorough?(
+    borough: string,
+    postcodes: readonly string[],
+  ): Promise<readonly string[]>;
 }
 
 export interface LeadProviderResult {
@@ -50,14 +55,21 @@ export interface LeadProviderResult {
   readonly businessStatus: string | null;
   readonly types: readonly string[];
   readonly coordinates: Coordinates;
-  readonly distanceMiles: number;
+  readonly distanceMiles: number | null;
 }
 
-export interface LeadSearchProviderInput {
-  readonly sector: LeadSector;
-  readonly center: Coordinates;
-  readonly radiusMiles: number;
-}
+export type LeadSearchProviderInput =
+  | {
+      readonly mode?: "postcode";
+      readonly sector: LeadSector;
+      readonly center: Coordinates;
+      readonly radiusMiles: number;
+    }
+  | {
+      readonly mode: "borough";
+      readonly sector: LeadSector;
+      readonly borough: string;
+    };
 
 export interface LeadSearchProvider {
   search(
@@ -93,8 +105,11 @@ export interface CapturedLeadResult {
 
 export interface StartLeadSearchInput {
   readonly founderId: string;
-  readonly postcode: string;
-  readonly radiusMiles: number;
+  readonly searchMode?:
+    "postcode" | "borough";
+  readonly postcode: string | null;
+  readonly radiusMiles: number | null;
+  readonly borough?: string | null;
   readonly sector: LeadSector;
 }
 

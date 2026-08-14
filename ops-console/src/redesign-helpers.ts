@@ -1,15 +1,15 @@
 import {
   LEAD_SECTOR_OPTIONS,
   type LeadSector,
-} from "./lead-search-api";
+} from "./lead-search-api.ts";
 
 import type {
   ProspectSummary,
-} from "./lead-review-api";
+} from "./lead-review-api.ts";
 
 import type {
   ManualFollowUpItem,
-} from "./manual-follow-ups-api";
+} from "./manual-follow-ups-api.ts";
 
 export type QueueFilter =
   | "all"

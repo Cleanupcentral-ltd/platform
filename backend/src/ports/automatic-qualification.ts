@@ -23,7 +23,7 @@ export interface AutomaticQualificationJob {
   readonly sector: LeadSector;
   readonly websiteUrl: string | null;
   readonly companyNumber: string | null;
-  readonly googlePlaceId: string | null;
+  readonly googlePlaceId?: string | null;
   readonly attemptCount: number;
 }
 

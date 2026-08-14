@@ -195,8 +195,10 @@ export function createAutomaticQualificationService(
   ): Promise<Outcome> {
     let businessName = job.businessName;
     let websiteUrl = job.websiteUrl;
+    const googlePlaceId =
+      job.googlePlaceId ?? null;
 
-    if (job.googlePlaceId !== null) {
+    if (googlePlaceId !== null) {
       if (
         options.googlePlaceDetailsProvider ===
           undefined
@@ -209,7 +211,7 @@ export function createAutomaticQualificationService(
       try {
         const transientPlace =
           await options.googlePlaceDetailsProvider
-            .resolve(job.googlePlaceId);
+            .resolve(googlePlaceId);
         businessName =
           transientPlace.businessName;
         websiteUrl =

@@ -64,9 +64,12 @@ function registeredStatus(
   value: string,
   dateOfRemoval: string | null,
 ): "active" | "inactive" {
+  const normalizedStatus =
+    value.trim().toLowerCase();
   return (
-    value.trim().toLowerCase() ===
-      "registered" &&
+    ["r", "registered"].includes(
+      normalizedStatus,
+    ) &&
     (
       dateOfRemoval === null ||
       dateOfRemoval.trim().length === 0

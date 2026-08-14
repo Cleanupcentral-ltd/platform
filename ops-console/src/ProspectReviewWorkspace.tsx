@@ -33,6 +33,7 @@ import {
 } from "./lead-review-api";
 
 import {
+  canRetryAutomaticCheck,
   defaultReviewQueueFilter,
   filterProspectQueue,
   type ReviewQueueFilter,
@@ -1307,10 +1308,9 @@ export function ProspectReviewWorkspace({
                             Open first-party source
                           </a>
                         )}
-                      {["failed", "no_match", "duplicate"]
-                        .includes(
-                          review.companyEnrichment.status,
-                        ) && (
+                      {canRetryAutomaticCheck(
+                        review.companyEnrichment.status,
+                      ) && (
                           <button
                             type="button"
                             className="secondary"

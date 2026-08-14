@@ -21,6 +21,18 @@ export function defaultReviewQueueFilter(
   return "all";
 }
 
+export function canRetryAutomaticCheck(
+  status: string | undefined,
+): boolean {
+  return status !== undefined &&
+    [
+      "review_required",
+      "no_match",
+      "duplicate",
+      "failed",
+    ].includes(status);
+}
+
 export function filterProspectQueue(
   prospects: readonly ProspectSummary[],
   queueFilter: ReviewQueueFilter,

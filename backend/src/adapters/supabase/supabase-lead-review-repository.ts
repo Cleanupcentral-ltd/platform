@@ -495,6 +495,26 @@ implements LeadReviewRepository {
         primaryPostcode:
           item.primary_postcode,
         websiteUrl: item.website_url,
+        publicPhone:
+          prospectEvidence.find(
+            (record) =>
+              record.source_type ===
+                "first_party_website" &&
+              record.field_name ===
+                "public_phone" &&
+              record.verification_status ===
+                "verified",
+          )?.field_value ?? null,
+        publicEmail:
+          prospectEvidence.find(
+            (record) =>
+              record.source_type ===
+                "first_party_website" &&
+              record.field_name ===
+                "public_email" &&
+              record.verification_status ===
+                "verified",
+          )?.field_value ?? null,
         createdAt: item.created_at,
         viewedAt:
           viewedAtByProspect.get(

@@ -476,10 +476,27 @@
   line-height: 1.6;
 }
 
+.le-result-contact {
+  display: grid;
+  gap: 8px;
+}
+
 .le-result-links {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px 14px;
+  align-items: center;
+  gap: 8px 18px;
+}
+
+.le-result-email {
+  width: fit-content;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  color: var(--le-stone);
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration-color: var(--le-gold-dark);
+  text-underline-offset: 4px;
 }
 
 .le-result-links a,
@@ -492,6 +509,7 @@
 }
 
 .le-result-links a:hover,
+.le-result-email:hover,
 .le-evidence-row a:hover,
 .le-company-match a:hover {
   text-decoration: underline;

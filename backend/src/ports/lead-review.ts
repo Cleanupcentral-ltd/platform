@@ -43,6 +43,8 @@ export interface LeadProspectSummary {
   readonly sector: LeadSector;
   readonly primaryPostcode: string | null;
   readonly websiteUrl: string | null;
+  readonly publicPhone?: string | null;
+  readonly publicEmail?: string | null;
   readonly createdAt: string;
   readonly viewedAt: string | null;
   readonly evidenceCounts: {

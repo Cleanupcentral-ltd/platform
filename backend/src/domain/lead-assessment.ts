@@ -142,16 +142,27 @@ function normalizedFact(
 function trustedContactFormEvidence(
   evidence: LeadEvidenceRecord | undefined,
 ): boolean {
-  return evidence?.sourceType ===
-      "first_party_website" &&
-    evidence.fieldName ===
-      "contact_form_url" &&
-    [
-      "founder_review",
-      "automatic_first_party_contact_form_v2",
-    ].includes(
-      evidence.verificationMethod ?? "",
-    );
+  if (
+    evidence?.sourceType !==
+      "first_party_website" ||
+    evidence.fieldName !==
+      "contact_form_url"
+  ) {
+    return false;
+  }
+
+  if (
+    evidence.verificationMethod ===
+      "founder_review"
+  ) {
+    return true;
+  }
+
+  return evidence.verificationMethod ===
+      "automatic_first_party_research" &&
+    evidence.sourceExcerpt?.startsWith(
+      "Verified contact form v2:",
+    ) === true;
 }
 
 function sectorScore(

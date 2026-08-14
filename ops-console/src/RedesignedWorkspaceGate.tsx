@@ -150,6 +150,7 @@ export function RedesignedWorkspaceGate() {
   }
 
   async function signOut() {
+    if (client === null) return;
     document.body.classList.remove(
       "lead-engine-redesign-active",
     );

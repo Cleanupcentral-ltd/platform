@@ -482,7 +482,7 @@ export function createManualOutreachService(options: {
       await prospect(prospectId);
       try {
         return await options.repository
-          .recordActivity({
+          .recordManualActivity({
             ...input,
             founderId,
             prospectId,

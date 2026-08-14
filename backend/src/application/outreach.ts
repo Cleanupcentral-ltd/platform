@@ -10,6 +10,7 @@ import {
 } from "../domain/business-email.js";
 
 import type {
+  ManualOutreachFollowUp,
   ManualOutreachRepository,
 } from "../ports/manual-outreach.js";
 
@@ -53,8 +54,8 @@ export class OutreachError extends Error {
 export interface OutreachDraftPreview {
   readonly prospectId: string;
   readonly businessName: string;
-  readonly sector: LeadProspectReview["sector"];
-  readonly sectorLabel: string;
+  readonly sector?: LeadProspectReview["sector"];
+  readonly sectorLabel?: string;
   readonly templateId: string;
   readonly contactId: string;
   readonly recipientEmail: string;
@@ -83,6 +84,10 @@ export interface ManualOutreachService {
     founderId: string,
     prospectId: string,
   ): Promise<ManualOutreachWorkspace>;
+
+  listFollowUps(
+    founderId: string,
+  ): Promise<readonly ManualOutreachFollowUp[]>;
 
   previewDraft(
     founderId: string,
@@ -451,6 +456,23 @@ export function createManualOutreachService(options: {
             await options.repository
               .listActivities(prospectId),
         };
+      } catch {
+        throw new OutreachError(
+          "repository_unavailable",
+        );
+      }
+    },
+
+    async listFollowUps(_founderId) {
+      if (
+        options.repository.listFollowUps ===
+          undefined
+      ) {
+        return [];
+      }
+      try {
+        return await options.repository
+          .listFollowUps(1_000);
       } catch {
         throw new OutreachError(
           "repository_unavailable",

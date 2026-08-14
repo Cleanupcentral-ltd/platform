@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import type {
+  ManualOutreachFollowUp,
   ManualOutreachRepository,
 } from "../../ports/manual-outreach.js";
 
@@ -59,6 +60,25 @@ const activityRowSchema = z.object({
   notes: z.string().nullable(),
   follow_up_at: z.string().nullable(),
   created_at: z.string(),
+});
+
+const followUpActivityRowSchema =
+  activityRowSchema.extend({
+    prospect_id: z.string().uuid(),
+  });
+
+const followUpProspectRowSchema = z.object({
+  id: z.string().uuid(),
+  business_name: z.string(),
+  sector: z.enum([
+    "short_let_serviced_accommodation",
+    "offices_coworking",
+    "community_halls_event_venues",
+    "estate_letting_agents",
+    "university_accommodation",
+    "other_commercial_spaces",
+  ]),
+  primary_postcode: z.string().nullable(),
 });
 
 function mapDraft(
@@ -205,6 +225,60 @@ implements OutreachRepository,
       z.array(activityRowSchema),
     );
     return rows.map(mapActivity);
+  }
+
+  async listFollowUps(
+    limit: number,
+  ): Promise<readonly ManualOutreachFollowUp[]> {
+    const boundedLimit = Math.max(
+      1,
+      Math.min(limit, 1_000),
+    );
+    const [activities, prospects] =
+      await Promise.all([
+        this.json(
+          `/activities?activity_type=in.(contacted,replied,follow_up_scheduled,outcome)&select=id,prospect_id,activity_type,outcome,notes,follow_up_at,created_at&order=created_at.desc,id.desc&limit=${boundedLimit}`,
+          z.array(followUpActivityRowSchema),
+        ),
+        this.json(
+          "/prospects?select=id,business_name,sector,primary_postcode&order=created_at.desc,id.desc&limit=1000",
+          z.array(followUpProspectRowSchema),
+        ),
+      ]);
+
+    const activitiesByProspect =
+      new Map<string, OutreachActivityRecord[]>();
+    for (const row of activities) {
+      const existing =
+        activitiesByProspect.get(
+          row.prospect_id,
+        ) ?? [];
+      existing.push(mapActivity(row));
+      activitiesByProspect.set(
+        row.prospect_id,
+        existing,
+      );
+    }
+
+    return prospects.flatMap((prospect) => {
+      const prospectActivities =
+        activitiesByProspect.get(prospect.id);
+      if (
+        prospectActivities === undefined ||
+        prospectActivities.length === 0
+      ) {
+        return [];
+      }
+      return [{
+        prospectId: prospect.id,
+        businessName:
+          prospect.business_name,
+        sector: prospect.sector,
+        primaryPostcode:
+          prospect.primary_postcode,
+        activities: prospectActivities,
+      }];
+    });
   }
 
   async prepareDraft(

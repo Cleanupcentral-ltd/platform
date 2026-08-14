@@ -2,14 +2,15 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 
 import { LeadEngineFoundation } from "./LeadEngineFoundation";
-import { ManualOutreachGate } from "./ManualOutreachGate";
+import { RedesignedWorkspaceGate } from "./RedesignedWorkspaceGate";
 import "./styles.css";
+import "./redesign-handoff.css";
 
 ReactDOM.createRoot(
   document.getElementById("root") as HTMLElement,
 ).render(
   <React.StrictMode>
     <LeadEngineFoundation />
-    <ManualOutreachGate />
+    <RedesignedWorkspaceGate />
   </React.StrictMode>,
 );

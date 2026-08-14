@@ -3,6 +3,7 @@ import { z } from "zod";
 import type {
   CaptureLeadResultsInput,
   CaptureLeadResultsOutcome,
+  CapturedLeadResult,
   LeadSearchRepository,
   StartLeadSearchInput,
 } from "../../ports/lead-search.js";
@@ -29,11 +30,64 @@ const captureResponseSchema =
     }),
   ).length(1);
 
+const googleProspectResponseSchema =
+  z.array(
+    z.object({
+      place_id: z.string().min(1),
+      prospect_id: z.string().uuid(),
+    }),
+  );
+
 export interface SupabaseLeadSearchRepositoryOptions {
   readonly supabaseUrl: string;
   readonly secretKey: string;
   readonly timeoutMs: number;
   readonly fetchFunction?: FetchFunction;
+}
+
+function persistentResult(
+  result: CapturedLeadResult,
+) {
+  if (
+    result.dedupeKey.startsWith(
+      "google_places:",
+    )
+  ) {
+    return {
+      dedupe_key: result.dedupeKey,
+      business_name:
+        "Pending verification",
+      website_url: null,
+      primary_postcode: null,
+      source_rank: null,
+      evidence: [],
+    };
+  }
+
+  return {
+    dedupe_key: result.dedupeKey,
+    business_name: result.businessName,
+    website_url: result.websiteUrl,
+    primary_postcode:
+      result.primaryPostcode,
+    source_rank: result.sourceRank,
+    evidence: result.evidence.map(
+      (evidence) => ({
+        source_url: evidence.sourceUrl,
+        source_type: evidence.sourceType,
+        field_name: evidence.fieldName,
+        field_value: evidence.fieldValue,
+        source_excerpt:
+          evidence.sourceExcerpt,
+        content_sha256:
+          evidence.contentSha256,
+        contact_type:
+          evidence.contactType,
+        normalized_contact_value:
+          evidence.normalizedContactValue,
+      }),
+    ),
+  };
 }
 
 export class SupabaseLeadSearchRepository
@@ -166,39 +220,7 @@ implements LeadSearchRepository {
             p_sector: input.sector,
             p_results:
               input.results.map(
-                (result) => ({
-                  dedupe_key:
-                    result.dedupeKey,
-                  business_name:
-                    result.businessName,
-                  website_url:
-                    result.websiteUrl,
-                  primary_postcode:
-                    result.primaryPostcode,
-                  source_rank:
-                    result.sourceRank,
-                  evidence:
-                    result.evidence.map(
-                      (evidence) => ({
-                        source_url:
-                          evidence.sourceUrl,
-                        source_type:
-                          evidence.sourceType,
-                        field_name:
-                          evidence.fieldName,
-                        field_value:
-                          evidence.fieldValue,
-                        source_excerpt:
-                          evidence.sourceExcerpt,
-                        content_sha256:
-                          evidence.contentSha256,
-                        contact_type:
-                          evidence.contactType,
-                        normalized_contact_value:
-                          evidence.normalizedContactValue,
-                      }),
-                    ),
-                }),
+                persistentResult,
               ),
           }),
         },
@@ -226,6 +248,43 @@ implements LeadSearchRepository {
         parsed.data[0]!
           .created_prospect_ids,
     };
+  }
+
+  async resolveGoogleProspectIds(
+    placeIds: readonly string[],
+  ): Promise<ReadonlyMap<string, string>> {
+    if (placeIds.length === 0) {
+      return new Map();
+    }
+
+    const response = await this.request(
+      "/rpc/resolve_google_prospect_ids",
+      {
+        method: "POST",
+        headers: {
+          "content-type":
+            "application/json",
+        },
+        body: JSON.stringify({
+          p_place_ids: [...placeIds],
+        }),
+      },
+    );
+    const parsed =
+      googleProspectResponseSchema.safeParse(
+        await response.json(),
+      );
+    if (!parsed.success) {
+      throw new Error(
+        "Lead store returned invalid Google prospect references.",
+      );
+    }
+    return new Map(
+      parsed.data.map((row) => [
+        row.place_id,
+        row.prospect_id,
+      ]),
+    );
   }
 
   async failSearch(

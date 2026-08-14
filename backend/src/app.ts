@@ -19,6 +19,10 @@ import {
 } from "./adapters/google/google-places-lead-search.js";
 
 import {
+  GooglePlacesPlaceDetailsProvider,
+} from "./adapters/google/google-places-place-details.js";
+
+import {
   CompaniesHouseClient,
 } from "./adapters/companies-house/companies-house-client.js";
 
@@ -586,6 +590,19 @@ export async function buildApp(
                   requestRetries:
                     env.LEAD_WEBSITE_REQUEST_RETRIES,
                 }),
+              ...(env.GOOGLE_PLACES_API_KEY === undefined
+                ? {}
+                : {
+                    googlePlaceDetailsProvider:
+                      new GooglePlacesPlaceDetailsProvider({
+                        apiKey:
+                          env.GOOGLE_PLACES_API_KEY,
+                        apiBaseUrl:
+                          env.GOOGLE_PLACES_API_BASE_URL,
+                        timeoutMs:
+                          env.GOOGLE_PLACES_TIMEOUT_MS,
+                      }),
+                  }),
               companiesHouseService:
                 companiesHouseVerificationService,
               ...(charityCommissionVerificationService === undefined

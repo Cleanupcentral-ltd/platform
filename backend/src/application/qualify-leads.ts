@@ -13,6 +13,7 @@ import type {
   AutomaticQualificationRepository,
   FirstPartyResearchResult,
   FirstPartyResearchProvider,
+  GooglePlaceDetailsProvider,
   QualificationQueueState,
 } from "../ports/automatic-qualification.js";
 
@@ -44,6 +45,8 @@ export interface AutomaticQualificationServiceOptions {
     AutomaticQualificationRepository;
   readonly firstPartyProvider:
     FirstPartyResearchProvider;
+  readonly googlePlaceDetailsProvider?:
+    GooglePlaceDetailsProvider;
   readonly companiesHouseService:
     CompaniesHouseVerificationService;
   readonly charityCommissionService?:
@@ -190,16 +193,45 @@ export function createAutomaticQualificationService(
   async function processJob(
     job: AutomaticQualificationJob,
   ): Promise<Outcome> {
+    let businessName = job.businessName;
+    let websiteUrl = job.websiteUrl;
+
+    if (job.googlePlaceId !== null) {
+      if (
+        options.googlePlaceDetailsProvider ===
+          undefined
+      ) {
+        return completeFailure(
+          job,
+          "google_place_details_unavailable",
+        );
+      }
+      try {
+        const transientPlace =
+          await options.googlePlaceDetailsProvider
+            .resolve(job.googlePlaceId);
+        businessName =
+          transientPlace.businessName;
+        websiteUrl =
+          transientPlace.websiteUrl;
+      } catch {
+        return completeFailure(
+          job,
+          "google_place_details_unavailable",
+        );
+      }
+    }
+
     let research: FirstPartyResearchResult | null = null;
     let additionalVerifiedFactCount = 0;
     const reasons: string[] = [];
-    if (job.websiteUrl === null) {
+    if (websiteUrl === null) {
       reasons.push("no_first_party_website");
     } else {
       try {
         research = await options.firstPartyProvider.research(
-          job.websiteUrl,
-          job.businessName,
+          websiteUrl,
+          businessName,
           job.sector,
         );
       } catch (error) {
@@ -251,10 +283,7 @@ export function createAutomaticQualificationService(
                   support.sourceUrl,
                   support.sourceExcerpt,
                   sha256(
-                    `${support.sourceUrl}
-premises_scale
-one_active_premises
-${support.sourceExcerpt}`,
+                    `${support.sourceUrl}\npremises_scale\none_active_premises\n${support.sourceExcerpt}`,
                   ),
                 );
             if (evidenceIds.length > 0) {
@@ -451,7 +480,7 @@ ${support.sourceExcerpt}`,
         candidates = uniqueMatches(
           await options.companiesHouseService.search(
             job.prospectId,
-            job.businessName,
+            businessName,
           ),
         );
         if (candidates.length > 0) {

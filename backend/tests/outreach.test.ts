@@ -188,6 +188,8 @@ function repository(capture: {
       return capture.existing ?? draft({
         subject: input.subject,
         body: input.body,
+        templateId:
+          input.templateId,
         previewSha256:
           input.previewSha256,
         evidenceIds:
@@ -251,7 +253,7 @@ function gateway(capture: {
 }
 
 test(
-  "preview uses the approved sender-neutral Initial Outreach v1 copy",
+  "preview preserves the approved sender-neutral Initial Outreach v1 Graph copy",
   async () => {
     const current = prospect();
     const service = createOutreachService({
@@ -275,6 +277,10 @@ test(
       preview.recipientEmail,
       "hello@example.com",
     );
+    assert.equal(
+      preview.templateId,
+      "initial_outreach_v1",
+    );
     assert.match(
       preview.body,
       /reaching out on behalf of Clean Up Central/,
@@ -282,6 +288,10 @@ test(
     assert.match(
       preview.body,
       /came across Example Offices while researching organisations in your sector/,
+    );
+    assert.match(
+      preview.body,
+      /regular cleaning, additional cover when needed/,
     );
     assert.match(
       preview.body,
@@ -293,7 +303,7 @@ test(
     );
     assert.match(
       preview.body,
-      /Privacy information: https:\/\/cleanupcentral\.com\/privacy/,
+      /Privacy Notice: https:\/\/cleanupcentral\.com\/privacy/,
     );
     assert.match(
       preview.body,

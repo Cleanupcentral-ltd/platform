@@ -30,6 +30,10 @@ import {
   type ProspectSummary,
 } from "./lead-review-api";
 
+import {
+  queueKey,
+} from "./redesign-helpers";
+
 import "./redesign.css";
 
 type Tab =
@@ -164,6 +168,26 @@ export function LeadEngineRedesign({
     }
     setSelectedId(prospectId);
     setActiveTab("verify");
+  }
+
+  function openFollowUp(
+    prospectId: string,
+  ) {
+    const prospect = prospects.find(
+      (item) => item.id === prospectId,
+    );
+    if (
+      prospect !== undefined &&
+      queueKey(prospect) === "excluded"
+    ) {
+      setSelectedId(prospectId);
+      setActiveTab("verify");
+      showMessage(
+        "This prospect is excluded. Its history remains available, but outreach is blocked.",
+      );
+      return;
+    }
+    setOutreachId(prospectId);
   }
 
   async function exportCsv() {
@@ -348,7 +372,7 @@ export function LeadEngineRedesign({
             backendUrl={backendUrl}
             accessToken={accessToken}
             refreshKey={followUpRefreshKey}
-            onOpenOutreach={setOutreachId}
+            onOpenOutreach={openFollowUp}
             onError={showError}
           />
         )}

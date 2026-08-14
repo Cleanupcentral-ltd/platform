@@ -1,0 +1,50 @@
+name: Mandatory contact validation
+
+on:
+  push:
+    branches:
+      - agent/mandatory-contact-information
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - name: Focused Lead Engine regressions
+        run: >-
+          node --import tsx --test
+          tests/public-phone.test.ts
+          tests/phone-contactability.test.ts
+          tests/first-party-research.test.ts
+          tests/contact-form-evidence.test.ts
+          tests/contact-form-trust.test.ts
+          tests/google-qualification-bridge.test.ts
+      - run: npm run build
+
+  ops-console:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ops-console
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: ops-console/package-lock.json
+      - run: npm ci
+      - run: npm test

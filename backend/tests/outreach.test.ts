@@ -154,7 +154,7 @@ function draft(
       "Cleaning support for Example Offices",
     body: "Hello",
     templateId:
-      "initial_outreach_v2_offices_coworking",
+      "initial_outreach_v1",
     previewSha256: "a".repeat(64),
     evidenceIds: [],
     status: "pending",
@@ -253,7 +253,7 @@ function gateway(capture: {
 }
 
 test(
-  "preview uses the approved sender-neutral sector outreach copy",
+  "preview preserves the approved sender-neutral Initial Outreach v1 Graph copy",
   async () => {
     const current = prospect();
     const service = createOutreachService({
@@ -278,8 +278,8 @@ test(
       "hello@example.com",
     );
     assert.equal(
-      preview.sectorLabel,
-      "Offices and coworking spaces",
+      preview.templateId,
+      "initial_outreach_v1",
     );
     assert.match(
       preview.body,
@@ -291,7 +291,7 @@ test(
     );
     assert.match(
       preview.body,
-      /scheduled workplace cleaning/,
+      /regular cleaning, additional cover when needed/,
     );
     assert.match(
       preview.body,
@@ -457,7 +457,7 @@ test(
     assert.equal(created.status, "drafted");
     assert.equal(
       capture.prepared?.templateId,
-      "initial_outreach_v2_offices_coworking",
+      "initial_outreach_v1",
     );
   },
 );

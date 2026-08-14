@@ -32,6 +32,7 @@ jobs:
           node --import tsx --test
           tests/google-places-place-details.test.ts
           tests/google-qualification-bridge.test.ts
+          tests/google-search-persistence-boundary.test.ts
           tests/qualify-leads.test.ts
           tests/search-leads.test.ts
           tests/manual-sector-outreach.test.ts

@@ -21,6 +21,8 @@ export function RedesignedWorkspaceGate() {
   const config = useMemo(readConfig, []);
   const [accessToken, setAccessToken] =
     useState<string | null>(null);
+  const [exportEnabled, setExportEnabled] =
+    useState(false);
 
   const client = useMemo(() => {
     if (!config.enabled) return null;
@@ -44,7 +46,10 @@ export function RedesignedWorkspaceGate() {
         session.error ||
         session.data.session === null
       ) {
-        if (active) setAccessToken(null);
+        if (active) {
+          setAccessToken(null);
+          setExportEnabled(false);
+        }
         return;
       }
 
@@ -63,13 +68,47 @@ export function RedesignedWorkspaceGate() {
           "founder" ||
         assurance.data.currentLevel !== "aal2"
       ) {
-        if (active) setAccessToken(null);
+        if (active) {
+          setAccessToken(null);
+          setExportEnabled(false);
+        }
         return;
       }
 
-      setAccessToken(
-        session.data.session.access_token,
-      );
+      const token =
+        session.data.session.access_token;
+      setAccessToken(token);
+
+      if (config.backendUrl !== null) {
+        try {
+          const response = await fetch(
+            `${config.backendUrl.replace(/\/$/, "")}/api/ops/leads/health`,
+            {
+              method: "GET",
+              headers: {
+                Authorization:
+                  `Bearer ${token}`,
+              },
+              cache: "no-store",
+            },
+          );
+          if (response.ok) {
+            const body = await response.json() as {
+              readonly capabilities?: {
+                readonly export?: unknown;
+              };
+            };
+            if (active) {
+              setExportEnabled(
+                body.capabilities?.export === true,
+              );
+            }
+          }
+        } catch {
+          // CSV is a fallback utility. The core redesigned workspace
+          // remains usable if its capability check is unavailable.
+        }
+      }
     }
 
     void refresh();
@@ -82,7 +121,24 @@ export function RedesignedWorkspaceGate() {
       active = false;
       data.subscription.unsubscribe();
     };
-  }, [client]);
+  }, [client, config.backendUrl]);
+
+  useEffect(() => {
+    if (accessToken === null) {
+      document.body.classList.remove(
+        "lead-engine-redesign-active",
+      );
+      return;
+    }
+    document.body.classList.add(
+      "lead-engine-redesign-active",
+    );
+    return () => {
+      document.body.classList.remove(
+        "lead-engine-redesign-active",
+      );
+    };
+  }, [accessToken]);
 
   if (
     accessToken === null ||
@@ -94,6 +150,9 @@ export function RedesignedWorkspaceGate() {
   }
 
   async function signOut() {
+    document.body.classList.remove(
+      "lead-engine-redesign-active",
+    );
     await client.auth.signOut();
     window.location.reload();
   }
@@ -103,6 +162,7 @@ export function RedesignedWorkspaceGate() {
       backendUrl={config.backendUrl}
       accessToken={accessToken}
       onSignOut={signOut}
+      exportEnabled={exportEnabled}
     />
   );
 }

@@ -1,5 +1,6 @@
 import {
   FormEvent,
+  useEffect,
   useMemo,
   useState,
 } from "react";
@@ -236,12 +237,23 @@ export function LeadReviewView({
     }
   }
 
-  async function chooseProspect(
+  useEffect(() => {
+    if (selectedId === null) {
+      setReview(null);
+      return;
+    }
+    if (review?.id === selectedId) {
+      return;
+    }
+    void loadReview(selectedId);
+    // The authenticated URL/token and callbacks are stable for this view.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId]);
+
+  function chooseProspect(
     prospectId: string,
   ) {
     setSelectedId(prospectId);
-    setReview(null);
-    await loadReview(prospectId);
   }
 
   async function refreshCurrent() {
@@ -519,7 +531,7 @@ export function LeadReviewView({
                     : "le-queue-row"
                 }
                 onClick={() =>
-                  void chooseProspect(
+                  chooseProspect(
                     prospect.id,
                   )
                 }

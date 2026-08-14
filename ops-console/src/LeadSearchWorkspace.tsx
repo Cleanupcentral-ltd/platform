@@ -434,6 +434,17 @@ export function LeadSearchWorkspace({
                 ),
               )}
             </datalist>
+            {borough !== "" && (
+              <button
+                type="button"
+                className="secondary"
+                onClick={() =>
+                  setBorough("")
+                }
+              >
+                Change borough
+              </button>
+            )}
           </label>
         ) : (
           <>

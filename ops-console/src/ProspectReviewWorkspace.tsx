@@ -140,6 +140,35 @@ const QUALIFICATION_LABELS = {
   processing: "Processing",
 } as const;
 
+function qualificationStatusLabel(
+  enrichment:
+    ProspectSummary["companyEnrichment"],
+): string {
+  if (
+    enrichment === null ||
+    enrichment === undefined
+  ) {
+    return "not queued";
+  }
+
+  if (
+    enrichment.qualificationState ===
+      "processing" &&
+    enrichment.status === "pending"
+  ) {
+    return "Queued";
+  }
+
+  return enrichment.qualificationState ===
+    undefined
+    ? ENRICHMENT_LABELS[
+        enrichment.status
+      ]
+    : QUALIFICATION_LABELS[
+        enrichment.qualificationState
+      ];
+}
+
 function messageFrom(error: unknown): string {
   return error instanceof Error
     ? error.message
@@ -581,7 +610,7 @@ export function ProspectReviewWorkspace({
         review.id,
       );
       setMessage(
-        "The automatic company check was queued. It will run in the background; manual verification remains available.",
+        "Priority automatic check queued. A founder-requested retry is picked before standard background work; manual verification remains available.",
       );
       await Promise.all([
         loadReview(review.id),
@@ -884,9 +913,9 @@ export function ProspectReviewWorkspace({
             >
               {item.viewedAt === null ? "NEW — " : ""}{item.businessName} — {item.primaryPostcode ?? "postcode unknown"} — {item.latestAssessment?.totalScore ?? "not scored"} — {item.companyEnrichment === null || item.companyEnrichment === undefined
                 ? "not queued"
-                : item.companyEnrichment.qualificationState === undefined
-                  ? ENRICHMENT_LABELS[item.companyEnrichment.status]
-                  : QUALIFICATION_LABELS[item.companyEnrichment.qualificationState]}
+                : qualificationStatusLabel(
+                    item.companyEnrichment,
+                  )}
             </option>
           ))}
         </select>
@@ -1246,15 +1275,9 @@ export function ProspectReviewWorkspace({
                   review.companyEnrichment !== undefined && (
                     <div className="enrichment-summary">
                       <strong>
-                        {review.companyEnrichment
-                          .qualificationState === undefined
-                          ? ENRICHMENT_LABELS[
-                              review.companyEnrichment.status
-                            ]
-                          : QUALIFICATION_LABELS[
-                              review.companyEnrichment
-                                .qualificationState
-                            ]}
+                        {qualificationStatusLabel(
+                          review.companyEnrichment,
+                        )}
                       </strong>
                       {review.companyEnrichment
                         .qualificationReasons !== undefined &&

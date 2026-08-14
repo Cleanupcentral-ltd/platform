@@ -73,6 +73,11 @@ const COMPANY_NUMBER_PATTERNS = [
   /\bregistered\s+(?:in|under)\s+(?:england(?:\s+and\s+wales)?|scotland|northern\s+ireland)?\s*(?:as\s+)?(?:company\s*)?(?:number|no\.?)?\s*[:#-]?\s*((?:[a-z]{2}\s*\d{6})|(?:\d{8}))\b/giu,
 ] as const;
 
+const CHARITY_NUMBER_PATTERNS = [
+  /\bregistered\s+charity\s*(?:(?:number|no\.?)\s*)?[:#-]?\s*(\d{6,7})\b/giu,
+  /\bcharity\s+(?:number|no\.?)\s*[:#-]?\s*(\d{6,7})\b/giu,
+] as const;
+
 const LEGAL_OPERATOR_PATTERNS = [
   /\b(?:operated|owned|managed|run)\s+by\s+([a-z0-9][a-z0-9&'().,\- ]{1,100}?\b(?:ltd|limited|llp|plc|cic))\b/giu,
   /(?:©|\bcopyright\b)\s*(?:\d{4}(?:\s*[-–]\s*\d{4})?\s*)?(?:all\s+rights\s+reserved\s*)?by\s+([a-z0-9][a-z0-9&'().,\- ]{1,100}?\b(?:ltd|limited|llp|plc|cic))\b/giu,
@@ -505,6 +510,65 @@ function companyNumberAssertions(
     left.companyNumber.localeCompare(right.companyNumber));
 }
 
+function charityNumberAssertions(
+  pages: readonly LoadedPage[],
+): NonNullable<
+  FirstPartyResearchResult[
+    "charityNumberAssertions"
+  ]
+> {
+  const found = new Map<string, {
+    readonly charityNumber: string;
+    readonly sourceUrl: string;
+    readonly sourceExcerpt: string;
+    readonly contentSha256: string;
+  }>();
+
+  for (const page of pages) {
+    for (
+      const pattern of
+        CHARITY_NUMBER_PATTERNS
+    ) {
+      pattern.lastIndex = 0;
+      for (
+        const match of
+          page.text.matchAll(pattern)
+      ) {
+        const captured =
+          match[1]?.replace(
+            /\s+/g,
+            "",
+          );
+        if (
+          captured === undefined ||
+          !/^\d{6,7}$/.test(captured) ||
+          found.has(captured)
+        ) continue;
+
+        const support =
+          excerpt(page.text, match);
+        found.set(captured, {
+          charityNumber: captured,
+          sourceUrl:
+            page.url.toString(),
+          sourceExcerpt: support,
+          contentSha256: sha256(
+            `${page.url}\ncharity_number\n${captured}\n${support}`,
+          ),
+        });
+      }
+    }
+  }
+
+  return [...found.values()]
+    .sort(
+      (left, right) =>
+        left.charityNumber.localeCompare(
+          right.charityNumber,
+        ),
+    );
+}
+
 function legalOperatorAssertions(
   pages: readonly LoadedPage[],
 ): NonNullable<
@@ -823,6 +887,7 @@ implements FirstPartyResearchProvider {
         canonicalWebsiteUrl: pages[0]?.url.toString() ?? start.toString(),
         companyNumberAssertions: [],
         legalOperatorAssertions: [],
+        charityNumberAssertions: [],
         facts: [],
         visitedUrls: pages.map((page) => page.url.toString()),
         truncatedPageCount: pages.filter((page) => page.truncated).length,
@@ -941,6 +1006,8 @@ implements FirstPartyResearchProvider {
       companyNumberAssertions: companyNumberAssertions(pages),
       legalOperatorAssertions:
         legalOperatorAssertions(pages),
+      charityNumberAssertions:
+        charityNumberAssertions(pages),
       facts,
       visitedUrls: pages.map((page) => page.url.toString()),
       truncatedPageCount: pages.filter((page) => page.truncated).length,

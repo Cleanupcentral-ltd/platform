@@ -194,6 +194,53 @@ const environmentSchema = z
       z.enum(["canary", "all"])
         .default("canary"),
 
+    LEAD_CHARITY_COMMISSION_V1:
+      z.enum(["true", "false"])
+        .default("false")
+        .transform(
+          (value) => value === "true",
+        ),
+
+    CHARITY_COMMISSION_API_KEY:
+      z.string()
+        .trim()
+        .min(1)
+        .optional(),
+
+    CHARITY_COMMISSION_API_BASE_URL:
+      z.string()
+        .trim()
+        .url()
+        .refine(
+          (value) => {
+            const parsed =
+              new URL(value);
+            const host =
+              parsed.hostname;
+            return (
+              parsed.protocol ===
+                "https:" &&
+              (
+                host ===
+                  "charitycommission.gov.uk" ||
+                host.endsWith(
+                  ".charitycommission.gov.uk",
+                )
+              )
+            );
+          },
+          "CHARITY_COMMISSION_API_BASE_URL must use an official charitycommission.gov.uk HTTPS host.",
+        )
+        .optional(),
+
+    CHARITY_COMMISSION_TIMEOUT_MS:
+      z.coerce
+        .number()
+        .int()
+        .min(1_000)
+        .max(15_000)
+        .default(8_000),
+
     LEAD_COMPANY_ENRICHMENT_INTERVAL_MS:
       z.coerce.number().int()
         .min(15_000)
@@ -535,6 +582,52 @@ const environmentSchema = z
           message:
             "Automatic company enrichment requires Companies House verification to be enabled.",
         });
+      }
+
+      if (
+        value.LEAD_CHARITY_COMMISSION_V1
+      ) {
+        if (
+          !value
+            .LEAD_AUTOMATIC_QUALIFICATION_V1
+        ) {
+          context.addIssue({
+            code: "custom",
+            path: [
+              "LEAD_CHARITY_COMMISSION_V1",
+            ],
+            message:
+              "Charity Commission verification requires automatic qualification to be enabled.",
+          });
+        }
+
+        for (
+          const [field, fieldValue] of
+            [
+              [
+                "CHARITY_COMMISSION_API_KEY",
+                value
+                  .CHARITY_COMMISSION_API_KEY,
+              ],
+              [
+                "CHARITY_COMMISSION_API_BASE_URL",
+                value
+                  .CHARITY_COMMISSION_API_BASE_URL,
+              ],
+            ] as const
+        ) {
+          if (
+            fieldValue === undefined ||
+            fieldValue.length === 0
+          ) {
+            context.addIssue({
+              code: "custom",
+              path: [field],
+              message:
+                `${field} is required when Charity Commission verification is enabled.`,
+            });
+          }
+        }
       }
 
       if (

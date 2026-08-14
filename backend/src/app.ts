@@ -23,6 +23,10 @@ import {
 } from "./adapters/companies-house/companies-house-client.js";
 
 import {
+  CharityCommissionClient,
+} from "./adapters/charity-commission/charity-commission-client.js";
+
+import {
   PostcodesIoLocator,
 } from "./adapters/postcodes-io/postcodes-io-locator.js";
 
@@ -112,6 +116,11 @@ import {
   createCompaniesHouseVerificationService,
   type CompaniesHouseVerificationService,
 } from "./application/verify-companies-house.js";
+
+import {
+  createCharityCommissionVerificationService,
+  type CharityCommissionVerificationService,
+} from "./application/verify-charity-commission.js";
 
 import {
   createCompanyEnrichmentScheduler,
@@ -239,6 +248,9 @@ export interface BuildAppOptions {
 
   readonly companiesHouseVerificationService?:
     CompaniesHouseVerificationService;
+
+  readonly charityCommissionVerificationService?:
+    CharityCommissionVerificationService;
 
   readonly companyEnrichmentEnabled?:
     boolean;
@@ -494,6 +506,32 @@ export async function buildApp(
           : null
       );
 
+    const charityCommissionVerificationService =
+      options
+        .charityCommissionVerificationService ??
+      (
+        automaticQualificationEnabled &&
+        env.LEAD_CHARITY_COMMISSION_V1
+          ? createCharityCommissionVerificationService(
+              leadReviewRepository(),
+              new CharityCommissionClient({
+                apiKey:
+                  requiredEnvironmentValue(
+                    env.CHARITY_COMMISSION_API_KEY,
+                    "CHARITY_COMMISSION_API_KEY",
+                  ),
+                apiBaseUrl:
+                  requiredEnvironmentValue(
+                    env.CHARITY_COMMISSION_API_BASE_URL,
+                    "CHARITY_COMMISSION_API_BASE_URL",
+                  ),
+                timeoutMs:
+                  env.CHARITY_COMMISSION_TIMEOUT_MS,
+              }),
+            )
+          : undefined
+      );
+
     let companyEnrichmentService =
       options.companyEnrichmentService ?? null;
     let defaultCompanyEnrichmentService = false;
@@ -541,6 +579,12 @@ export async function buildApp(
                 }),
               companiesHouseService:
                 companiesHouseVerificationService,
+              ...(charityCommissionVerificationService === undefined
+                ? {}
+                : {
+                    charityCommissionService:
+                      charityCommissionVerificationService,
+                  }),
               leadReviewService:
                 leadReviewService!,
               batchSize:

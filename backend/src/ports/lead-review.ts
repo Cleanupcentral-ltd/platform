@@ -75,6 +75,7 @@ export interface LeadEvidenceRecord {
     | "founder_review"
     | "automatic_first_party_company_number"
     | "automatic_first_party_legal_operator"
+    | "automatic_first_party_charity_number"
     | "automatic_first_party_research";
 }
 
@@ -211,6 +212,34 @@ extends RecordCompaniesHouseVerificationInput {
     FirstPartyLegalOperatorAssertion;
 }
 
+export interface CharityCommissionVerifiedFact {
+  readonly factName:
+    | "registered_charity_name"
+    | "business_status"
+    | "charity_number";
+  readonly factValue: string;
+  readonly sourceExcerpt: string;
+  readonly contentSha256: string;
+}
+
+export interface FirstPartyCharityNumberAssertion {
+  readonly charityNumber: string;
+  readonly sourceUrl: string;
+  readonly sourceExcerpt: string;
+  readonly contentSha256: string;
+}
+
+export interface RecordAutomaticCharityCommissionVerificationInput {
+  readonly prospectId: string;
+  readonly founderId: string;
+  readonly sourceUrl: string;
+  readonly facts:
+    readonly CharityCommissionVerifiedFact[];
+  readonly enrichmentAttemptCount: number;
+  readonly firstPartyAssertion:
+    FirstPartyCharityNumberAssertion;
+}
+
 export interface LeadReviewRepository {
   listProspects(
     founderId: string,
@@ -251,6 +280,11 @@ export interface LeadReviewRepository {
   recordAutomaticLegalOperatorVerification?(
     input:
       RecordAutomaticLegalOperatorVerificationInput,
+  ): Promise<readonly string[]>;
+
+  recordAutomaticCharityCommissionVerification?(
+    input:
+      RecordAutomaticCharityCommissionVerificationInput,
   ): Promise<readonly string[]>;
 
   decideEvidence(

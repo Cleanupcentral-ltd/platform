@@ -333,3 +333,47 @@ test(
     );
   },
 );
+
+test(
+  "extracts a labelled first-party charity number without confusing an eight-digit company number",
+  async () => {
+    const client =
+      new FirstPartyResearchClient({
+        timeoutMs: 1_000,
+        maximumBytes: 20_000,
+        async resolveHost() {
+          return ["8.8.8.8"];
+        },
+        fetchFunction:
+          (async () => html([
+            "<h1>Amrita Hall</h1>",
+            "<p>Community hall and venue hire.</p>",
+            "<p>M.A. Centre, UK Registered charity - 1133537</p>",
+            "<p>Registered in England No: 06793389</p>",
+            "<p>bookings@example.org</p>",
+          ].join(""))) as typeof fetch,
+      });
+
+    const result =
+      await client.research(
+        "https://example.org/",
+        "Amrita Hall",
+        "community_halls_event_venues",
+      );
+
+    assert.deepEqual(
+      result.charityNumberAssertions
+        ?.map(
+          (item) =>
+            item.charityNumber,
+        ),
+      ["1133537"],
+    );
+
+    assert.equal(
+      result.companyNumberAssertions[0]
+        ?.companyNumber,
+      "06793389",
+    );
+  },
+);

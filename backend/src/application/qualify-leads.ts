@@ -25,6 +25,11 @@ import {
   type CompaniesHouseVerificationService,
 } from "./verify-companies-house.js";
 
+import {
+  CharityCommissionVerificationError,
+  type CharityCommissionVerificationService,
+} from "./verify-charity-commission.js";
+
 import type {
   LeadReviewService,
 } from "./review-leads.js";
@@ -41,6 +46,8 @@ export interface AutomaticQualificationServiceOptions {
     FirstPartyResearchProvider;
   readonly companiesHouseService:
     CompaniesHouseVerificationService;
+  readonly charityCommissionService?:
+    CharityCommissionVerificationService;
   readonly leadReviewService:
     Pick<LeadReviewService,
       "assess" | "getProspect">;
@@ -279,8 +286,59 @@ ${support.sourceExcerpt}`,
       research?.companyNumberAssertions ?? [];
     const operatorAssertions =
       research?.legalOperatorAssertions ?? [];
+    const charityAssertions =
+      research?.charityNumberAssertions ?? [];
+
+    if (
+      research?.organisationType ===
+        "charity" &&
+      charityAssertions.length === 1 &&
+      options.charityCommissionService !==
+        undefined
+    ) {
+      try {
+        await options
+          .charityCommissionService
+          .verifyAutomatically(
+            job.actorId,
+            job.prospectId,
+            job.attemptCount,
+            charityAssertions[0]!,
+          );
+        enrichmentStatus =
+          "auto_verified";
+      } catch (error) {
+        if (
+          error instanceof
+            CharityCommissionVerificationError &&
+          [
+            "provider_rate_limited",
+            "provider_unavailable",
+            "repository_unavailable",
+          ].includes(error.failure)
+        ) {
+          return completeFailure(
+            job,
+            `charity_commission_${error.failure}`,
+          );
+        }
+        reasons.push(
+          "charity_number_not_confirmed",
+        );
+      }
+    } else if (
+      research?.organisationType ===
+        "charity" &&
+      charityAssertions.length > 1
+    ) {
+      reasons.push(
+        "multiple_charity_numbers_found",
+      );
+    }
+
     if (
       job.companyNumber === null &&
+      enrichmentStatus === "no_match" &&
       assertions.length === 1
     ) {
       const assertion = assertions[0]!;
@@ -327,6 +385,7 @@ ${support.sourceExcerpt}`,
       }
     } else if (
       job.companyNumber === null &&
+      enrichmentStatus === "no_match" &&
       assertions.length > 1
     ) {
       reasons.push("multiple_company_numbers_found");
@@ -475,6 +534,11 @@ ${support.sourceExcerpt}`,
               operatorAssertions.map(
                 (item) =>
                   item.operatorName,
+              ),
+            charityNumbers:
+              charityAssertions.map(
+                (item) =>
+                  item.charityNumber,
               ),
             verifiedFactCount:
               research.facts.length +

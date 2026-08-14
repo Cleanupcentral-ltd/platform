@@ -8,6 +8,7 @@ import type {
   LeadProspectReview,
   LeadProspectSummary,
   LeadReviewRepository,
+  RecordAutomaticCharityCommissionVerificationInput,
   RecordAutomaticCompaniesHouseVerificationInput,
   RecordAutomaticLegalOperatorVerificationInput,
   RecordCompaniesHouseVerificationInput,
@@ -865,6 +866,58 @@ implements LeadReviewRepository {
             input.firstPartyAssertion
               .contentSha256,
           p_companies_house_source_url:
+            input.sourceUrl,
+          p_facts: input.facts.map(
+            (fact) => ({
+              field_name:
+                fact.factName,
+              field_value:
+                fact.factValue,
+              source_excerpt:
+                fact.sourceExcerpt,
+              content_sha256:
+                fact.contentSha256,
+            }),
+          ),
+        }),
+      },
+    );
+    return result[0]!.evidence_ids;
+  }
+
+  async recordAutomaticCharityCommissionVerification(
+    input:
+      RecordAutomaticCharityCommissionVerificationInput,
+  ): Promise<readonly string[]> {
+    const result = await this.json(
+      "/rpc/record_automatic_charity_commission_verification",
+      evidenceIdsResponseSchema,
+      {
+        method: "POST",
+        headers: {
+          "content-type":
+            "application/json",
+        },
+        body: JSON.stringify({
+          p_prospect_id:
+            input.prospectId,
+          p_actor_id:
+            input.founderId,
+          p_attempt_count:
+            input.enrichmentAttemptCount,
+          p_charity_number:
+            input.firstPartyAssertion
+              .charityNumber,
+          p_website_source_url:
+            input.firstPartyAssertion
+              .sourceUrl,
+          p_website_source_excerpt:
+            input.firstPartyAssertion
+              .sourceExcerpt,
+          p_website_content_sha256:
+            input.firstPartyAssertion
+              .contentSha256,
+          p_charity_commission_source_url:
             input.sourceUrl,
           p_facts: input.facts.map(
             (fact) => ({

@@ -1,0 +1,47 @@
+name: Preserve Borough default
+
+on:
+  push:
+    branches:
+      - agent/match-find-prospects-figma
+
+permissions:
+  contents: write
+
+jobs:
+  fix-and-validate:
+    if: github.event.head_commit.message != 'Preserve Borough as default search mode'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/match-find-prospects-figma
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: ops-console/package-lock.json
+      - name: Restore Borough default
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('ops-console/src/LeadDiscoveryView.tsx')
+          s = p.read_text()
+          old = '  const [searchMode, setSearchMode] =\n    useState<"postcode" | "borough">(\n      "postcode",\n    );'
+          new = '  const [searchMode, setSearchMode] =\n    useState<"postcode" | "borough">(\n      "borough",\n    );'
+          if old not in s:
+              raise SystemExit('Expected postcode default not found')
+          p.write_text(s.replace(old, new, 1))
+          PY
+      - name: Validate Ops Console
+        working-directory: ops-console
+        run: |
+          npm ci
+          npm test
+      - name: Commit correction
+        run: |
+          git config user.name "cleanupcentral-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add ops-console/src/LeadDiscoveryView.tsx
+          git commit -m "Preserve Borough as default search mode"
+          git push origin HEAD:agent/match-find-prospects-figma

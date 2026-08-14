@@ -4,6 +4,10 @@ import {
   calculateLeadAssessment,
 } from "../domain/lead-assessment.js";
 
+import {
+  normalizePublicPhone,
+} from "../domain/public-phone.js";
+
 import type {
   LeadAssessmentRecord,
   LeadEvidenceSourceType,
@@ -183,6 +187,16 @@ function normalizeFactValue(
     return email;
   }
 
+  if (factName === "public_phone") {
+    const phone = normalizePublicPhone(value);
+    if (phone === null) {
+      throw new LeadReviewError(
+        "invalid_evidence",
+      );
+    }
+    return value;
+  }
+
   if (
     factName === "website_url" ||
     factName === "contact_form_url"
@@ -349,14 +363,18 @@ export function createLeadReviewService(
       const contactType =
         input.factName === "public_email"
           ? "email" as const
-          : input.factName ===
-              "contact_form_url"
-            ? "contact_form" as const
-            : null;
+          : input.factName === "public_phone"
+            ? "phone" as const
+            : input.factName ===
+                "contact_form_url"
+              ? "contact_form" as const
+              : null;
       const normalizedContactValue =
         contactType === null
           ? null
-          : factValue.toLowerCase();
+          : contactType === "phone"
+            ? normalizePublicPhone(factValue)
+            : factValue.toLowerCase();
 
       let evidenceId: string;
       try {

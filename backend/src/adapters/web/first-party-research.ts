@@ -6,6 +6,10 @@ import {
   detectContactForm,
 } from "../../domain/contact-form-evidence.js";
 
+import {
+  extractPublicPhones,
+} from "../../domain/public-phone.js";
+
 import type {
   AutomaticResearchFact,
   FirstPartyResearchProvider,
@@ -910,8 +914,15 @@ implements FirstPartyResearchProvider {
       factValue: string,
       support: string,
       contactType: AutomaticResearchFact["contactType"] = null,
+      normalizedContactValue: string | null =
+        contactType === null
+          ? null
+          : factValue.toLowerCase(),
     ) => {
-      const key = `${factName}\n${factValue.toLowerCase()}`;
+      const key = `${factName}\n${
+        normalizedContactValue ??
+        factValue.toLowerCase()
+      }`;
       if (seen.has(key) || support.length === 0) return;
       seen.add(key);
       facts.push({
@@ -921,7 +932,7 @@ implements FirstPartyResearchProvider {
         sourceExcerpt: support.slice(0, 700),
         contentSha256: sha256(`${page.url}\n${factName}\n${factValue}\n${support}`),
         contactType,
-        normalizedContactValue: contactType === null ? null : factValue.toLowerCase(),
+        normalizedContactValue,
       });
     };
 
@@ -949,6 +960,35 @@ implements FirstPartyResearchProvider {
         ) continue;
         addFact(page, "public_email", email, excerpt(page.text, match), "email");
       }
+    }
+
+    const phoneCandidates = pages
+      .flatMap((page, index) =>
+        extractPublicPhones(
+          page.html,
+          page.text,
+        ).map((evidence) => ({
+          page,
+          index,
+          evidence,
+        })),
+      )
+      .sort((left, right) =>
+        right.evidence.score -
+          left.evidence.score ||
+        left.index - right.index,
+      );
+
+    const bestPhone = phoneCandidates[0];
+    if (bestPhone !== undefined) {
+      addFact(
+        bestPhone.page,
+        "public_phone",
+        bestPhone.evidence.displayValue,
+        bestPhone.evidence.support,
+        "phone",
+        bestPhone.evidence.normalizedValue,
+      );
     }
 
     const contactFormCandidates = pages

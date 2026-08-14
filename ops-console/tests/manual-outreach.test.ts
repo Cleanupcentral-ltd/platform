@@ -3,7 +3,7 @@ import test from "node:test";
 
 import {
   formatOutlookCopy,
-} from "../src/manual-outreach-api";
+} from "../src/manual-outreach-api.ts";
 
 test(
   "manual Outlook copy includes recipient, subject and approved body without changing state",

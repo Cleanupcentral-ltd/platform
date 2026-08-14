@@ -10,6 +10,7 @@ import {
 } from "../domain/business-email.js";
 
 import type {
+  ManualOutreachFollowUp,
   ManualOutreachRepository,
 } from "../ports/manual-outreach.js";
 
@@ -83,6 +84,10 @@ export interface ManualOutreachService {
     founderId: string,
     prospectId: string,
   ): Promise<ManualOutreachWorkspace>;
+
+  listFollowUps(
+    founderId: string,
+  ): Promise<readonly ManualOutreachFollowUp[]>;
 
   previewDraft(
     founderId: string,
@@ -451,6 +456,17 @@ export function createManualOutreachService(options: {
             await options.repository
               .listActivities(prospectId),
         };
+      } catch {
+        throw new OutreachError(
+          "repository_unavailable",
+        );
+      }
+    },
+
+    async listFollowUps(_founderId) {
+      try {
+        return await options.repository
+          .listFollowUps(1_000);
       } catch {
         throw new OutreachError(
           "repository_unavailable",

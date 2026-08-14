@@ -114,22 +114,6 @@ export interface OutreachService {
   ): Promise<OutreachActivityRecord>;
 }
 
-const SECTOR_LABELS:
-  Readonly<Record<string, string>> = {
-    short_let_serviced_accommodation:
-      "short-let and serviced accommodation",
-    offices_coworking:
-      "offices and coworking spaces",
-    community_halls_event_venues:
-      "community halls and event venues",
-    estate_letting_agents:
-      "estate and letting agents",
-    university_accommodation:
-      "university accommodation",
-    other_commercial_spaces:
-      "commercial premises",
-  };
-
 function verified(
   prospect: LeadProspectReview,
   factName?: string,
@@ -232,42 +216,24 @@ function buildPreview(
   const businessName = normalizeText(
     prospect.businessName,
   );
-  const sectorLabel =
-    SECTOR_LABELS[prospect.sector] ??
-    "commercial premises";
-  const scale = verified(
-    prospect,
-    "premises_scale",
-  ).find(
-    (item) =>
-      item.fieldValue ===
-        "multiple_properties_locations_or_units",
-  );
-  const need = verified(
-    prospect,
-    "recurring_cleaning_need",
-  )[0];
-  const supportSentence = scale !== undefined
-    ? `I saw that ${businessName} manages multiple properties, locations or units.`
-    : need !== undefined
-      ? `I saw that ${businessName} has an ongoing operational need that may benefit from reliable recurring cleaning.`
-      : "";
   const subject =
     `Cleaning support for ${businessName}`;
   const body = [
     "Hello,",
     "",
-    "I’m Amirah, founder of Clean Up Central. We provide reliable recurring commercial cleaning for " +
-      `${sectorLabel}.`,
-    ...(supportSentence === ""
-      ? []
-      : ["", supportSentence]),
+    "I’m reaching out on behalf of Clean Up Central, a London-based company providing professional cleaning and practical property support to businesses and property operators.",
     "",
-    `Would it be useful to have a short conversation about how ${businessName} currently manages cleaning?`,
+    `We’re currently introducing our services to businesses that may benefit from reliable ongoing cleaning support, and came across ${businessName} while researching organisations in your sector.`,
     "",
-    "Best wishes,",
-    "Amirah",
-    "Founder, Clean Up Central",
+    "Whether you are looking for regular cleaning, additional cover when needed, or simply a dependable cleaning company to have available, we would be happy to discuss how Clean Up Central could support your business.",
+    "",
+    "We can arrange a brief introductory call or site visit to understand your requirements and provide a straightforward quotation.",
+    "",
+    "Would you be open to a short conversation?",
+    "",
+    "Kind regards,",
+    "Clean Up Central",
+    "Cleaning and support, handled properly.",
     "",
     approvedCopy.optOutText,
     `Privacy information: ${approvedCopy.privacyUrl}`,
@@ -282,8 +248,6 @@ function buildPreview(
   supportingIds.add(
     selectedContact.sourceEvidenceId,
   );
-  if (scale !== undefined) supportingIds.add(scale.id);
-  if (need !== undefined) supportingIds.add(need.id);
   const evidence = [...supportingIds]
     .map((id) => evidenceById.get(id))
     .filter((item): item is LeadEvidenceRecord =>

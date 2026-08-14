@@ -251,7 +251,7 @@ function gateway(capture: {
 }
 
 test(
-  "preview contains only evidence-backed generic-contact personalisation",
+  "preview uses the approved sender-neutral Initial Outreach v1 copy",
   async () => {
     const current = prospect();
     const service = createOutreachService({
@@ -277,7 +277,19 @@ test(
     );
     assert.match(
       preview.body,
-      /multiple properties, locations or units/,
+      /reaching out on behalf of Clean Up Central/,
+    );
+    assert.match(
+      preview.body,
+      /came across Example Offices while researching organisations in your sector/,
+    );
+    assert.match(
+      preview.body,
+      /Would you be open to a short conversation\?/,
+    );
+    assert.doesNotMatch(
+      preview.body,
+      /Amirah|Founder, Clean Up Central/,
     );
     assert.match(
       preview.body,

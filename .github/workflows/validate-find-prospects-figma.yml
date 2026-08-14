@@ -1,0 +1,25 @@
+name: Validate Find Prospects Figma layout
+
+on:
+  push:
+    branches:
+      - agent/match-find-prospects-figma
+
+permissions:
+  contents: read
+
+jobs:
+  ops-console:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ops-console
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: ops-console/package-lock.json
+      - run: npm ci
+      - run: npm test

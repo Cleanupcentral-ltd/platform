@@ -7,6 +7,7 @@ import {
 
 import type {
   ProspectEvidence,
+  VerificationStatus,
 } from "../src/lead-review-api.ts";
 
 function evidence(
@@ -16,6 +17,8 @@ function evidence(
   sourceUrl: string,
   sourceType = "first_party_website",
   sourceExcerpt: string | null = null,
+  verificationStatus:
+    VerificationStatus = "verified",
 ): ProspectEvidence {
   return {
     id,
@@ -24,11 +27,13 @@ function evidence(
     fieldName,
     fieldValue,
     sourceExcerpt,
-    verificationStatus: "verified",
+    verificationStatus,
     capturedAt:
       "2026-08-14T12:00:00.000Z",
     verifiedAt:
-      "2026-08-14T12:00:00.000Z",
+      verificationStatus === "verified"
+        ? "2026-08-14T12:00:00.000Z"
+        : null,
     verificationMethod:
       "automatic_first_party_research",
   };
@@ -59,7 +64,7 @@ test(
 );
 
 test(
-  "multiple contact-form evidence rows collapse to the best route",
+  "superseded contact-form rows collapse behind the one current verified route",
   () => {
     const groups = groupEvidenceForDisplay([
       evidence(
@@ -67,6 +72,9 @@ test(
         "contact_form_url",
         "https://example.com/privacy",
         "https://example.com/privacy",
+        "first_party_website",
+        "Superseded by stricter detector.",
+        "rejected",
       ),
       evidence(
         "00000000-0000-4000-8000-000000000012",
@@ -81,6 +89,9 @@ test(
         "contact_form_url",
         "https://example.com/about",
         "https://example.com/about",
+        "first_party_website",
+        "Superseded by stricter detector.",
+        "rejected",
       ),
     ]);
 
@@ -89,6 +100,11 @@ test(
       groups[0]?.value,
       "https://example.com/contact-us",
     );
-    assert.equal(groups[0]?.sources.length, 3);
+    assert.equal(groups[0]?.status, "verified");
+    assert.equal(groups[0]?.sources.length, 1);
+    assert.equal(
+      groups[0]?.sources[0]?.sourceUrl,
+      "https://example.com/contact-us",
+    );
   },
 );

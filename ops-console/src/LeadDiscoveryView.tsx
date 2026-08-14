@@ -445,6 +445,17 @@ export function LeadDiscoveryView({
                   row.prospect !== null &&
                   queueKey(row.prospect) ===
                     "ready";
+                const contactPhone =
+                  row.result.phone ??
+                  row.prospect?.publicPhone ??
+                  null;
+                const contactWebsite =
+                  row.result.websiteUrl ??
+                  row.prospect?.websiteUrl ??
+                  null;
+                const contactEmail =
+                  row.prospect?.publicEmail ??
+                  null;
                 return (
                   <article
                     className="le-result-card"
@@ -473,30 +484,40 @@ export function LeadDiscoveryView({
                         "Address not returned"}
                     </p>
 
-                    <div className="le-result-links">
-                      {row.result.phone !== null && (
+                    <div className="le-result-contact">
+                      <div className="le-result-links">
+                        {contactPhone !== null && (
+                          <a
+                            href={`tel:${contactPhone.replace(/\s/g, "")}`}
+                          >
+                            {contactPhone}
+                          </a>
+                        )}
+                        {contactWebsite !== null && (
+                          <a
+                            href={contactWebsite}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            Website ↗
+                          </a>
+                        )}
                         <a
-                          href={`tel:${row.result.phone.replace(/\s/g, "")}`}
-                        >
-                          {row.result.phone}
-                        </a>
-                      )}
-                      {row.result.websiteUrl !== null && (
-                        <a
-                          href={row.result.websiteUrl}
+                          href={row.result.sourceUrl}
                           target="_blank"
                           rel="noreferrer"
                         >
-                          Website ↗
+                          Google Maps ↗
+                        </a>
+                      </div>
+                      {contactEmail !== null && (
+                        <a
+                          className="le-result-email"
+                          href={`mailto:${contactEmail}`}
+                        >
+                          {contactEmail}
                         </a>
                       )}
-                      <a
-                        href={row.result.sourceUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        Google Maps ↗
-                      </a>
                     </div>
 
                     <div className="le-result-meta">

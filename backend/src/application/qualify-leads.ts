@@ -338,6 +338,7 @@ ${support.sourceExcerpt}`,
 
     if (
       job.companyNumber === null &&
+      enrichmentStatus === "no_match" &&
       assertions.length === 1
     ) {
       const assertion = assertions[0]!;
@@ -384,6 +385,7 @@ ${support.sourceExcerpt}`,
       }
     } else if (
       job.companyNumber === null &&
+      enrichmentStatus === "no_match" &&
       assertions.length > 1
     ) {
       reasons.push("multiple_company_numbers_found");

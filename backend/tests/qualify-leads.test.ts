@@ -350,6 +350,15 @@ test(
           "https://example.org/",
         ],
         organisationType: "charity",
+        companyNumberAssertions: [{
+          companyNumber: "06793389",
+          sourceUrl:
+            "https://example.org/",
+          sourceExcerpt:
+            "Registered in England No: 06793389",
+          contentSha256:
+            "c".repeat(64),
+        }],
         charityNumberAssertions: [{
           charityNumber: "1133537",
           sourceUrl:

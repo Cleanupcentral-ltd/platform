@@ -25,6 +25,10 @@ import {
 } from "./lead-review-api";
 
 import {
+  groupEvidenceForDisplay,
+} from "./evidence-view";
+
+import {
   recordManualOutreachActivity,
 } from "./manual-outreach-api";
 
@@ -38,6 +42,7 @@ import {
 } from "./redesign-helpers";
 
 import "./verification-footer.css";
+import "./evidence-view.css";
 
 interface LeadReviewViewProps {
   readonly backendUrl: string;
@@ -138,6 +143,15 @@ function messageFrom(error: unknown): string {
     : "The review action could not be completed.";
 }
 
+function sourceLabel(value: string): string {
+  try {
+    return new URL(value).hostname
+      .replace(/^www\./, "");
+  } catch {
+    return "Source";
+  }
+}
+
 export function LeadReviewView({
   backendUrl,
   accessToken,
@@ -207,6 +221,22 @@ export function LeadReviewView({
         );
       });
   }, [prospects, queueFilter, queueSearch]);
+
+  const evidenceGroups = useMemo(
+    () => review === null
+      ? []
+      : groupEvidenceForDisplay(
+          review.evidence,
+        ),
+    [review],
+  );
+
+  const verifiedFactCount = useMemo(
+    () => evidenceGroups.filter(
+      (group) => group.status === "verified",
+    ).length,
+    [evidenceGroups],
+  );
 
   const selectedSummary = selectedId === null
     ? null
@@ -594,11 +624,7 @@ export function LeadReviewView({
                     {queueLabel(selectedSummary)}
                   </span>
                   <span>
-                    {review.evidence.filter(
-                      (item) =>
-                        item.verificationStatus ===
-                          "verified",
-                    ).length} verified facts
+                    {verifiedFactCount} verified facts
                   </span>
                 </div>
               )}
@@ -620,36 +646,123 @@ export function LeadReviewView({
                   </div>
                 )}
 
+              <details className="le-dark-details le-company-verification-primary">
+                <summary>
+                  Companies House verification
+                </summary>
+                <form
+                  className="le-company-search"
+                  onSubmit={searchCompaniesHouse}
+                >
+                  <input
+                    value={companyQuery}
+                    onChange={(event) =>
+                      setCompanyQuery(
+                        event.target.value,
+                      )
+                    }
+                    required
+                  />
+                  <button
+                    type="submit"
+                    className="le-dark-outline"
+                    disabled={working}
+                  >
+                    Search
+                  </button>
+                </form>
+                <div className="le-company-matches">
+                  {companyMatches.map(
+                    (company) => (
+                      <div
+                        className="le-company-match"
+                        key={company.companyNumber}
+                      >
+                        <div>
+                          <strong>
+                            {company.companyName}
+                          </strong>
+                          <span>
+                            {company.companyNumber}
+                            {" · "}
+                            {company.companyStatus}
+                          </span>
+                          <a
+                            href={company.officialUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            Official record ↗
+                          </a>
+                        </div>
+                        <button
+                          type="button"
+                          className="le-dark-outline"
+                          disabled={working}
+                          onClick={() =>
+                            void confirmCompany(
+                              company.companyNumber,
+                            )
+                          }
+                        >
+                          Confirm match
+                        </button>
+                      </div>
+                    ),
+                  )}
+                </div>
+              </details>
+
               <div className="le-evidence-list">
-                {review.evidence.map(
-                  (evidence) => (
+                {evidenceGroups.map(
+                  (group) => (
                     <div
                       className="le-evidence-row"
-                      key={evidence.id}
+                      key={group.key}
                     >
                       <div>
-                        <strong>
-                          {evidence.fieldName
-                            .replaceAll("_", " ")}
-                        </strong>
-                        <span>
-                          {evidence.fieldValue}
-                        </span>
-                        <a
-                          href={evidence.sourceUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          View source ↗
-                        </a>
+                        <strong>{group.label}</strong>
+                        <span>{group.value}</span>
+                        <div className="le-evidence-source-stack">
+                          <a
+                            href={group.representative.sourceUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            View source ↗
+                          </a>
+                          {group.sources.length > 1 && (
+                            <details className="le-evidence-source-details">
+                              <summary>
+                                {group.sources.length} evidence sources
+                              </summary>
+                              <div>
+                                {group.sources.map(
+                                  (source) => (
+                                    <a
+                                      key={source.id}
+                                      href={source.sourceUrl}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                    >
+                                      {sourceLabel(
+                                        source.sourceUrl,
+                                      )} ↗
+                                    </a>
+                                  ),
+                                )}
+                              </div>
+                            </details>
+                          )}
+                        </div>
                       </div>
                       <div className="le-evidence-row-side">
                         <span
-                          className={`le-evidence-state le-evidence-${evidence.verificationStatus}`}
+                          className={`le-evidence-state le-evidence-${group.status}`}
                         >
-                          {evidence.verificationStatus}
+                          {group.status}
                         </span>
-                        {evidence.verificationStatus ===
+                        {group.status ===
                           "unverified" && (
                           <div className="le-mini-actions">
                             <button
@@ -657,7 +770,7 @@ export function LeadReviewView({
                               disabled={working}
                               onClick={() =>
                                 void decide(
-                                  evidence.id,
+                                  group.representative.id,
                                   "verified",
                                 )
                               }
@@ -669,7 +782,7 @@ export function LeadReviewView({
                               disabled={working}
                               onClick={() =>
                                 void decide(
-                                  evidence.id,
+                                  group.representative.id,
                                   "rejected",
                                 )
                               }
@@ -797,73 +910,6 @@ export function LeadReviewView({
                     Save verified evidence
                   </button>
                 </form>
-              </details>
-
-              <details className="le-dark-details">
-                <summary>
-                  Companies House verification
-                </summary>
-                <form
-                  className="le-company-search"
-                  onSubmit={searchCompaniesHouse}
-                >
-                  <input
-                    value={companyQuery}
-                    onChange={(event) =>
-                      setCompanyQuery(
-                        event.target.value,
-                      )
-                    }
-                    required
-                  />
-                  <button
-                    type="submit"
-                    className="le-dark-outline"
-                    disabled={working}
-                  >
-                    Search
-                  </button>
-                </form>
-                <div className="le-company-matches">
-                  {companyMatches.map(
-                    (company) => (
-                      <div
-                        className="le-company-match"
-                        key={company.companyNumber}
-                      >
-                        <div>
-                          <strong>
-                            {company.companyName}
-                          </strong>
-                          <span>
-                            {company.companyNumber}
-                            {" · "}
-                            {company.companyStatus}
-                          </span>
-                          <a
-                            href={company.officialUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            Official record ↗
-                          </a>
-                        </div>
-                        <button
-                          type="button"
-                          className="le-dark-outline"
-                          disabled={working}
-                          onClick={() =>
-                            void confirmCompany(
-                              company.companyNumber,
-                            )
-                          }
-                        >
-                          Confirm match
-                        </button>
-                      </div>
-                    ),
-                  )}
-                </div>
               </details>
 
               {selectedSummary !== null &&

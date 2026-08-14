@@ -125,24 +125,48 @@ begin
     claimed.actor_id,
     prospect.business_name,
     prospect.sector,
-    prospect.website_url,
+    coalesce(
+      prospect.website_url,
+      verified_site.website_url
+    ) as website_url,
     prospect.company_number,
-    (
-      select evidence.field_value
-      from lead_engine.evidence as evidence
-      where
-        evidence.prospect_id = prospect.id and
-        evidence.source_type = 'google_places' and
-        evidence.field_name = 'google_place_id'
-      order by
-        evidence.captured_at desc,
-        evidence.id desc
-      limit 1
-    ) as google_place_id,
+    case
+      when coalesce(
+        prospect.website_url,
+        verified_site.website_url
+      ) is not null then null
+      else (
+        select evidence.field_value
+        from lead_engine.evidence as evidence
+        where
+          evidence.prospect_id = prospect.id and
+          evidence.source_type = 'google_places' and
+          evidence.field_name = 'google_place_id'
+        order by
+          evidence.captured_at desc,
+          evidence.id desc
+        limit 1
+      )
+    end as google_place_id,
     claimed.attempt_count
   from claimed
   join lead_engine.prospects as prospect
-    on prospect.id = claimed.prospect_id;
+    on prospect.id = claimed.prospect_id
+  left join lateral (
+    select evidence.field_value as website_url
+    from lead_engine.evidence as evidence
+    where
+      evidence.prospect_id = prospect.id and
+      evidence.source_type = 'first_party_website' and
+      evidence.field_name = 'website_url' and
+      evidence.verification_status = 'verified' and
+      evidence.field_value ~* '^https://'
+    order by
+      evidence.verified_at desc nulls last,
+      evidence.captured_at desc,
+      evidence.id desc
+    limit 1
+  ) as verified_site on true;
 end
 $claim_automatic_qualification_jobs_v2$;
 
@@ -162,7 +186,7 @@ to service_role;
 
 comment on function
 lead_engine.claim_automatic_qualification_jobs_v2(integer, integer) is
-  'Claims the existing Stage 4.2 qualification jobs and includes the permitted durable Google Place ID for transient Place Details re-resolution.';
+  'Claims existing Stage 4.2 jobs. A durable verified first-party website is preferred; the permitted Google Place ID is exposed only when transient Place Details re-resolution is still required.';
 
 create or replace function
 lead_engine.promote_verified_google_prospect_identity(
@@ -207,8 +231,8 @@ begin
   -- business_name is safe to promote from verified first-party evidence.
   -- Do not update website_url here: that column has an enrichment refresh
   -- trigger and changing it during a claimed qualification would reset the
-  -- in-flight job. The verified first-party website remains durable evidence,
-  -- while future Google jobs re-resolve the live website transiently by Place ID.
+  -- in-flight job. claim_automatic_qualification_jobs_v2 reads the latest
+  -- verified first-party website evidence directly on later attempts.
   update lead_engine.prospects
   set
     business_name = v_business_name,
@@ -227,4 +251,4 @@ to service_role;
 
 comment on function
 lead_engine.promote_verified_google_prospect_identity(uuid) is
-  'Promotes only the durable business name from independently verified first-party evidence for Google-discovered prospects; website_url remains evidence to avoid resetting the active qualification job.';
+  'Promotes only the durable business name from independently verified first-party evidence for Google-discovered prospects; verified website evidence is read directly by later qualification claims to avoid resetting an active job.';

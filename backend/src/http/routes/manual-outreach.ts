@@ -232,6 +232,38 @@ export function registerManualOutreachRoutes(
     ManualOutreachRouteDependencies,
 ): void {
   app.get(
+    "/api/ops/leads/manual-outreach/follow-ups",
+    {
+      config: {
+        rateLimit: RATE_LIMIT,
+      },
+    },
+    async (
+      request,
+      reply,
+    ): Promise<FastifyReply> => {
+      const founder =
+        await authenticateFounder(
+          request,
+          dependencies.founderAuthService,
+        );
+      const followUps = await run(
+        () => dependencies.service
+          .listFollowUps(founder.userId),
+      );
+      return reply
+        .header("Cache-Control", "no-store")
+        .status(200)
+        .type("application/json")
+        .send({
+          success: true,
+          followUps,
+          requestId: request.id,
+        });
+    },
+  );
+
+  app.get(
     "/api/ops/leads/prospects/:prospectId/manual-outreach",
     {
       config: {

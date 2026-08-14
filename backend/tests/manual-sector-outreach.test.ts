@@ -12,8 +12,8 @@ import type {
 } from "../src/ports/lead-review.js";
 
 import type {
-  OutreachRepository,
-} from "../src/ports/outreach.js";
+  ManualOutreachRepository,
+} from "../src/ports/manual-outreach.js";
 
 const PROSPECT_ID =
   "11111111-1111-4111-8111-111111111111";
@@ -113,22 +113,12 @@ function prospect(
   };
 }
 
-function repository(): OutreachRepository {
+function repository(): ManualOutreachRepository {
   return {
-    async getLatestDraft() {
-      return null;
-    },
     async listActivities() {
       return [];
     },
-    async prepareDraft() {
-      throw new Error("not used");
-    },
-    async markDrafted() {
-      throw new Error("not used");
-    },
-    async markDraftFailed() {},
-    async recordActivity() {
+    async recordManualActivity() {
       throw new Error("not used");
     },
   };

@@ -26,7 +26,10 @@ const charitySchema = z.object({
 });
 
 const responseSchema =
-  z.array(charitySchema);
+  z.union([
+    charitySchema,
+    z.array(charitySchema),
+  ]);
 
 export interface CharityCommissionClientOptions {
   readonly apiKey: string;
@@ -174,8 +177,12 @@ implements CharityCommissionProvider {
         );
       }
 
+      const items =
+        Array.isArray(parsed.data)
+          ? parsed.data
+          : [parsed.data];
       const exact =
-        parsed.data.filter(
+        items.filter(
           (item) =>
             String(
               item.reg_charity_number,

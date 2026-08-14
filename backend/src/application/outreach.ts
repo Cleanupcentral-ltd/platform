@@ -10,12 +10,20 @@ import {
 } from "../domain/business-email.js";
 
 import type {
+  ManualOutreachRepository,
+} from "../ports/manual-outreach.js";
+
+import type {
   OutreachActivityRecord,
   OutlookDraftGateway,
   OutreachDraftRecord,
   OutreachRepository,
   OutlookConnectionStatus,
   RecordOutreachActivityInput,
+} from "../ports/outreach.js";
+
+import {
+  OUTREACH_TEMPLATE_ID,
 } from "../ports/outreach.js";
 
 import type {
@@ -101,12 +109,17 @@ export interface OutreachWorkspace {
     readonly OutreachActivityRecord[];
 }
 
-export interface OutreachService
-extends ManualOutreachService {
+export interface OutreachService {
   getWorkspace(
     founderId: string,
     prospectId: string,
   ): Promise<OutreachWorkspace>;
+
+  previewDraft(
+    founderId: string,
+    prospectId: string,
+    contactId: string | null,
+  ): Promise<OutreachDraftPreview>;
 
   createDraft(
     founderId: string,
@@ -123,10 +136,26 @@ extends ManualOutreachService {
     code: string,
     state: string,
   ): Promise<void>;
+
+  recordActivity(
+    founderId: string,
+    prospectId: string,
+    input: Omit<
+      RecordOutreachActivityInput,
+      "founderId" | "prospectId"
+    >,
+  ): Promise<OutreachActivityRecord>;
 }
 
 type OutreachSector =
   LeadProspectReview["sector"];
+
+type PreviewMode =
+  | "manual_sector"
+  | "outlook_legacy";
+
+const GENERIC_SERVICE_PARAGRAPH =
+  "Whether you are looking for regular cleaning, additional cover when needed, or simply a dependable cleaning company to have available, we would be happy to discuss how Clean Up Central could support your business.";
 
 const SECTOR_COPY: Readonly<Record<
   OutreachSector,
@@ -182,7 +211,7 @@ const SECTOR_COPY: Readonly<Record<
     templateId:
       "initial_outreach_v2_other_commercial_spaces",
     serviceParagraph:
-      "Whether you require regular cleaning, additional cover when needed, or simply a dependable cleaning company to have available, we would be happy to discuss how Clean Up Central could support your business.",
+      GENERIC_SERVICE_PARAGRAPH,
   },
 };
 
@@ -247,6 +276,7 @@ function buildPreview(
     readonly privacyUrl: string;
     readonly optOutText: string;
   },
+  mode: PreviewMode,
 ): OutreachDraftPreview {
   if (
     prospect.latestAssessment === null ||
@@ -308,6 +338,14 @@ function buildPreview(
   );
   const subject =
     `Cleaning support for ${businessName}`;
+  const serviceParagraph =
+    mode === "manual_sector"
+      ? sectorCopy.serviceParagraph
+      : GENERIC_SERVICE_PARAGRAPH;
+  const templateId =
+    mode === "manual_sector"
+      ? sectorCopy.templateId
+      : OUTREACH_TEMPLATE_ID;
   const body = [
     `Hello ${businessName} team,`,
     "",
@@ -315,7 +353,7 @@ function buildPreview(
     "",
     `We’re currently introducing our services to businesses that may benefit from reliable ongoing cleaning support, and came across ${businessName} while researching organisations in your sector.`,
     "",
-    sectorCopy.serviceParagraph,
+    serviceParagraph,
     "",
     "We can arrange a brief introductory call or site visit to understand your requirements and provide a straightforward quotation.",
     "",
@@ -365,7 +403,7 @@ function buildPreview(
     businessName,
     sector,
     sectorLabel: sectorCopy.label,
-    templateId: sectorCopy.templateId,
+    templateId,
     contactId: selected.contactId,
     recipientEmail: selected.email,
     availableRecipients: recipients,
@@ -395,7 +433,8 @@ function createProspectLoader(
 export function createManualOutreachService(options: {
   readonly leadReviewService:
     Pick<LeadReviewService, "getProspect">;
-  readonly repository: OutreachRepository;
+  readonly repository:
+    ManualOutreachRepository;
   readonly privacyUrl: string;
   readonly optOutText: string;
 }): ManualOutreachService {
@@ -431,6 +470,7 @@ export function createManualOutreachService(options: {
           privacyUrl: options.privacyUrl,
           optOutText: options.optOutText,
         },
+        "manual_sector",
       );
     },
 
@@ -467,13 +507,19 @@ export function createOutreachService(options: {
   const prospect = createProspectLoader(
     options.leadReviewService,
   );
-  const manual = createManualOutreachService({
-    leadReviewService:
-      options.leadReviewService,
-    repository: options.repository,
-    privacyUrl: options.privacyUrl,
-    optOutText: options.optOutText,
-  });
+
+  const preview = async (
+    prospectId: string,
+    contactId: string | null,
+  ) => buildPreview(
+    await prospect(prospectId),
+    contactId,
+    {
+      privacyUrl: options.privacyUrl,
+      optOutText: options.optOutText,
+    },
+    "outlook_legacy",
+  );
 
   return {
     async getWorkspace(founderId, prospectId) {
@@ -482,22 +528,19 @@ export function createOutreachService(options: {
         const [
           connection,
           latestDraft,
-          manualWorkspace,
+          activities,
         ] = await Promise.all([
           options.gateway
             .connectionStatus(founderId),
           options.repository
             .getLatestDraft(prospectId),
-          manual.getWorkspace(
-            founderId,
-            prospectId,
-          ),
+          options.repository
+            .listActivities(prospectId),
         ]);
         return {
           connection,
           latestDraft,
-          activities:
-            manualWorkspace.activities,
+          activities,
         };
       } catch (error) {
         if (error instanceof OutreachError) throw error;
@@ -507,8 +550,16 @@ export function createOutreachService(options: {
       }
     },
 
-    previewDraft:
-      manual.previewDraft,
+    async previewDraft(
+      _founderId,
+      prospectId,
+      contactId,
+    ) {
+      return preview(
+        prospectId,
+        contactId,
+      );
+    },
 
     async createDraft(
       founderId,
@@ -516,13 +567,12 @@ export function createOutreachService(options: {
       contactId,
       expectedPreviewSha256,
     ) {
-      const preview = await manual.previewDraft(
-        founderId,
+      const currentPreview = await preview(
         prospectId,
         contactId,
       );
       if (
-        preview.previewSha256 !==
+        currentPreview.previewSha256 !==
           expectedPreviewSha256
       ) {
         throw new OutreachError(
@@ -545,15 +595,16 @@ export function createOutreachService(options: {
             founderId,
             contactId,
             recipientEmail:
-              preview.recipientEmail,
-            subject: preview.subject,
-            body: preview.body,
+              currentPreview.recipientEmail,
+            subject:
+              currentPreview.subject,
+            body: currentPreview.body,
             templateId:
-              preview.templateId,
+              currentPreview.templateId,
             previewSha256:
-              preview.previewSha256,
+              currentPreview.previewSha256,
             evidenceIds:
-              preview.evidence.map(
+              currentPreview.evidence.map(
                 (item) => item.id,
               ),
           });
@@ -564,13 +615,13 @@ export function createOutreachService(options: {
       }
       if (
         prepared.contactId !==
-          preview.contactId ||
+          currentPreview.contactId ||
         prepared.recipientEmail !==
-          preview.recipientEmail ||
+          currentPreview.recipientEmail ||
         prepared.templateId !==
-          preview.templateId ||
+          currentPreview.templateId ||
         prepared.previewSha256 !==
-          preview.previewSha256
+          currentPreview.previewSha256
       ) {
         throw new OutreachError(
           "stale_preview",
@@ -589,9 +640,10 @@ export function createOutreachService(options: {
             founderId,
             internalDraftId: prepared.id,
             recipientEmail:
-              preview.recipientEmail,
-            subject: preview.subject,
-            body: preview.body,
+              currentPreview.recipientEmail,
+            subject:
+              currentPreview.subject,
+            body: currentPreview.body,
           });
         return await options.repository
           .markDrafted(
@@ -639,7 +691,24 @@ export function createOutreachService(options: {
       }
     },
 
-    recordActivity:
-      manual.recordActivity,
+    async recordActivity(
+      founderId,
+      prospectId,
+      input,
+    ) {
+      await prospect(prospectId);
+      try {
+        return await options.repository
+          .recordActivity({
+            ...input,
+            founderId,
+            prospectId,
+          });
+      } catch {
+        throw new OutreachError(
+          "invalid_activity",
+        );
+      }
+    },
   };
 }

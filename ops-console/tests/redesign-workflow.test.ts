@@ -161,3 +161,53 @@ test(
     );
   },
 );
+
+test(
+  "evidence review footer follows qualification state without a Ready action section",
+  () => {
+    const reviewSource = readFileSync(
+      new URL(
+        "../src/LeadReviewView.tsx",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+
+    assert.equal(
+      reviewSource.includes(
+        "Verification Unresolved",
+      ),
+      true,
+    );
+    assert.equal(
+      reviewSource.includes(
+        "Retry automatic check",
+      ),
+      true,
+    );
+    assert.equal(
+      reviewSource.includes(
+        "Awaiting Verification",
+      ),
+      true,
+    );
+    assert.equal(
+      reviewSource.includes(
+        "Run automatic check now",
+      ),
+      true,
+    );
+    assert.equal(
+      reviewSource.includes(
+        "Verification in progress",
+      ),
+      true,
+    );
+    assert.equal(
+      reviewSource.includes(
+        "selectedQueue !== \"ready\"",
+      ),
+      true,
+    );
+  },
+);

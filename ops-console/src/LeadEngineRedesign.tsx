@@ -119,6 +119,47 @@ export function LeadEngineRedesign({
     void refreshProspects();
   }, [refreshProspects]);
 
+  const selectReviewProspect = useCallback(
+    (prospectId: string | null) => {
+      setSelectedId(prospectId);
+
+      if (
+        prospectId === null ||
+        typeof window === "undefined" ||
+        !window.matchMedia(
+          "(max-width: 1100px)",
+        ).matches
+      ) {
+        return;
+      }
+
+      window.requestAnimationFrame(() => {
+        const evidenceColumn =
+          document.querySelector<HTMLElement>(
+            ".le-evidence-column",
+          );
+        if (evidenceColumn === null) return;
+
+        const reducedMotion =
+          window.matchMedia(
+            "(prefers-reduced-motion: reduce)",
+          ).matches;
+        const top =
+          window.scrollY +
+          evidenceColumn.getBoundingClientRect().top -
+          88;
+
+        window.scrollTo({
+          top: Math.max(0, top),
+          behavior: reducedMotion
+            ? "auto"
+            : "smooth",
+        });
+      });
+    },
+    [],
+  );
+
   const markViewed = useCallback(
     async (prospectId: string) => {
       const current = prospects.find(
@@ -166,7 +207,7 @@ export function LeadEngineRedesign({
       setOutreachId(prospectId);
       return;
     }
-    setSelectedId(prospectId);
+    selectReviewProspect(prospectId);
     setActiveTab("verify");
   }
 
@@ -180,7 +221,7 @@ export function LeadEngineRedesign({
       prospect !== undefined &&
       queueKey(prospect) === "excluded"
     ) {
-      setSelectedId(prospectId);
+      selectReviewProspect(prospectId);
       setActiveTab("verify");
       showMessage(
         "This prospect is excluded. Its history remains available, but outreach is blocked.",
@@ -354,7 +395,7 @@ export function LeadEngineRedesign({
             accessToken={accessToken}
             prospects={prospects}
             selectedId={selectedId}
-            setSelectedId={setSelectedId}
+            setSelectedId={selectReviewProspect}
             refreshProspects={
               refreshProspects
             }

@@ -1,5 +1,7 @@
 import {
   FormEvent,
+  useEffect,
+  useMemo,
   useState,
 } from "react";
 
@@ -17,6 +19,17 @@ import {
 import {
   ProspectReviewWorkspace,
 } from "./ProspectReviewWorkspace";
+
+import {
+  listProspects,
+  type ProspectSummary,
+} from "./lead-review-api";
+
+import {
+  buildSearchResultStates,
+  filterSearchResultStates,
+  type SearchResultViewFilter,
+} from "./search-result-state";
 
 import {
   downloadLeadExport,
@@ -84,6 +97,10 @@ export function LeadSearchWorkspace({
     useState<LeadSearchViewOutcome | null>(
       null,
     );
+  const [resultProspects, setResultProspects] =
+    useState<readonly ProspectSummary[]>([]);
+  const [resultViewFilter, setResultViewFilter] =
+    useState<SearchResultViewFilter>("all");
   const [searching, setSearching] =
     useState(false);
   const [searchError, setSearchError] =
@@ -139,7 +156,7 @@ export function LeadSearchWorkspace({
     setSearchError(null);
     setOutcome(null);
     try {
-      setOutcome(
+      const nextOutcome =
         await searchLeadSelection(
           backendUrl,
           accessToken,
@@ -156,8 +173,22 @@ export function LeadSearchWorkspace({
                   Number(radiusMiles),
                 sector,
               },
-        ),
-      );
+        );
+      setOutcome(nextOutcome);
+      setResultViewFilter("all");
+      if (reviewEnabled) {
+        try {
+          setResultProspects(
+            await listProspects(
+              backendUrl,
+              accessToken,
+            ),
+          );
+        } catch {
+          // Search remains useful if status refresh is temporarily unavailable.
+          setResultProspects([]);
+        }
+      }
     } catch (error) {
       setSearchError(
         errorMessage(error),
@@ -166,6 +197,42 @@ export function LeadSearchWorkspace({
       setSearching(false);
     }
   }
+
+  useEffect(() => {
+    if (!reviewEnabled || outcome === null) {
+      return;
+    }
+
+    let active = true;
+    async function refreshStatuses() {
+      try {
+        const prospects = await listProspects(
+          backendUrl,
+          accessToken,
+        );
+        if (active) {
+          setResultProspects(prospects);
+        }
+      } catch {
+        // A transient review-status failure must not erase search results.
+      }
+    }
+
+    void refreshStatuses();
+    const timer = window.setInterval(
+      () => void refreshStatuses(),
+      30_000,
+    );
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [
+    accessToken,
+    backendUrl,
+    outcome,
+    reviewEnabled,
+  ]);
 
   async function submitManual(
     event: FormEvent<HTMLFormElement>,
@@ -232,6 +299,30 @@ export function LeadSearchWorkspace({
       );
     }
   }
+
+  const resultStates = useMemo(
+    () =>
+      outcome === null
+        ? []
+        : buildSearchResultStates(
+            outcome.results,
+            resultProspects,
+          ),
+    [outcome, resultProspects],
+  );
+  const visibleResultStates = useMemo(
+    () =>
+      filterSearchResultStates(
+        resultStates,
+        resultViewFilter,
+      ),
+    [resultStates, resultViewFilter],
+  );
+  const unseenResultCount = resultStates.filter(
+    (item) => item.viewState === "unseen",
+  ).length;
+  const seenResultCount =
+    resultStates.length - unseenResultCount;
 
   return (
     <div className="workspace stack">
@@ -422,7 +513,7 @@ export function LeadSearchWorkspace({
           <div className="results-summary">
             <h2>Search results</h2>
             <p>
-              {outcome.resultCount} found · {outcome.createdCount} new · all evidence unverified
+              {outcome.resultCount} found · {outcome.createdCount} new · automatic verification runs in the background
             </p>
           </div>
           {outcome.results.length === 0 ? (
@@ -430,12 +521,68 @@ export function LeadSearchWorkspace({
               No businesses were returned for this search. Try another approved location or sector, or use manual capture below.
             </p>
           ) : (
-            <div className="result-grid">
-              {outcome.results.map(
-                (result) => (
+            <>
+              <div
+                className="result-filters"
+                aria-label="Filter search results by viewed state"
+              >
+                <button
+                  type="button"
+                  className={
+                    resultViewFilter === "all"
+                      ? "secondary active"
+                      : "secondary"
+                  }
+                  onClick={() =>
+                    setResultViewFilter("all")
+                  }
+                >
+                  All ({resultStates.length})
+                </button>
+                <button
+                  type="button"
+                  className={
+                    resultViewFilter === "unseen"
+                      ? "secondary active"
+                      : "secondary"
+                  }
+                  onClick={() =>
+                    setResultViewFilter("unseen")
+                  }
+                >
+                  Unseen ({unseenResultCount})
+                </button>
+                <button
+                  type="button"
+                  className={
+                    resultViewFilter === "seen"
+                      ? "secondary active"
+                      : "secondary"
+                  }
+                  onClick={() =>
+                    setResultViewFilter("seen")
+                  }
+                >
+                  Seen ({seenResultCount})
+                </button>
+              </div>
+              {visibleResultStates.length === 0 ? (
+                <p>
+                  No results match this viewed-state filter.
+                </p>
+              ) : (
+                <div className="result-grid">
+              {visibleResultStates.map(
+                ({
+                  result,
+                  prospect,
+                  viewState,
+                  qualificationLabel,
+                }) => (
                   <article
                     className="result-card"
                     key={
+                      prospect?.id ??
                       `${result.sourceUrl}-${result.businessName}`
                     }
                   >
@@ -467,9 +614,17 @@ export function LeadSearchWorkspace({
                         </dd>
                       </div>
                       <div>
-                        <dt>Evidence</dt>
-                        <dd className="status-unverified">
-                          Unverified — review before use
+                        <dt>Status</dt>
+                        <dd>
+                          {qualificationLabel}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>View</dt>
+                        <dd>
+                          {viewState === "seen"
+                            ? "Seen"
+                            : "Unseen"}
                         </dd>
                       </div>
                     </dl>
@@ -494,7 +649,9 @@ export function LeadSearchWorkspace({
                   </article>
                 ),
               )}
-            </div>
+                </div>
+              )}
+            </>
           )}
         </section>
       )}

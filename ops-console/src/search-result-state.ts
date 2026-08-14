@@ -111,13 +111,17 @@ export function prospectQualificationLabel(
     case "excluded":
       return "Excluded";
     case "processing":
-      return "Processing";
+      return prospect.companyEnrichment
+        ?.status === "pending"
+        ? "Queued"
+        : "Processing";
   }
 
   switch (
     prospect.companyEnrichment?.status
   ) {
     case "pending":
+      return "Queued";
     case "processing":
       return "Processing";
     case "auto_verified":

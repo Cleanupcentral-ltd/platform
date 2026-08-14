@@ -99,6 +99,30 @@ test(
 );
 
 test(
+  "distinguishes a queued qualification job from one already processing",
+  () => {
+    const queued = prospect();
+    assert.equal(
+      prospectQualificationLabel(queued),
+      "Queued",
+    );
+
+    const running =
+      prospect({
+        companyEnrichment: {
+          ...queued.companyEnrichment!,
+          status: "processing",
+          attemptCount: 1,
+        },
+      });
+    assert.equal(
+      prospectQualificationLabel(running),
+      "Processing",
+    );
+  },
+);
+
+test(
   "filters search results by seen and unseen state",
   () => {
     const unseen = prospect();

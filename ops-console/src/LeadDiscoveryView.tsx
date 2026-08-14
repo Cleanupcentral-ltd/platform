@@ -88,7 +88,7 @@ export function LeadDiscoveryView({
 }: LeadDiscoveryViewProps) {
   const [searchMode, setSearchMode] =
     useState<"postcode" | "borough">(
-      "postcode",
+      "borough",
     );
   const [postcode, setPostcode] =
     useState("");

@@ -269,6 +269,20 @@ export function LeadEngineRedesign({
             <span>Founder operations</span>
           </div>
           <div className="le-header-tools">
+            {exportEnabled && (
+              <button
+                type="button"
+                className="le-header-button"
+                disabled={exporting}
+                onClick={() =>
+                  void exportCsv()
+                }
+              >
+                {exporting
+                  ? "Preparing CSV…"
+                  : "Download CSV"}
+              </button>
+            )}
             <button
               type="button"
               className="le-header-button"
@@ -369,11 +383,6 @@ export function LeadEngineRedesign({
                   prospectId,
                   ready,
                 )
-            }
-            exportEnabled={exportEnabled}
-            exporting={exporting}
-            onExportCsv={() =>
-              void exportCsv()
             }
             onMessage={showMessage}
             onError={showError}

@@ -133,7 +133,9 @@ import {
 } from "./application/qualify-leads.js";
 
 import {
+  createManualOutreachService,
   createOutreachService,
+  type ManualOutreachService,
   type OutreachService,
 } from "./application/outreach.js";
 
@@ -183,6 +185,10 @@ import {
 import {
   registerLeadEngineRoutes,
 } from "./http/routes/lead-engine.js";
+
+import {
+  registerManualOutreachRoutes,
+} from "./http/routes/manual-outreach.js";
 
 import {
   registerQuoteAttachmentContentParsers,
@@ -263,6 +269,9 @@ export interface BuildAppOptions {
 
   readonly outreachService?:
     OutreachService;
+
+  readonly manualOutreachService?:
+    ManualOutreachService;
 
   readonly leadExportEnabled?:
     boolean;
@@ -690,6 +699,57 @@ export async function buildApp(
           })
         : null;
 
+    const founderAuthService =
+      options.founderAuthService ??
+      new SupabaseFounderAuthService({
+        supabaseUrl:
+          requiredEnvironmentValue(
+            env.SUPABASE_URL,
+            "SUPABASE_URL",
+          ),
+        publishableKey:
+          requiredEnvironmentValue(
+            env.SUPABASE_PUBLISHABLE_KEY,
+            "SUPABASE_PUBLISHABLE_KEY",
+          ),
+        timeoutMs:
+          env.SUPABASE_AUTH_TIMEOUT_MS,
+      });
+
+    const manualOutreachService =
+      options.manualOutreachService ??
+      (
+        automaticQualificationEnabled &&
+        leadReviewService !== null &&
+        env.OUTREACH_PRIVACY_URL !==
+          undefined &&
+        env.OUTREACH_OPTOUT_TEXT !==
+          undefined
+          ? createManualOutreachService({
+              leadReviewService,
+              privacyUrl:
+                env.OUTREACH_PRIVACY_URL,
+              optOutText:
+                env.OUTREACH_OPTOUT_TEXT,
+              repository:
+                new SupabaseOutreachRepository({
+                  supabaseUrl:
+                    requiredEnvironmentValue(
+                      env.SUPABASE_URL,
+                      "SUPABASE_URL",
+                    ),
+                  secretKey:
+                    requiredEnvironmentValue(
+                      env.SUPABASE_SECRET_KEY,
+                      "SUPABASE_SECRET_KEY",
+                    ),
+                  timeoutMs:
+                    env.SUPABASE_DATA_TIMEOUT_MS,
+                }),
+            })
+          : null
+      );
+
     const outreachService =
       outlookDraftEnabled
         ? options.outreachService ??
@@ -800,22 +860,7 @@ export async function buildApp(
         : null;
 
     registerLeadEngineRoutes(app, {
-      founderAuthService:
-        options.founderAuthService ??
-        new SupabaseFounderAuthService({
-          supabaseUrl:
-            requiredEnvironmentValue(
-              env.SUPABASE_URL,
-              "SUPABASE_URL",
-            ),
-          publishableKey:
-            requiredEnvironmentValue(
-              env.SUPABASE_PUBLISHABLE_KEY,
-              "SUPABASE_PUBLISHABLE_KEY",
-            ),
-          timeoutMs:
-            env.SUPABASE_AUTH_TIMEOUT_MS,
-        }),
+      founderAuthService,
       leadSearchEnabled,
       leadSearchService,
       leadReviewService,
@@ -833,6 +878,13 @@ export async function buildApp(
           ? null
           : `${env.LEAD_ENGINE_CONSOLE_ORIGIN.replace(/\/$/, "")}/ops/leads`,
     });
+
+    if (manualOutreachService !== null) {
+      registerManualOutreachRoutes(app, {
+        founderAuthService,
+        service: manualOutreachService,
+      });
+    }
   }
 
   const travelCalculationService =

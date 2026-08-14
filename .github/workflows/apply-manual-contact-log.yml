@@ -1,0 +1,441 @@
+name: Build manual contact log
+
+on:
+  push:
+    branches:
+      - agent/manual-contact-log-form
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-validate:
+    if: github.event.head_commit.message != 'Add structured manual contact logging'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/manual-contact-log-form
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            ops-console/package-lock.json
+
+      - name: Apply code changes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new, label):
+              p = Path(path)
+              s = p.read_text()
+              if s.count(old) != 1:
+                  raise SystemExit(f'{label}: expected one match, found {s.count(old)}')
+              p.write_text(s.replace(old, new, 1))
+
+          # Backend shared activity type: additive contactType for new rows.
+          replace_once(
+              'backend/src/ports/outreach.ts',
+              'export interface OutreachActivityRecord {\n  readonly id: string;\n',
+              'export type OutreachContactType =\n  | "phone"\n  | "email";\n\nexport interface OutreachActivityRecord {\n  readonly id: string;\n  readonly contactType?:\n    OutreachContactType | null;\n',
+              'outreach activity contact type',
+          )
+
+          # Manual outreach port gets a new structured operation; legacy method remains.
+          replace_once(
+              'backend/src/ports/manual-outreach.ts',
+              '  OutreachActivityRecord,\n  RecordOutreachActivityInput,\n} from "./outreach.js";',
+              '  OutreachActivityRecord,\n  OutreachContactType,\n  RecordOutreachActivityInput,\n} from "./outreach.js";',
+              'manual port import',
+          )
+          replace_once(
+              'backend/src/ports/manual-outreach.ts',
+              'export interface ManualOutreachFollowUp {',
+              '''export type ManualContactOutcome =\n  | "interested"\n  | "not_interested"\n  | "no_response"\n  | "follow_up_required"\n  | "invalid_contact"\n  | "do_not_contact";\n\nexport interface ManualContactLogInput {\n  readonly prospectId: string;\n  readonly founderId: string;\n  readonly contactType: OutreachContactType;\n  readonly outcome: ManualContactOutcome;\n  readonly notes: string | null;\n  readonly followUpAt: string | null;\n}\n\nexport interface ManualOutreachFollowUp {''',
+              'manual contact types',
+          )
+          replace_once(
+              'backend/src/ports/manual-outreach.ts',
+              '''  recordManualActivity(\n    input: RecordOutreachActivityInput,\n  ): Promise<OutreachActivityRecord>;\n}''',
+              '''  recordManualActivity(\n    input: RecordOutreachActivityInput,\n  ): Promise<OutreachActivityRecord>;\n\n  recordContactLog(\n    input: ManualContactLogInput,\n  ): Promise<OutreachActivityRecord>;\n}''',
+              'manual repository method',
+          )
+
+          # Application service exposes the new operation without changing the old recordActivity path.
+          replace_once(
+              'backend/src/application/outreach.ts',
+              '  ManualOutreachFollowUp,\n  ManualOutreachRepository,\n} from "../ports/manual-outreach.js";',
+              '  ManualContactLogInput,\n  ManualOutreachFollowUp,\n  ManualOutreachRepository,\n} from "../ports/manual-outreach.js";',
+              'application manual import',
+          )
+          replace_once(
+              'backend/src/application/outreach.ts',
+              '''  recordActivity(\n    founderId: string,\n    prospectId: string,\n    input: Omit<\n      RecordOutreachActivityInput,\n      "founderId" | "prospectId"\n    >,\n  ): Promise<OutreachActivityRecord>;\n}''',
+              '''  recordActivity(\n    founderId: string,\n    prospectId: string,\n    input: Omit<\n      RecordOutreachActivityInput,\n      "founderId" | "prospectId"\n    >,\n  ): Promise<OutreachActivityRecord>;\n\n  recordContactLog(\n    founderId: string,\n    prospectId: string,\n    input: Omit<\n      ManualContactLogInput,\n      "founderId" | "prospectId"\n    >,\n  ): Promise<OutreachActivityRecord>;\n}''',
+              'manual service interface',
+          )
+          replace_once(
+              'backend/src/application/outreach.ts',
+              '''    async recordActivity(\n      founderId,\n      prospectId,\n      input,\n    ) {\n      await prospect(prospectId);\n      try {\n        return await options.repository\n          .recordManualActivity({\n            ...input,\n            founderId,\n            prospectId,\n          });\n      } catch {\n        throw new OutreachError(\n          "invalid_activity",\n        );\n      }\n    },\n  };''',
+              '''    async recordActivity(\n      founderId,\n      prospectId,\n      input,\n    ) {\n      await prospect(prospectId);\n      try {\n        return await options.repository\n          .recordManualActivity({\n            ...input,\n            founderId,\n            prospectId,\n          });\n      } catch {\n        throw new OutreachError(\n          "invalid_activity",\n        );\n      }\n    },\n\n    async recordContactLog(\n      founderId,\n      prospectId,\n      input,\n    ) {\n      await prospect(prospectId);\n      try {\n        return await options.repository\n          .recordContactLog({\n            ...input,\n            founderId,\n            prospectId,\n          });\n      } catch {\n        throw new OutreachError(\n          "invalid_activity",\n        );\n      }\n    },\n  };''',
+              'manual service implementation',
+          )
+
+          # Supabase repository reads the new nullable column and calls the new RPC.
+          replace_once(
+              'backend/src/adapters/supabase/supabase-outreach-repository.ts',
+              '  ManualOutreachFollowUp,\n  ManualOutreachRepository,\n} from "../../ports/manual-outreach.js";',
+              '  ManualContactLogInput,\n  ManualOutreachFollowUp,\n  ManualOutreachRepository,\n} from "../../ports/manual-outreach.js";',
+              'repository manual import',
+          )
+          replace_once(
+              'backend/src/adapters/supabase/supabase-outreach-repository.ts',
+              'const activityRowSchema = z.object({\n  id: z.string().uuid(),\n',
+              'const activityRowSchema = z.object({\n  id: z.string().uuid(),\n  contact_type: z.enum([\n    "phone",\n    "email",\n  ]).nullable().optional(),\n',
+              'activity schema',
+          )
+          replace_once(
+              'backend/src/adapters/supabase/supabase-outreach-repository.ts',
+              '    id: row.id,\n    activityType: row.activity_type,\n',
+              '    id: row.id,\n    contactType: row.contact_type ?? null,\n    activityType: row.activity_type,\n',
+              'activity mapper',
+          )
+          p = Path('backend/src/adapters/supabase/supabase-outreach-repository.ts')
+          s = p.read_text()
+          s = s.replace('select=id,activity_type,outcome,notes,follow_up_at,created_at', 'select=id,contact_type,activity_type,outcome,notes,follow_up_at,created_at')
+          s = s.replace('select=id,prospect_id,activity_type,outcome,notes,follow_up_at,created_at', 'select=id,prospect_id,contact_type,activity_type,outcome,notes,follow_up_at,created_at')
+          marker = '''  async recordManualActivity(\n    input: RecordOutreachActivityInput,\n  ): Promise<OutreachActivityRecord> {\n    const rows = await this.json(\n      "/rpc/record_manual_outreach_activity",'''
+          if marker not in s:
+              raise SystemExit('recordManualActivity marker missing')
+          end = s.rfind('\n}')
+          method = '''\n\n  async recordContactLog(\n    input: ManualContactLogInput,\n  ): Promise<OutreachActivityRecord> {\n    const rows = await this.json(\n      "/rpc/record_manual_contact_log",\n      z.array(activityRowSchema).length(1),\n      {\n        method: "POST",\n        headers: {\n          "content-type": "application/json",\n        },\n        body: JSON.stringify({\n          p_prospect_id: input.prospectId,\n          p_founder_id: input.founderId,\n          p_contact_type: input.contactType,\n          p_outcome: input.outcome,\n          p_notes: input.notes,\n          p_follow_up_at: input.followUpAt,\n        }),\n      },\n    );\n    return mapActivity(rows[0]!);\n  }'''
+          s = s[:end] + method + s[end:]
+          p.write_text(s)
+
+          # Manual route: additive endpoint, same founder/MFA guard and rate limit.
+          replace_once(
+              'backend/src/http/routes/manual-outreach.ts',
+              'const activityRequestSchema =\n  z.strictObject({',
+              '''const contactLogRequestSchema =\n  z.strictObject({\n    contactType: z.enum([\n      "phone",\n      "email",\n    ]),\n    outcome: z.enum([\n      "interested",\n      "not_interested",\n      "no_response",\n      "follow_up_required",\n      "invalid_contact",\n      "do_not_contact",\n    ]),\n    notes: nullableText(1_000),\n    followUpAt: z.string()\n      .datetime({ offset: true })\n      .nullable()\n      .optional()\n      .default(null),\n  }).superRefine((value, context) => {\n    if (value.outcome === "follow_up_required") {\n      if (\n        value.followUpAt === null ||\n        new Date(value.followUpAt).getTime() <=\n          Date.now()\n      ) {\n        context.addIssue({\n          code: z.ZodIssueCode.custom,\n          path: ["followUpAt"],\n          message:\n            "Choose a future follow-up date and time.",\n        });\n      }\n      return;\n    }\n    if (value.followUpAt !== null) {\n      context.addIssue({\n        code: z.ZodIssueCode.custom,\n        path: ["followUpAt"],\n        message:\n          "A follow-up date is only valid when Follow-Up Required is selected.",\n      });\n    }\n  });\n\nconst activityRequestSchema =\n  z.strictObject({''',
+              'contact log request schema',
+          )
+          route_anchor = '''  app.post(\n    "/api/ops/leads/prospects/:prospectId/manual-outreach-activities",'''
+          p = Path('backend/src/http/routes/manual-outreach.ts')
+          s = p.read_text()
+          idx = s.find(route_anchor)
+          if idx < 0:
+              raise SystemExit('legacy activity route anchor missing')
+          route = '''  app.post(\n    "/api/ops/leads/prospects/:prospectId/manual-contact-log",\n    {\n      bodyLimit: 4 * 1024,\n      config: {\n        rateLimit: RATE_LIMIT,\n      },\n    },\n    async (\n      request,\n      reply,\n    ): Promise<FastifyReply> => {\n      const founder =\n        await authenticateFounder(\n          request,\n          dependencies.founderAuthService,\n        );\n      requireJson(request);\n      const params = paramsSchema\n        .safeParse(request.params);\n      const body = contactLogRequestSchema\n        .safeParse(request.body);\n      if (!params.success || !body.success) {\n        throw new HttpError({\n          code: "VALIDATION_ERROR",\n          message:\n            "The contact log request is invalid.",\n          statusCode: 400,\n        });\n      }\n      const activity = await run(\n        () => dependencies.service\n          .recordContactLog(\n            founder.userId,\n            params.data.prospectId,\n            body.data,\n          ),\n      );\n      return reply\n        .header("Cache-Control", "no-store")\n        .status(201)\n        .type("application/json")\n        .send({\n          success: true,\n          activity,\n          requestId: request.id,\n        });\n    },\n  );\n\n'''
+          s = s[:idx] + route + s[idx:]
+          p.write_text(s)
+
+          # Frontend API: keep old API and add the structured one.
+          p = Path('ops-console/src/manual-outreach-api.ts')
+          s = p.read_text()
+          marker = 'export interface ManualOutreachWorkspace {'
+          addition = '''export type ManualContactType =\n  | "phone"\n  | "email";\n\nexport type ManualContactOutcome =\n  | "interested"\n  | "not_interested"\n  | "no_response"\n  | "follow_up_required"\n  | "invalid_contact"\n  | "do_not_contact";\n\n'''
+          if marker not in s:
+              raise SystemExit('frontend manual API marker missing')
+          s = s.replace(marker, addition + marker, 1)
+          insert_before = '\nexport function formatOutlookCopy('
+          idx = s.find(insert_before)
+          if idx < 0:
+              raise SystemExit('formatOutlookCopy marker missing')
+          fn = '''\nexport async function recordManualContactLog(\n  backendUrl: string,\n  accessToken: string,\n  prospectId: string,\n  input: {\n    readonly contactType: ManualContactType;\n    readonly outcome: ManualContactOutcome;\n    readonly notes: string | null;\n    readonly followUpAt: string | null;\n  },\n  fetchFunction: typeof fetch = fetch,\n): Promise<OutreachActivity> {\n  const response = await requestJson<{\n    readonly activity: OutreachActivity;\n  }>(\n    `${baseUrl(backendUrl)}/api/ops/leads/prospects/${encodeURIComponent(prospectId)}/manual-contact-log`,\n    accessToken,\n    {\n      method: "POST",\n      headers: {\n        "Content-Type": "application/json",\n      },\n      body: JSON.stringify(input),\n    },\n    fetchFunction,\n  );\n  return response.activity;\n}\n'''
+          s = s[:idx] + fn + s[idx:]
+          p.write_text(s)
+
+          # Shared frontend activity response can include contactType on new rows.
+          p = Path('ops-console/src/lead-review-api.ts')
+          s = p.read_text()
+          target = 'export interface OutreachActivity {\n  readonly id: string;\n'
+          if s.count(target) != 1:
+              raise SystemExit('OutreachActivity interface marker missing')
+          s = s.replace(target, 'export interface OutreachActivity {\n  readonly id: string;\n  readonly contactType?: "phone" | "email" | null;\n', 1)
+          p.write_text(s)
+
+          # Outreach drawer: ONLY change the Log Contact form/handler/history, not draft composition.
+          p = Path('ops-console/src/OutreachDrawer.tsx')
+          s = p.read_text()
+          s = s.replace('  recordManualOutreachActivity,\n', '  recordManualContactLog,\n  type ManualContactOutcome,\n  type ManualContactType,\n', 1)
+          start = s.find('type ActivityType =')
+          end = s.find('\nfunction messageFrom', start)
+          if start < 0 or end < 0:
+              raise SystemExit('legacy local activity types missing')
+          s = s[:start] + s[end+1:]
+          s = s.replace(
+              '''  const [activityType, setActivityType] =\n    useState<ActivityType>("contacted");\n  const [activityOutcome, setActivityOutcome] =\n    useState<ActivityOutcome>("not_now");''',
+              '''  const [contactType, setContactType] =\n    useState<ManualContactType>("email");\n  const [contactOutcome, setContactOutcome] =\n    useState<ManualContactOutcome>(\n      "no_response",\n    );''',
+              1,
+          )
+          handler_start = s.find('  async function saveActivity(')
+          handler_end = s.find('\n  return (', handler_start)
+          if handler_start < 0 or handler_end < 0:
+              raise SystemExit('saveActivity handler bounds missing')
+          handler = '''  async function saveActivity(\n    event: FormEvent<HTMLFormElement>,\n  ) {\n    event.preventDefault();\n    const resolvedFollowUp =\n      contactOutcome === "follow_up_required" &&\n      followUpAt !== ""\n        ? new Date(followUpAt).toISOString()\n        : null;\n\n    if (\n      contactOutcome === "follow_up_required" &&\n      resolvedFollowUp === null\n    ) {\n      onError(\n        "Choose a follow-up date and time before logging this contact.",\n      );\n      return;\n    }\n\n    setWorking(true);\n    try {\n      await recordManualContactLog(\n        backendUrl,\n        accessToken,\n        prospectId,\n        {\n          contactType,\n          outcome: contactOutcome,\n          notes:\n            notes.trim() === ""\n              ? null\n              : notes.trim(),\n          followUpAt: resolvedFollowUp,\n        },\n      );\n\n      setWorkspace(\n        await getManualOutreachWorkspace(\n          backendUrl,\n          accessToken,\n          prospectId,\n        ),\n      );\n      setContactOutcome("no_response");\n      setNotes("");\n      setFollowUpAt("");\n      onActivitySaved();\n      onMessage("Contact logged.");\n    } catch (error) {\n      onError(messageFrom(error));\n    } finally {\n      setWorking(false);\n    }\n  }\n'''
+          s = s[:handler_start] + handler + s[handler_end:]
+
+          form_start = s.find('                <label>\n                  <span>Activity</span>')
+          notes_start = s.find('                <label>\n                  <span>Notes</span>', form_start)
+          if form_start < 0 or notes_start < 0:
+              raise SystemExit('legacy contact form bounds missing')
+          fields = '''                <label>\n                  <span>Contact Type</span>\n                  <select\n                    value={contactType}\n                    onChange={(event) =>\n                      setContactType(\n                        event.target.value as\n                          ManualContactType,\n                      )\n                    }\n                  >\n                    <option value="phone">\n                      Phone\n                    </option>\n                    <option value="email">\n                      Email\n                    </option>\n                  </select>\n                </label>\n\n                <label>\n                  <span>Outcome</span>\n                  <select\n                    value={contactOutcome}\n                    onChange={(event) => {\n                      const next =\n                        event.target.value as\n                          ManualContactOutcome;\n                      setContactOutcome(next);\n                      if (\n                        next !==\n                          "follow_up_required"\n                      ) {\n                        setFollowUpAt("");\n                      }\n                    }}\n                  >\n                    <option value="interested">\n                      Interested\n                    </option>\n                    <option value="not_interested">\n                      Not Interested\n                    </option>\n                    <option value="no_response">\n                      No Answer / No Response\n                    </option>\n                    <option value="follow_up_required">\n                      Follow-Up Required\n                    </option>\n                    <option value="invalid_contact">\n                      Invalid / Wrong Contact Details\n                    </option>\n                    <option value="do_not_contact">\n                      Do Not Contact\n                    </option>\n                  </select>\n                </label>\n\n                {contactOutcome ===\n                  "follow_up_required" && (\n                    <label>\n                      <span>Follow-up date</span>\n                      <input\n                        type="datetime-local"\n                        value={followUpAt}\n                        onChange={(event) =>\n                          setFollowUpAt(\n                            event.target.value,\n                          )\n                        }\n                        required\n                      />\n                    </label>\n                  )}\n\n'''
+          s = s[:form_start] + fields + s[notes_start:]
+          s = s.replace('                    : "Save activity"}', '                    : "Log contact"}', 1)
+
+          # Make new history entries readable while preserving legacy rows.
+          old_history = '''                    <strong>\n                      {activity.activityType\n                        .replaceAll("_", " ")}\n                    </strong>\n                    <span>\n                      {activity.outcome ??\n                        activity.notes ??\n                        "Recorded"}\n                    </span>'''
+          new_history = '''                    <strong>\n                      {activity.contactType ===\n                        "phone"\n                        ? "Phone"\n                        : activity.contactType ===\n                            "email"\n                          ? "Email"\n                          : activity.activityType\n                              .replaceAll(\n                                "_",\n                                " ",\n                              )}\n                    </strong>\n                    <span>\n                      {activity.outcome\n                        ?.replaceAll("_", " ") ??\n                        activity.notes ??\n                        "Recorded"}\n                    </span>'''
+          if s.count(old_history) != 1:
+              raise SystemExit('history display marker missing')
+          s = s.replace(old_history, new_history, 1)
+          p.write_text(s)
+
+          # Follow-up helpers recognize structured contact rows while preserving legacy rows.
+          p = Path('ops-console/src/redesign-helpers.ts')
+          s = p.read_text()
+          old = '''  return item.activities\n    .filter(\n      (activity) =>\n        activity.activityType ===\n          "follow_up_scheduled" &&\n        activity.followUpAt !== null,\n    )'''
+          new = '''  return item.activities\n    .filter(\n      (activity) =>\n        activity.followUpAt !== null &&\n        (\n          activity.activityType ===\n            "follow_up_scheduled" ||\n          activity.outcome ===\n            "follow_up_required"\n        ),\n    )'''
+          if s.count(old) != 1:
+              raise SystemExit('latestFollowUp marker missing')
+          s = s.replace(old, new, 1)
+          old = '''  const contacted = latestOfType(\n    item,\n    "contacted",\n  );\n  if (contacted === null) return false;\n  const replied = latestOfType(\n    item,\n    "replied",\n  );\n  return replied === null ||\n    activityTime(replied.createdAt) <\n      activityTime(contacted.createdAt);'''
+          new = '''  const contacted = latestOfType(\n    item,\n    "contacted",\n  );\n  if (contacted === null) return false;\n\n  if (contacted.outcome !== null) {\n    return contacted.outcome ===\n      "no_response";\n  }\n\n  const replied = latestOfType(\n    item,\n    "replied",\n  );\n  return replied === null ||\n    activityTime(replied.createdAt) <\n      activityTime(contacted.createdAt);'''
+          if s.count(old) != 1:
+              raise SystemExit('isAwaitingReply marker missing')
+          s = s.replace(old, new, 1)
+          p.write_text(s)
+          PY
+
+      - name: Add migration
+        run: |
+          cat > supabase/migrations/20260815003100_manual_contact_log.sql <<'SQL'
+          alter table lead_engine.activities
+            add column if not exists contact_type text;
+
+          alter table lead_engine.activities
+            drop constraint if exists activities_contact_type_check;
+
+          alter table lead_engine.activities
+            add constraint activities_contact_type_check
+            check (
+              contact_type is null or
+              contact_type in ('phone', 'email')
+            );
+
+          create or replace function lead_engine.record_manual_contact_log(
+            p_prospect_id uuid,
+            p_founder_id uuid,
+            p_contact_type text,
+            p_outcome text,
+            p_notes text default null,
+            p_follow_up_at timestamptz default null
+          )
+          returns table (
+            id uuid,
+            contact_type text,
+            activity_type text,
+            outcome text,
+            notes text,
+            follow_up_at timestamptz,
+            created_at timestamptz
+          )
+          language plpgsql
+          security invoker
+          set search_path = ''
+          as $record_manual_contact_log$
+          declare
+            v_activity_id uuid;
+            v_created_at timestamptz;
+          begin
+            if p_contact_type not in ('phone', 'email') then
+              raise exception 'invalid contact type'
+                using errcode = '22023';
+            end if;
+
+            if p_outcome not in (
+              'interested',
+              'not_interested',
+              'no_response',
+              'follow_up_required',
+              'invalid_contact',
+              'do_not_contact'
+            ) then
+              raise exception 'invalid contact outcome'
+                using errcode = '22023';
+            end if;
+
+            if p_notes is not null and length(p_notes) > 1000 then
+              raise exception 'notes must be 1000 characters or fewer'
+                using errcode = '22023';
+            end if;
+
+            if p_outcome = 'follow_up_required' then
+              if p_follow_up_at is null or p_follow_up_at <= now() then
+                raise exception 'future follow-up date required'
+                  using errcode = '22023';
+              end if;
+            elsif p_follow_up_at is not null then
+              raise exception 'follow-up date is only valid when follow-up is required'
+                using errcode = '22023';
+            end if;
+
+            if not exists (
+              select 1
+              from lead_engine.prospects as prospect
+              where prospect.id = p_prospect_id
+            ) then
+              raise exception 'prospect not found'
+                using errcode = 'P0002';
+            end if;
+
+            insert into lead_engine.activities (
+              prospect_id,
+              contact_type,
+              activity_type,
+              outcome,
+              notes,
+              follow_up_at,
+              created_by
+            ) values (
+              p_prospect_id,
+              p_contact_type,
+              'contacted',
+              p_outcome,
+              nullif(btrim(p_notes), ''),
+              case
+                when p_outcome = 'follow_up_required'
+                  then p_follow_up_at
+                else null
+              end,
+              p_founder_id
+            )
+            returning activities.id, activities.created_at
+            into v_activity_id, v_created_at;
+
+            if p_outcome = 'do_not_contact' then
+              insert into lead_engine.suppressions (
+                prospect_id,
+                suppression_type,
+                reason,
+                source,
+                created_by
+              ) values (
+                p_prospect_id,
+                'business',
+                coalesce(
+                  nullif(btrim(p_notes), ''),
+                  'Founder recorded do not contact.'
+                ),
+                'founder_outreach_outcome',
+                p_founder_id
+              )
+              on conflict do nothing;
+            end if;
+
+            return query
+            select
+              v_activity_id,
+              p_contact_type,
+              'contacted'::text,
+              p_outcome,
+              nullif(btrim(p_notes), ''),
+              case
+                when p_outcome = 'follow_up_required'
+                  then p_follow_up_at
+                else null
+              end,
+              v_created_at;
+          end
+          $record_manual_contact_log$;
+
+          revoke all on function lead_engine.record_manual_contact_log(
+            uuid, uuid, text, text, text, timestamptz
+          ) from public, anon, authenticated;
+
+          grant execute on function lead_engine.record_manual_contact_log(
+            uuid, uuid, text, text, text, timestamptz
+          ) to service_role;
+          SQL
+
+      - name: Add focused tests
+        run: |
+          cat > backend/tests/manual-contact-log-contract.test.ts <<'TS'
+          import assert from "node:assert/strict";
+          import test from "node:test";
+          import { readFileSync } from "node:fs";
+
+          test("manual contact log migration contains the agreed contract", () => {
+            const sql = readFileSync(
+              new URL(
+                "../../supabase/migrations/20260815003100_manual_contact_log.sql",
+                import.meta.url,
+              ),
+              "utf8",
+            );
+            for (const value of [
+              "interested",
+              "not_interested",
+              "no_response",
+              "follow_up_required",
+              "invalid_contact",
+              "do_not_contact",
+            ]) {
+              assert.match(sql, new RegExp(`'${value}'`));
+            }
+            assert.match(sql, /contact_type in \('phone', 'email'\)/);
+            assert.match(sql, /founder_outreach_outcome/);
+          });
+          TS
+
+          cat > ops-console/tests/manual-contact-log.test.ts <<'TS'
+          import assert from "node:assert/strict";
+          import test from "node:test";
+          import { readFileSync } from "node:fs";
+
+          const drawer = readFileSync(
+            new URL("../src/OutreachDrawer.tsx", import.meta.url),
+            "utf8",
+          );
+
+          test("Log Contact exposes only the agreed fields and outcomes", () => {
+            assert.match(drawer, /Contact Type/);
+            assert.match(drawer, /Phone/);
+            assert.match(drawer, /Email/);
+            assert.match(drawer, /Interested/);
+            assert.match(drawer, /Not Interested/);
+            assert.match(drawer, /No Answer \/ No Response/);
+            assert.match(drawer, /Follow-Up Required/);
+            assert.match(drawer, /Invalid \/ Wrong Contact Details/);
+            assert.match(drawer, /Do Not Contact/);
+            assert.match(drawer, /contactOutcome ===\s*"follow_up_required"/);
+            assert.match(drawer, /Follow-up date/);
+            assert.match(drawer, /recordManualContactLog/);
+            assert.doesNotMatch(drawer, /<span>Activity<\/span>/);
+          });
+          TS
+
+      - name: Validate backend
+        working-directory: backend
+        run: |
+          npm ci
+          npm run build
+          npm test -- --test-name-pattern="manual contact|manual preview|outreach"
+
+      - name: Validate Ops Console
+        working-directory: ops-console
+        run: |
+          npm ci
+          npm test
+
+      - name: Commit product changes
+        run: |
+          git config user.name "cleanupcentral-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add backend/src backend/tests/manual-contact-log-contract.test.ts ops-console/src ops-console/tests/manual-contact-log.test.ts supabase/migrations/20260815003100_manual_contact_log.sql
+          git commit -m "Add structured manual contact logging"
+          git push origin HEAD:agent/manual-contact-log-form

@@ -10,7 +10,7 @@ import {
 } from "./business-email.js";
 
 export const LEAD_SCORING_VERSION =
-  "cuc-lel-0-10-v1.3";
+  "cuc-lel-0-10-v1.4";
 
 export const LEAD_READY_MINIMUM_SCORE = 7;
 export const LEAD_VENUE_READY_MINIMUM_SCORE = 6;
@@ -137,6 +137,32 @@ function normalizedFact(
     ?.fieldValue
     .trim()
     .toLowerCase() ?? null;
+}
+
+function trustedContactFormEvidence(
+  evidence: LeadEvidenceRecord | undefined,
+): boolean {
+  if (
+    evidence?.sourceType !==
+      "first_party_website" ||
+    evidence.fieldName !==
+      "contact_form_url"
+  ) {
+    return false;
+  }
+
+  if (
+    evidence.verificationMethod ===
+      "founder_review"
+  ) {
+    return true;
+  }
+
+  return evidence.verificationMethod ===
+      "automatic_first_party_research" &&
+    evidence.sourceExcerpt?.startsWith(
+      "Verified contact form v2:",
+    ) === true;
 }
 
 function sectorScore(
@@ -312,17 +338,14 @@ function contactabilityScore(
     },
   );
   const forms = verifiedContacts.filter(
-    (item) => {
-      const source = evidenceById.get(
-        item.sourceEvidenceId,
-      );
-      return item.contactType ===
+    (item) =>
+      item.contactType ===
         "contact_form" &&
-        source?.sourceType ===
-          "first_party_website" &&
-        source.fieldName ===
-          "contact_form_url";
-    },
+      trustedContactFormEvidence(
+        evidenceById.get(
+          item.sourceEvidenceId,
+        ),
+      ),
   );
   const subscriberType = normalizedFact(
     persistentEvidence(
@@ -357,7 +380,7 @@ function contactabilityScore(
     return {
       points: 1,
       explanation:
-        "A verified public contact form is available.",
+        "A strictly verified public contact form is available.",
       evidenceIds:
         contactEvidenceIds(forms),
     };

@@ -2,6 +2,10 @@ import { createHash } from "node:crypto";
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 
+import {
+  detectContactForm,
+} from "../../domain/contact-form-evidence.js";
+
 import type {
   AutomaticResearchFact,
   FirstPartyResearchProvider,
@@ -945,23 +949,46 @@ implements FirstPartyResearchProvider {
         ) continue;
         addFact(page, "public_email", email, excerpt(page.text, match), "email");
       }
-      if (
-        /<form\b/i.test(page.html) &&
+    }
+
+    const contactFormCandidates = pages
+      .map((page, index) => ({
+        page,
+        index,
+        evidence:
+          detectContactForm(
+            page.html,
+            page.url,
+          ),
+      }))
+      .filter(
         (
-          /(?:contact|enquir|inquiry|get-in-touch)/i
-            .test(page.url.pathname) ||
-          /\b(?:contact\s+us|send\s+(?:us\s+)?a\s+message|make\s+an\s+enquir|general\s+enquir)/i
-            .test(page.text)
-        )
-      ) {
-        addFact(
-          page,
-          "contact_form_url",
-          page.url.toString(),
-          "A public contact form is present on this first-party page.",
-          "contact_form",
-        );
-      }
+          candidate,
+        ): candidate is {
+          readonly page: LoadedPage;
+          readonly index: number;
+          readonly evidence: NonNullable<
+            ReturnType<typeof detectContactForm>
+          >;
+        } =>
+          candidate.evidence !== null,
+      )
+      .sort((left, right) =>
+        right.evidence.score -
+          left.evidence.score ||
+        left.index - right.index,
+      );
+
+    const bestContactForm =
+      contactFormCandidates[0];
+    if (bestContactForm !== undefined) {
+      addFact(
+        bestContactForm.page,
+        "contact_form_url",
+        bestContactForm.page.url.toString(),
+        bestContactForm.evidence.support,
+        "contact_form",
+      );
     }
 
     const scalePage = pages.find((page) =>

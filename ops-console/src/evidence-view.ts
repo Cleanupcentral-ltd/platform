@@ -173,9 +173,14 @@ export function groupEvidenceForDisplay(
     .map(([key, sources]) => {
       const representative =
         sources.reduce(preferred);
+      const sameStatusSources = sources.filter(
+        (item) =>
+          item.verificationStatus ===
+            representative.verificationStatus,
+      );
       const uniqueSources = [
         ...new Map(
-          sources.map((item) => [
+          sameStatusSources.map((item) => [
             canonicalUrl(item.sourceUrl),
             item,
           ]),
@@ -191,7 +196,10 @@ export function groupEvidenceForDisplay(
         status:
           representative.verificationStatus,
         representative,
-        sources: uniqueSources,
+        sources:
+          uniqueSources.length === 0
+            ? [representative]
+            : uniqueSources,
       };
     })
     .sort((left, right) => {

@@ -154,7 +154,7 @@ function draft(
       "Cleaning support for Example Offices",
     body: "Hello",
     templateId:
-      "initial_outreach_v1",
+      "initial_outreach_v2_offices_coworking",
     previewSha256: "a".repeat(64),
     evidenceIds: [],
     status: "pending",
@@ -188,6 +188,8 @@ function repository(capture: {
       return capture.existing ?? draft({
         subject: input.subject,
         body: input.body,
+        templateId:
+          input.templateId,
         previewSha256:
           input.previewSha256,
         evidenceIds:
@@ -251,7 +253,7 @@ function gateway(capture: {
 }
 
 test(
-  "preview uses the approved sender-neutral Initial Outreach v1 copy",
+  "preview uses the approved sender-neutral sector outreach copy",
   async () => {
     const current = prospect();
     const service = createOutreachService({
@@ -275,6 +277,10 @@ test(
       preview.recipientEmail,
       "hello@example.com",
     );
+    assert.equal(
+      preview.sectorLabel,
+      "Offices and coworking spaces",
+    );
     assert.match(
       preview.body,
       /reaching out on behalf of Clean Up Central/,
@@ -282,6 +288,10 @@ test(
     assert.match(
       preview.body,
       /came across Example Offices while researching organisations in your sector/,
+    );
+    assert.match(
+      preview.body,
+      /scheduled workplace cleaning/,
     );
     assert.match(
       preview.body,
@@ -293,7 +303,7 @@ test(
     );
     assert.match(
       preview.body,
-      /Privacy information: https:\/\/cleanupcentral\.com\/privacy/,
+      /Privacy Notice: https:\/\/cleanupcentral\.com\/privacy/,
     );
     assert.match(
       preview.body,
@@ -447,7 +457,7 @@ test(
     assert.equal(created.status, "drafted");
     assert.equal(
       capture.prepared?.templateId,
-      "initial_outreach_v1",
+      "initial_outreach_v2_offices_coworking",
     );
   },
 );

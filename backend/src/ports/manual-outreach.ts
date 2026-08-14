@@ -8,7 +8,7 @@ export interface ManualOutreachRepository {
     prospectId: string,
   ): Promise<readonly OutreachActivityRecord[]>;
 
-  recordActivity(
+  recordManualActivity(
     input: RecordOutreachActivityInput,
   ): Promise<OutreachActivityRecord>;
 }

@@ -18,10 +18,6 @@ import type {
   RecordOutreachActivityInput,
 } from "../ports/outreach.js";
 
-import {
-  OUTREACH_TEMPLATE_ID,
-} from "../ports/outreach.js";
-
 import type {
   LeadReviewService,
 } from "./review-leads.js";
@@ -49,6 +45,8 @@ export class OutreachError extends Error {
 export interface OutreachDraftPreview {
   readonly prospectId: string;
   readonly businessName: string;
+  readonly sector: LeadProspectReview["sector"];
+  readonly sectorLabel: string;
   readonly templateId: string;
   readonly contactId: string;
   readonly recipientEmail: string;
@@ -67,6 +65,33 @@ export interface OutreachDraftPreview {
   readonly previewSha256: string;
 }
 
+export interface ManualOutreachWorkspace {
+  readonly activities:
+    readonly OutreachActivityRecord[];
+}
+
+export interface ManualOutreachService {
+  getWorkspace(
+    founderId: string,
+    prospectId: string,
+  ): Promise<ManualOutreachWorkspace>;
+
+  previewDraft(
+    founderId: string,
+    prospectId: string,
+    contactId: string | null,
+  ): Promise<OutreachDraftPreview>;
+
+  recordActivity(
+    founderId: string,
+    prospectId: string,
+    input: Omit<
+      RecordOutreachActivityInput,
+      "founderId" | "prospectId"
+    >,
+  ): Promise<OutreachActivityRecord>;
+}
+
 export interface OutreachWorkspace {
   readonly connection:
     OutlookConnectionStatus;
@@ -76,17 +101,12 @@ export interface OutreachWorkspace {
     readonly OutreachActivityRecord[];
 }
 
-export interface OutreachService {
+export interface OutreachService
+extends ManualOutreachService {
   getWorkspace(
     founderId: string,
     prospectId: string,
   ): Promise<OutreachWorkspace>;
-
-  previewDraft(
-    founderId: string,
-    prospectId: string,
-    contactId: string | null,
-  ): Promise<OutreachDraftPreview>;
 
   createDraft(
     founderId: string,
@@ -103,16 +123,68 @@ export interface OutreachService {
     code: string,
     state: string,
   ): Promise<void>;
-
-  recordActivity(
-    founderId: string,
-    prospectId: string,
-    input: Omit<
-      RecordOutreachActivityInput,
-      "founderId" | "prospectId"
-    >,
-  ): Promise<OutreachActivityRecord>;
 }
+
+type OutreachSector =
+  LeadProspectReview["sector"];
+
+const SECTOR_COPY: Readonly<Record<
+  OutreachSector,
+  {
+    readonly label: string;
+    readonly templateId: string;
+    readonly serviceParagraph: string;
+  }
+>> = {
+  short_let_serviced_accommodation: {
+    label:
+      "Short-let and serviced accommodation",
+    templateId:
+      "initial_outreach_v2_short_let_serviced_accommodation",
+    serviceParagraph:
+      "Whether you require regular property changeovers, additional cleaning cover during busy periods, or dependable support across a growing portfolio, we would be happy to discuss how Clean Up Central could support your operation.",
+  },
+  offices_coworking: {
+    label:
+      "Offices and coworking spaces",
+    templateId:
+      "initial_outreach_v2_offices_coworking",
+    serviceParagraph:
+      "Whether you require scheduled workplace cleaning, out-of-hours support, or dependable cover when your usual arrangements need extra capacity, we would be happy to discuss how Clean Up Central could support your workplace.",
+  },
+  community_halls_event_venues: {
+    label:
+      "Community halls and event venues",
+    templateId:
+      "initial_outreach_v2_community_halls_event_venues",
+    serviceParagraph:
+      "Whether you require cleaning before or after events, regular venue upkeep, or additional cover around busy booking periods, we would be happy to discuss how Clean Up Central could support your venue.",
+  },
+  estate_letting_agents: {
+    label:
+      "Estate and letting agents",
+    templateId:
+      "initial_outreach_v2_estate_letting_agents",
+    serviceParagraph:
+      "Whether you require cleaning between tenancies, support across managed properties, or dependable cover when additional cleaning is required, we would be happy to discuss how Clean Up Central could support your team.",
+  },
+  university_accommodation: {
+    label:
+      "University accommodation",
+    templateId:
+      "initial_outreach_v2_university_accommodation",
+    serviceParagraph:
+      "Whether you require accommodation turnovers, communal-area cleaning, periodic deep cleans, or additional support during peak changeover periods, we would be happy to discuss how Clean Up Central could support your accommodation operation.",
+  },
+  other_commercial_spaces: {
+    label:
+      "Other commercial spaces",
+    templateId:
+      "initial_outreach_v2_other_commercial_spaces",
+    serviceParagraph:
+      "Whether you require regular cleaning, additional cover when needed, or simply a dependable cleaning company to have available, we would be happy to discuss how Clean Up Central could support your business.",
+  },
+};
 
 function verified(
   prospect: LeadProspectReview,
@@ -152,6 +224,22 @@ function previewHash(value: {
     .digest("hex");
 }
 
+function verifiedSector(
+  prospect: LeadProspectReview,
+): OutreachSector {
+  const confirmed = verified(
+    prospect,
+    "approved_sector",
+  ).some(
+    (item) =>
+      item.fieldValue === prospect.sector,
+  );
+  if (!confirmed) {
+    throw new OutreachError("not_eligible");
+  }
+  return prospect.sector;
+}
+
 function buildPreview(
   prospect: LeadProspectReview,
   requestedContactId: string | null,
@@ -173,6 +261,8 @@ function buildPreview(
     throw new OutreachError("not_eligible");
   }
 
+  const sector = verifiedSector(prospect);
+  const sectorCopy = SECTOR_COPY[sector];
   const evidenceById = new Map(
     verified(prospect).map((item) => [
       item.id,
@@ -225,7 +315,7 @@ function buildPreview(
     "",
     `We’re currently introducing our services to businesses that may benefit from reliable ongoing cleaning support, and came across ${businessName} while researching organisations in your sector.`,
     "",
-    "Whether you are looking for regular cleaning, additional cover when needed, or simply a dependable cleaning company to have available, we would be happy to discuss how Clean Up Central could support your business.",
+    sectorCopy.serviceParagraph,
     "",
     "We can arrange a brief introductory call or site visit to understand your requirements and provide a straightforward quotation.",
     "",
@@ -273,7 +363,9 @@ function buildPreview(
   return {
     prospectId: prospect.id,
     businessName,
-    templateId: OUTREACH_TEMPLATE_ID,
+    sector,
+    sectorLabel: sectorCopy.label,
+    templateId: sectorCopy.templateId,
     contactId: selected.contactId,
     recipientEmail: selected.email,
     availableRecipients: recipients,
@@ -284,45 +376,43 @@ function buildPreview(
   };
 }
 
-export function createOutreachService(options: {
-  readonly leadReviewService:
-    Pick<LeadReviewService, "getProspect">;
-  readonly repository: OutreachRepository;
-  readonly gateway: OutlookDraftGateway;
-  readonly privacyUrl: string;
-  readonly optOutText: string;
-}): OutreachService {
-  async function prospect(
+function createProspectLoader(
+  leadReviewService:
+    Pick<LeadReviewService, "getProspect">,
+) {
+  return async (
     prospectId: string,
-  ): Promise<LeadProspectReview> {
+  ): Promise<LeadProspectReview> => {
     try {
-      return await options.leadReviewService
+      return await leadReviewService
         .getProspect(prospectId);
     } catch {
       throw new OutreachError("not_found");
     }
-  }
+  };
+}
+
+export function createManualOutreachService(options: {
+  readonly leadReviewService:
+    Pick<LeadReviewService, "getProspect">;
+  readonly repository: OutreachRepository;
+  readonly privacyUrl: string;
+  readonly optOutText: string;
+}): ManualOutreachService {
+  const prospect = createProspectLoader(
+    options.leadReviewService,
+  );
 
   return {
-    async getWorkspace(founderId, prospectId) {
+    async getWorkspace(_founderId, prospectId) {
       await prospect(prospectId);
       try {
-        const [connection, latestDraft, activities] =
-          await Promise.all([
-            options.gateway
-              .connectionStatus(founderId),
-            options.repository
-              .getLatestDraft(prospectId),
-            options.repository
-              .listActivities(prospectId),
-          ]);
         return {
-          connection,
-          latestDraft,
-          activities,
+          activities:
+            await options.repository
+              .listActivities(prospectId),
         };
-      } catch (error) {
-        if (error instanceof OutreachError) throw error;
+      } catch {
         throw new OutreachError(
           "repository_unavailable",
         );
@@ -344,19 +434,92 @@ export function createOutreachService(options: {
       );
     },
 
+    async recordActivity(
+      founderId,
+      prospectId,
+      input,
+    ) {
+      await prospect(prospectId);
+      try {
+        return await options.repository
+          .recordActivity({
+            ...input,
+            founderId,
+            prospectId,
+          });
+      } catch {
+        throw new OutreachError(
+          "invalid_activity",
+        );
+      }
+    },
+  };
+}
+
+export function createOutreachService(options: {
+  readonly leadReviewService:
+    Pick<LeadReviewService, "getProspect">;
+  readonly repository: OutreachRepository;
+  readonly gateway: OutlookDraftGateway;
+  readonly privacyUrl: string;
+  readonly optOutText: string;
+}): OutreachService {
+  const prospect = createProspectLoader(
+    options.leadReviewService,
+  );
+  const manual = createManualOutreachService({
+    leadReviewService:
+      options.leadReviewService,
+    repository: options.repository,
+    privacyUrl: options.privacyUrl,
+    optOutText: options.optOutText,
+  });
+
+  return {
+    async getWorkspace(founderId, prospectId) {
+      await prospect(prospectId);
+      try {
+        const [
+          connection,
+          latestDraft,
+          manualWorkspace,
+        ] = await Promise.all([
+          options.gateway
+            .connectionStatus(founderId),
+          options.repository
+            .getLatestDraft(prospectId),
+          manual.getWorkspace(
+            founderId,
+            prospectId,
+          ),
+        ]);
+        return {
+          connection,
+          latestDraft,
+          activities:
+            manualWorkspace.activities,
+        };
+      } catch (error) {
+        if (error instanceof OutreachError) throw error;
+        throw new OutreachError(
+          "repository_unavailable",
+        );
+      }
+    },
+
+    previewDraft:
+      manual.previewDraft,
+
     async createDraft(
       founderId,
       prospectId,
       contactId,
       expectedPreviewSha256,
     ) {
-      const preview = buildPreview(
-        await prospect(prospectId),
+      const preview = await manual.previewDraft(
+        founderId,
+        prospectId,
         contactId,
-        {
-          privacyUrl: options.privacyUrl,
-          optOutText: options.optOutText,
-        },
       );
       if (
         preview.previewSha256 !==
@@ -476,24 +639,7 @@ export function createOutreachService(options: {
       }
     },
 
-    async recordActivity(
-      founderId,
-      prospectId,
-      input,
-    ) {
-      await prospect(prospectId);
-      try {
-        return await options.repository
-          .recordActivity({
-            ...input,
-            founderId,
-            prospectId,
-          });
-      } catch {
-        throw new OutreachError(
-          "invalid_activity",
-        );
-      }
-    },
+    recordActivity:
+      manual.recordActivity,
   };
 }

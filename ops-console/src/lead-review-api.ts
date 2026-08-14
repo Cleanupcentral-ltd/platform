@@ -18,6 +18,7 @@ export type VerificationFactName =
   | "trading_address"
   | "website_url"
   | "public_email"
+  | "public_phone"
   | "contact_form_url"
   | "recurring_cleaning_need"
   | "premises_scale"

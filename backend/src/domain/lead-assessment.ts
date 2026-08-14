@@ -10,7 +10,7 @@ import {
 } from "./business-email.js";
 
 export const LEAD_SCORING_VERSION =
-  "cuc-lel-0-10-v1.4";
+  "cuc-lel-0-10-v1.5";
 
 export const LEAD_READY_MINIMUM_SCORE = 7;
 export const LEAD_VENUE_READY_MINIMUM_SCORE = 6;
@@ -337,6 +337,17 @@ function contactabilityScore(
       );
     },
   );
+  const phones = verifiedContacts.filter(
+    (item) => {
+      const source = evidenceById.get(
+        item.sourceEvidenceId,
+      );
+      return item.contactType === "phone" &&
+        source?.sourceType ===
+          "first_party_website" &&
+        source.fieldName === "public_phone";
+    },
+  );
   const forms = verifiedContacts.filter(
     (item) =>
       item.contactType ===
@@ -376,13 +387,18 @@ function contactabilityScore(
     };
   }
 
-  if (forms.length > 0) {
+  if (phones.length > 0 || forms.length > 0) {
     return {
       points: 1,
       explanation:
-        "A strictly verified public contact form is available.",
+        phones.length > 0
+          ? "A verified first-party public business phone is available."
+          : "A strictly verified public contact form is available.",
       evidenceIds:
-        contactEvidenceIds(forms),
+        contactEvidenceIds([
+          ...phones,
+          ...forms,
+        ]),
     };
   }
 
@@ -551,10 +567,29 @@ export function calculateLeadAssessment(
         .unresolvedSubscriber,
     );
   }
-  if (
-    subscriberType !== "corporate" ||
-    compliantContactability.points === 0
-  ) {
+  const persistentEvidenceById =
+    new Map(
+      persistentEvidence(prospect).map(
+        (item) => [item.id, item],
+      ),
+    );
+  const hasApprovedEmailBasis =
+    subscriberType === "corporate" &&
+    prospect.contacts.some((contact) => {
+      const source = persistentEvidenceById.get(
+        contact.sourceEvidenceId,
+      );
+      return contact.verificationStatus ===
+          "verified" &&
+        contact.contactType === "email" &&
+        source?.sourceType ===
+          "first_party_website" &&
+        source.fieldName === "public_email" &&
+        isGenericBusinessEmail(
+          contact.normalizedValue,
+        );
+    });
+  if (!hasApprovedEmailBasis) {
     blockers.push(
       LEAD_QUALIFICATION_BLOCKERS
         .unapprovedEmailBasis,

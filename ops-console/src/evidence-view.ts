@@ -20,6 +20,7 @@ const FACT_LABELS:
     trading_address: "Trading address",
     website_url: "Website",
     public_email: "Public business email",
+    public_phone: "Public business phone",
     contact_form_url: "Public contact form",
     recurring_cleaning_need:
       "Recurring-cleaning signal",
@@ -212,6 +213,7 @@ export function groupEvidenceForDisplay(
         "subscriber_type",
         "website_url",
         "public_email",
+        "public_phone",
         "contact_form_url",
         "premises_scale",
         "recurring_cleaning_need",

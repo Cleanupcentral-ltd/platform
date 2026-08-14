@@ -80,6 +80,7 @@ const FACT_OPTIONS: readonly {
   { value: "trading_address", label: "Trading address" },
   { value: "website_url", label: "Website URL" },
   { value: "public_email", label: "Public business email" },
+  { value: "public_phone", label: "Public business phone" },
   { value: "contact_form_url", label: "Public contact form" },
   { value: "recurring_cleaning_need", label: "Recurring-cleaning signal" },
   { value: "premises_scale", label: "Premises or portfolio scale" },
@@ -262,6 +263,7 @@ export function LeadReviewView({
     () => evidenceGroups.filter((group) =>
       ![
         "website_url",
+        "public_phone",
         "google_place_id",
         "company_number",
       ].includes(

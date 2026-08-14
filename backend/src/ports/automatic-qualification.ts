@@ -44,6 +44,7 @@ export type AutomaticResearchFactName =
   | "approved_sector"
   | "business_status"
   | "public_email"
+  | "public_phone"
   | "contact_form_url"
   | "recurring_cleaning_need"
   | "premises_scale"
@@ -59,6 +60,7 @@ export interface AutomaticResearchFact {
   readonly contentSha256: string;
   readonly contactType:
     | "email"
+    | "phone"
     | "contact_form"
     | null;
   readonly normalizedContactValue:

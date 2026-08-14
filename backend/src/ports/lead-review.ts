@@ -21,6 +21,7 @@ export const LEAD_VERIFICATION_FACTS = [
   "trading_address",
   "website_url",
   "public_email",
+  "public_phone",
   "contact_form_url",
   "recurring_cleaning_need",
   "premises_scale",
@@ -137,7 +138,7 @@ export interface AddVerifiedLeadEvidenceInput {
   readonly sourceExcerpt: string | null;
   readonly contentSha256: string;
   readonly contactType:
-    "email" | "contact_form" | null;
+    "email" | "phone" | "contact_form" | null;
   readonly normalizedContactValue:
     string | null;
 }

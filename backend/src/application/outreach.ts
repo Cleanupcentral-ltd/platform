@@ -219,7 +219,7 @@ function buildPreview(
   const subject =
     `Cleaning support for ${businessName}`;
   const body = [
-    "Hello,",
+    `Hello ${businessName} team,`,
     "",
     "I’m reaching out on behalf of Clean Up Central, a London-based company providing professional cleaning and practical property support to businesses and property operators.",
     "",
@@ -233,10 +233,10 @@ function buildPreview(
     "",
     "Kind regards,",
     "Clean Up Central",
-    "Cleaning and support, handled properly.",
+    "Bringing Spaces back to life, one at a time.",
     "",
     approvedCopy.optOutText,
-    `Privacy information: ${approvedCopy.privacyUrl}`,
+    `For information about how we use business contact information, please see our Privacy Notice: ${approvedCopy.privacyUrl}`,
   ].join("\n");
 
   const supportingIds = new Set(

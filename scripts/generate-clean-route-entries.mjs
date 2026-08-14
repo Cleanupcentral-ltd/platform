@@ -13,6 +13,8 @@ const publicRoutes = [
   "get-a-quote",
   "contact",
   "faqs",
+  "privacy",
+  "terms",
 ];
 
 if (!fs.existsSync(sourceEntry)) {

@@ -18,7 +18,9 @@ const FORM_EVIDENCE_ID =
 function formEvidence(
   sourceExcerpt: string,
   verificationMethod:
-    LeadEvidenceRecord["verificationMethod"],
+    NonNullable<
+      LeadEvidenceRecord["verificationMethod"]
+    >,
 ): LeadEvidenceRecord {
   return {
     id: FORM_EVIDENCE_ID,

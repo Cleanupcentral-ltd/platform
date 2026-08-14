@@ -1,6 +1,10 @@
 import { z } from "zod";
 
 import type {
+  ManualOutreachRepository,
+} from "../../ports/manual-outreach.js";
+
+import type {
   OutreachActivityRecord,
   OutreachDraftRecord,
   OutreachRepository,
@@ -105,7 +109,8 @@ export interface SupabaseOutreachRepositoryOptions {
 }
 
 export class SupabaseOutreachRepository
-implements OutreachRepository {
+implements OutreachRepository,
+  ManualOutreachRepository {
   private readonly restUrl: string;
   private readonly secretKey: string;
   private readonly timeoutMs: number;
@@ -286,6 +291,32 @@ implements OutreachRepository {
   ): Promise<OutreachActivityRecord> {
     const rows = await this.json(
       "/rpc/record_outreach_activity",
+      z.array(activityRowSchema).length(1),
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          p_prospect_id: input.prospectId,
+          p_founder_id: input.founderId,
+          p_activity_type:
+            input.activityType,
+          p_outcome: input.outcome,
+          p_notes: input.notes,
+          p_follow_up_at:
+            input.followUpAt,
+        }),
+      },
+    );
+    return mapActivity(rows[0]!);
+  }
+
+  async recordManualActivity(
+    input: RecordOutreachActivityInput,
+  ): Promise<OutreachActivityRecord> {
+    const rows = await this.json(
+      "/rpc/record_manual_outreach_activity",
       z.array(activityRowSchema).length(1),
       {
         method: "POST",

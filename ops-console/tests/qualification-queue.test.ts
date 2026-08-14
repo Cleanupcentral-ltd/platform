@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  canRetryAutomaticCheck,
   defaultReviewQueueFilter,
   filterProspectQueue,
 } from "../src/qualification-queue.ts";
@@ -62,6 +63,41 @@ test(
       defaultReviewQueueFilter(false, false),
       "all",
     );
+  },
+);
+
+test(
+  "founder retry is available for review-required and failed automatic checks",
+  () => {
+    for (const status of [
+      "review_required",
+      "no_match",
+      "duplicate",
+      "failed",
+    ]) {
+      assert.equal(
+        canRetryAutomaticCheck(status),
+        true,
+      );
+    }
+  },
+);
+
+test(
+  "founder retry stays hidden while queued or running and after verification",
+  () => {
+    for (const status of [
+      "pending",
+      "processing",
+      "auto_verified",
+      "verified_existing",
+      undefined,
+    ]) {
+      assert.equal(
+        canRetryAutomaticCheck(status),
+        false,
+      );
+    }
   },
 );
 

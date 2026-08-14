@@ -1,0 +1,193 @@
+.le-evidence-column {
+  min-width: 0;
+}
+
+.le-mobile-selected-prospect {
+  display: none;
+}
+
+.le-evidence-quick-block,
+.le-company-assist,
+.le-detailed-evidence {
+  margin-top: 22px;
+  padding-top: 20px;
+  border-top: 1px solid #383735;
+}
+
+.le-evidence-section-title {
+  margin: 0 0 16px;
+  color: #d8b66c;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 16px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.le-evidence-quick-list {
+  display: grid;
+  gap: 12px;
+}
+
+.le-evidence-quick-list > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 18px;
+  align-items: baseline;
+}
+
+.le-evidence-quick-list span {
+  color: #f4f1e9;
+  font-size: 14px;
+}
+
+.le-evidence-quick-list strong {
+  color: #b9b5ac;
+  font-size: 13px;
+  font-weight: 650;
+  text-align: right;
+}
+
+.le-evidence-quick-list a,
+.le-company-confirmed-card a {
+  color: #f2d27e;
+  font-size: 13px;
+  font-weight: 750;
+  text-decoration: none;
+  text-underline-offset: 5px;
+}
+
+.le-evidence-quick-list a:hover,
+.le-company-confirmed-card a:hover {
+  text-decoration: underline;
+}
+
+.le-company-assist-copy {
+  margin: 0 0 14px;
+  color: #b9b5ac;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.le-company-confirmed-card {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 15px;
+  border: 1px solid #4b4945;
+  background: #151515;
+}
+
+.le-company-confirmed-card > div {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.le-company-confirmed-card strong {
+  color: #fff;
+  font-size: 13px;
+}
+
+.le-company-confirmed-card span:not(.le-company-verified-badge),
+.le-company-confirmed-card small {
+  color: #b9b5ac;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.le-company-verified-badge {
+  align-self: start;
+  flex: 0 0 auto;
+  padding: 7px 10px;
+  color: #141414;
+  background: #d8b66c;
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+}
+
+.le-company-assist-search {
+  margin-top: 12px;
+}
+
+.le-company-assist-search > summary {
+  cursor: pointer;
+  color: #d8d4cc;
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.le-detailed-evidence .le-evidence-list {
+  margin-top: 0;
+}
+
+@media (max-width: 1100px) {
+  .le-review-shell > .le-queue-list {
+    order: 2;
+  }
+
+  .le-evidence-column.has-selection {
+    order: 1;
+  }
+
+  .le-evidence-column:not(.has-selection) {
+    order: 3;
+  }
+
+  .le-mobile-selected-prospect {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 56px minmax(120px, auto);
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 10px;
+    padding: 16px 18px;
+    border: 1px solid #e8e5df;
+    border-radius: 16px;
+    background: #fff;
+    box-shadow: inset 3px 0 0 var(--le-gold);
+  }
+
+  .le-mobile-selected-prospect .le-row-copy strong {
+    color: var(--le-ink);
+    font-size: 14px;
+  }
+
+  .le-mobile-selected-prospect .le-row-copy small,
+  .le-mobile-selected-prospect .le-row-score {
+    color: var(--le-stone);
+  }
+
+  .le-queue-list .le-queue-row.is-selected {
+    display: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .le-mobile-selected-prospect {
+    grid-template-columns: minmax(0, 1fr) 48px;
+    margin-inline: -20px;
+    margin-bottom: 0;
+    border-right: 0;
+    border-left: 0;
+    border-radius: 0;
+  }
+
+  .le-mobile-selected-prospect > .le-status {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+
+  .le-evidence-quick-list > div {
+    grid-template-columns: 1fr auto;
+    gap: 12px;
+  }
+
+  .le-company-confirmed-card {
+    display: grid;
+  }
+
+  .le-company-verified-badge {
+    justify-self: start;
+  }
+}

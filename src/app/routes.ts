@@ -8,6 +8,8 @@ import PropertySupportPage from "./PropertySupport";
 import ContactPage from "./Contact";
 import QuotePage from "./Quote";
 import FAQsPage from "./FAQs";
+import PrivacyPage from "./Privacy";
+import TermsPage from "./Terms";
 
 function SiteRouteLayout() {
   const { pathname, search } = useLocation();
@@ -33,6 +35,8 @@ export const router = createHashRouter([
       { path: "/get-a-quote", Component: QuotePage },
       { path: "/contact", Component: ContactPage },
       { path: "/faqs", Component: FAQsPage },
+      { path: "/privacy", Component: PrivacyPage },
+      { path: "/terms", Component: TermsPage },
       { path: "*", Component: Home },
     ],
   },

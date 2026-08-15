@@ -73,3 +73,35 @@ test(
     );
   },
 );
+
+test(
+  "does not auto-select between differently labelled office numbers",
+  () => {
+    const text = [
+      "Bromley office 020 8315 5454.",
+      "Kent office 01634 969 678.",
+    ].join(" ");
+
+    assert.deepEqual(
+      extractPublicPhones("", text),
+      [],
+    );
+  },
+);
+
+test(
+  "keeps multiple department numbers when they belong to the same branch",
+  () => {
+    const text = [
+      "Bromley office sales 020 8315 5454.",
+      "Bromley office lettings 020 8464 2555.",
+    ].join(" ");
+
+    const results = extractPublicPhones(
+      "",
+      text,
+    );
+
+    assert.equal(results.length, 2);
+  },
+);

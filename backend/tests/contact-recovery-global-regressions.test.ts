@@ -90,21 +90,26 @@ test(
 test(
   "recovers contact details from bounded first-party structured JSON without executing JavaScript",
   async () => {
+    const structuredPage = [
+      "<h1>Goatley Hirst</h1>",
+      '<script type="application/ld+json">',
+      JSON.stringify({
+        "@type": "RealEstateAgent",
+        name: "Goatley Hirst",
+        email: "sales@example.com",
+        telephone: "020 8464 8705",
+        address: {
+          addressLocality: "Bromley",
+        },
+      }),
+      "</script>",
+    ].join("");
+
     const recovery = client(
-      (async () => html([
-        "<h1>Goatley Hirst</h1>",
-        '<script type="application/ld+json">',
-        JSON.stringify({
-          "@type": "RealEstateAgent",
-          name: "Goatley Hirst",
-          email: "sales@example.com",
-          telephone: "020 8464 8705",
-          address: {
-            addressLocality: "Bromley",
-          },
-        }),
-        "</script>",
-      ].join(""))) as typeof fetch,
+      (async (input) =>
+        String(input) === "https://example.com/"
+          ? html(structuredPage)
+          : html("missing", 404)) as typeof fetch,
     );
 
     const result = await recovery.recover(

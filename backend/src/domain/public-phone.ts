@@ -6,6 +6,10 @@ export interface PublicPhoneEvidence {
   readonly context?: string;
 }
 
+export interface PublicPhoneExtractionOptions {
+  readonly allowConflictingLocations?: boolean;
+}
+
 const UK_PHONE_TEXT =
   /(?:\+44\s*\(?0?\)?|0044\s*\(?0?\)?|0)(?:[\s().-]*\d){9,10}/g;
 
@@ -193,6 +197,7 @@ function addCandidate(
 export function extractPublicPhones(
   html: string,
   pageText: string,
+  options: PublicPhoneExtractionOptions = {},
 ): readonly PublicPhoneEvidence[] {
   const candidates =
     new Map<string, PublicPhoneEvidence>();
@@ -249,10 +254,13 @@ export function extractPublicPhones(
     )
     .slice(0, 4);
 
-  // A generic page that lists several separately-labelled offices is not
-  // enough evidence to choose a branch number. The branch-aware recovery
-  // pass can resolve it against the actual prospect instead.
-  if (hasConflictingLocationLabels(ranked)) {
+  // Normal first-party research must not guess between different branches.
+  // Contact Recovery can explicitly opt in to the raw candidates because it
+  // performs its own prospect/branch matching before persisting a number.
+  if (
+    !options.allowConflictingLocations &&
+    hasConflictingLocationLabels(ranked)
+  ) {
     return [];
   }
 

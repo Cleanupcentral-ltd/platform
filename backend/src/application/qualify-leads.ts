@@ -585,6 +585,7 @@ export function createAutomaticQualificationService(
               );
 
         if (
+          identityAssertion !== undefined &&
           exactCandidates.length === 1 &&
           options.companiesHouseService
             .verifyAutomaticallyByLegalOperator !==

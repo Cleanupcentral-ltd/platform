@@ -111,6 +111,12 @@ function normalizedPostcode(value: string): string {
     .replace(/\s+/g, "");
 }
 
+function normalizedCompanyName(value: string): string {
+  return value
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "");
+}
+
 function singlePremisesSupport(
   research: FirstPartyResearchResult,
   primaryPostcode: string | null,
@@ -563,9 +569,87 @@ export function createAutomaticQualificationService(
             businessName,
           ),
         );
-        if (candidates.length > 0) {
+
+        const identityAssertion =
+          research?.facts.find((fact) =>
+            fact.factName === "business_name");
+        const normalizedBusinessName =
+          normalizedCompanyName(businessName);
+        const exactCandidates =
+          identityAssertion === undefined
+            ? []
+            : candidates.filter((candidate) =>
+                normalizedCompanyName(
+                  candidate.companyName,
+                ) === normalizedBusinessName,
+              );
+
+        if (
+          identityAssertion !== undefined &&
+          exactCandidates.length === 1 &&
+          options.companiesHouseService
+            .verifyAutomaticallyByLegalOperator !==
+              undefined
+        ) {
+          try {
+            const verified =
+              await options.companiesHouseService
+                .verifyAutomaticallyByLegalOperator(
+                  job.actorId,
+                  job.prospectId,
+                  job.attemptCount,
+                  {
+                    operatorName: businessName,
+                    sourceUrl:
+                      identityAssertion.sourceUrl,
+                    sourceExcerpt:
+                      identityAssertion.sourceExcerpt,
+                    contentSha256:
+                      identityAssertion.contentSha256,
+                  },
+                );
+            enrichmentStatus =
+              "auto_verified";
+            discoveredCompanyNumber =
+              verified.companyNumber;
+            candidates = [];
+          } catch (error) {
+            if (
+              error instanceof
+                CompaniesHouseVerificationError &&
+              error.failure ===
+                "duplicate_company"
+            ) {
+              enrichmentStatus = "duplicate";
+              reasons.push(
+                "company_number_already_linked",
+              );
+            } else if (
+              error instanceof
+                CompaniesHouseVerificationError &&
+              [
+                "provider_rate_limited",
+                "provider_unavailable",
+                "repository_unavailable",
+              ].includes(error.failure)
+            ) {
+              return completeFailure(
+                job,
+                `companies_house_${error.failure}`,
+              );
+            } else {
+              enrichmentStatus =
+                "review_required";
+              reasons.push(
+                "companies_house_match_requires_confirmation",
+              );
+            }
+          }
+        } else if (candidates.length > 0) {
           enrichmentStatus = "review_required";
-          reasons.push("companies_house_match_requires_confirmation");
+          reasons.push(
+            "companies_house_match_requires_confirmation",
+          );
         } else {
           reasons.push("no_companies_house_match");
         }

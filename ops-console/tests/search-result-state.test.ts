@@ -79,6 +79,47 @@ test(
 );
 
 test(
+  "uses an exact saved website match when the saved prospect has no postcode",
+  () => {
+    const saved = prospect({
+      primaryPostcode: null,
+      publicEmail: "info@example.org",
+    });
+
+    const matched =
+      matchSearchResultToProspect(
+        result,
+        [saved],
+      );
+
+    assert.equal(matched?.id, saved.id);
+    assert.equal(
+      matched?.publicEmail,
+      "info@example.org",
+    );
+  },
+);
+
+test(
+  "does not match a same-name prospect with a different website when postcodes do not match",
+  () => {
+    const matched =
+      matchSearchResultToProspect(
+        result,
+        [
+          prospect({
+            primaryPostcode: null,
+            websiteUrl:
+              "https://different.example/",
+          }),
+        ],
+      );
+
+    assert.equal(matched, null);
+  },
+);
+
+test(
   "reports the real qualification state instead of hard-coded unverified",
   () => {
     const base = prospect();

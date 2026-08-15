@@ -131,6 +131,44 @@ function phoneContext(
   return "";
 }
 
+function locationLabels(
+  context: string,
+): readonly string[] {
+  const labels = new Set<string>();
+  const patterns = [
+    /\b([a-z][a-z'-]{2,})\s+(?:office|branch|location)\b/gi,
+    /\b(?:office|branch|location)\s+(?:in\s+|at\s+)?([a-z][a-z'-]{2,})\b/gi,
+  ] as const;
+
+  for (const pattern of patterns) {
+    pattern.lastIndex = 0;
+    for (const match of context.matchAll(pattern)) {
+      const label = match[1]?.toLowerCase();
+      if (
+        label !== undefined &&
+        !["our", "local", "main", "sales", "lettings"]
+          .includes(label)
+      ) {
+        labels.add(label);
+      }
+    }
+  }
+
+  return [...labels];
+}
+
+function hasConflictingLocationLabels(
+  candidates: readonly PublicPhoneEvidence[],
+): boolean {
+  if (candidates.length < 2) return false;
+
+  const labels = new Set(
+    candidates.flatMap((candidate) =>
+      locationLabels(candidate.context ?? "")),
+  );
+  return labels.size > 1;
+}
+
 function addCandidate(
   target: Map<string, PublicPhoneEvidence>,
   displayValue: string,
@@ -201,7 +239,7 @@ export function extractPublicPhones(
     );
   }
 
-  return [...candidates.values()]
+  const ranked = [...candidates.values()]
     .sort(
       (left, right) =>
         right.score - left.score ||
@@ -210,4 +248,13 @@ export function extractPublicPhones(
         ),
     )
     .slice(0, 4);
+
+  // A generic page that lists several separately-labelled offices is not
+  // enough evidence to choose a branch number. The branch-aware recovery
+  // pass can resolve it against the actual prospect instead.
+  if (hasConflictingLocationLabels(ranked)) {
+    return [];
+  }
+
+  return ranked;
 }

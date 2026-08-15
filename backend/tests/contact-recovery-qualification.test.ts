@@ -427,15 +427,18 @@ test(
     await service.runBatch();
 
     assert.deepEqual(storedTypes, ["phone"]);
-    assert.equal(
+    assert.deepEqual(
       completed.value?.researchSummary
-        .contactRecovery?.status,
-      "recovered",
-    );
-    assert.equal(
-      completed.value?.researchSummary
-        .contactRecovery?.recoveredFactCount,
-      1,
+        .contactRecovery,
+      {
+        attempted: true,
+        status: "recovered",
+        visitedUrls: [
+          "https://example.ac.uk/contact",
+        ],
+        truncatedPageCount: 0,
+        recoveredFactCount: 1,
+      },
     );
   },
 );

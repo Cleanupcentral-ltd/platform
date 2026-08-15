@@ -54,6 +54,7 @@ interface Page {
   readonly url: URL;
   readonly html: string;
   readonly text: string;
+  readonly structuredText: string;
   readonly truncated: boolean;
   readonly priority: number;
 }
@@ -81,7 +82,7 @@ const GENERIC_MAILBOXES = new Set([
   "contact", "enquiries", "enquiry", "events", "facilities",
   "functions", "hello", "hire", "housing", "info", "lettings",
   "management", "office", "operations", "property", "reception",
-  "reservations", "residences", "sales", "student", "students",
+  "reservations", "residences", "sales", "spa", "student", "students",
   "support", "team", "venue",
 ]);
 
@@ -91,7 +92,7 @@ const PERSONAL_MAIL_DOMAINS = new Set([
 ]);
 
 const DISALLOWED_PATH =
-  /(?:^|\/)(?:careers?|jobs?|vacanc(?:y|ies)|recruit(?:ment|ing)?|compliance|privacy(?:-policy)?|terms(?:-and-conditions)?|cookie(?:-policy)?|legal|news|blog)(?:\/|$|[-_])/i;
+  /(?:^|\/)(?:careers?|jobs?|vacanc(?:y|ies)|recruit(?:ment|ing)?|compliance|privacy(?:-policy)?|terms(?:-and-conditions)?|cookie(?:-policy)?|legal|news|blog|tag-[^/]+)(?:\/|$|[-_])/i;
 
 const CONTACT_LINK =
   /(?:contact(?:-us)?|get[-_ ]?in[-_ ]?touch|enquir(?:y|ies)|inquir(?:y|ies)|find[-_ ]?us)/i;
@@ -138,6 +139,9 @@ const BUSINESS_STOPWORDS = new Set([
   "university", "venue",
 ]);
 
+const STRUCTURED_CONTACT_KEYS =
+  /(?:address|branch|contact|email|location|mail|name|office|phone|tel)/i;
+
 function sha256(value: string): string {
   return createHash("sha256").update(value).digest("hex");
 }
@@ -175,6 +179,105 @@ function visibleText(html: string): string {
       .replace(/<noscript\b[^>]*>[\s\S]*?<\/noscript>/gi, " ")
       .replace(/<[^>]+>/g, " "),
   ).replace(/\s+/g, " ").trim();
+}
+
+function htmlAttribute(tag: string, name: string): string | null {
+  const quoted = tag.match(new RegExp(
+    `\\b${name}\\s*=\\s*(["'])([\\s\\S]*?)\\1`,
+    "i",
+  ));
+  return quoted?.[2] === undefined
+    ? null
+    : decodeHtml(quoted[2]).trim();
+}
+
+function collectStructuredContactStrings(
+  value: unknown,
+  output: string[],
+  depth = 0,
+): void {
+  if (depth > 8 || output.length >= 120) return;
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      collectStructuredContactStrings(item, output, depth + 1);
+    }
+    return;
+  }
+  if (value === null || typeof value !== "object") return;
+
+  for (const [key, item] of Object.entries(value)) {
+    if (
+      typeof item === "string" &&
+      item.trim().length > 0 &&
+      STRUCTURED_CONTACT_KEYS.test(key)
+    ) {
+      output.push(item.trim());
+    }
+    if (item !== null && typeof item === "object") {
+      collectStructuredContactStrings(item, output, depth + 1);
+    }
+    if (output.length >= 120) return;
+  }
+}
+
+function structuredContactText(html: string): string {
+  const values: string[] = [];
+  for (const match of html.matchAll(
+    /<script\b([^>]*)>([\s\S]*?)<\/script>/gi,
+  )) {
+    const tag = `<script ${match[1] ?? ""}>`;
+    const type = htmlAttribute(tag, "type")?.toLowerCase();
+    if (type !== "application/ld+json" && type !== "application/json") {
+      continue;
+    }
+    const body = match[2]?.trim();
+    if (body === undefined || body.length === 0) continue;
+    try {
+      collectStructuredContactStrings(
+        JSON.parse(body) as unknown,
+        values,
+      );
+    } catch {
+      // Malformed or truncated JSON is ignored.
+    }
+  }
+  return decodeHtml(values.join(" "))
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function javascriptCloakedEmailText(html: string): string {
+  const values: string[] = [];
+  for (const match of html.matchAll(
+    /<script\b[^>]*>([\s\S]*?)<\/script>/gi,
+  )) {
+    const body = match[1] ?? "";
+    if (!/(?:addy|cloak|mailto|spambot)/i.test(body)) continue;
+
+    const assembled = new Map<string, string>();
+    for (const assignment of body.matchAll(
+      /(?:var\s+)?(addy[a-z0-9_]*)\s*=\s*([^;]+);/gi,
+    )) {
+      const name = assignment[1]?.toLowerCase();
+      const expression = assignment[2] ?? "";
+      if (name === undefined) continue;
+      const pieces = [...expression.matchAll(
+        /["']([^"']*)["']/g,
+      )].map((piece) => decodeHtml(piece[1] ?? ""));
+      if (pieces.length === 0) continue;
+      const fragment = pieces.join("");
+      const previous = assembled.get(name) ?? "";
+      assembled.set(
+        name,
+        new RegExp(`\\b${name}\\b`, "i").test(expression)
+          ? `${previous}${fragment}`
+          : fragment,
+      );
+    }
+    values.push(...assembled.values());
+  }
+
+  return values.join(" ");
 }
 
 function businessTokens(value: string): readonly string[] {
@@ -231,7 +334,7 @@ function linkPriority(
           ? 70
           : -1;
   if (score < 0) return score;
-  score += tokenMatches(tokens, value) * 12;
+  score += tokenMatches(tokens, value) * 30;
   return score;
 }
 
@@ -313,11 +416,36 @@ function approvedEmail(raw: string): string | null {
   return GENERIC_MAILBOXES.has(mailbox) ? email : null;
 }
 
+function emailMatchesWebsite(
+  email: string,
+  hostname: string,
+): boolean {
+  const domain = email.split("@")[1]?.toLowerCase();
+  const host = hostname.toLowerCase().replace(/^www\./, "");
+  if (domain === undefined) return false;
+  return (
+    domain === host ||
+    hostname.toLowerCase().endsWith(`.${domain}`) ||
+    domain.endsWith(`.${host}`)
+  );
+}
+
 function emailsFrom(page: Page): readonly EmailCandidate[] {
   const found = new Map<string, EmailCandidate>();
-  const add = (raw: string, support: string, score: number) => {
+  const add = (
+    raw: string,
+    support: string,
+    score: number,
+    requireWebsiteDomain = false,
+  ) => {
     const email = approvedEmail(raw);
-    if (email === null) return;
+    if (
+      email === null ||
+      (
+        requireWebsiteDomain &&
+        !emailMatchesWebsite(email, page.url.hostname)
+      )
+    ) return;
     const current = found.get(email);
     if (current === undefined || current.score < score) {
       found.set(email, { page, email, support, score });
@@ -337,8 +465,8 @@ function emailsFrom(page: Page): readonly EmailCandidate[] {
     }
     add(
       raw,
-      `Verified public email recovery v1: first-party mailto link publishes ${raw.split(/[?#]/, 1)[0] ?? raw}.`,
-      40,
+      `Verified public email recovery v2: first-party mailto link publishes ${raw.split(/[?#]/, 1)[0] ?? raw}.`,
+      50,
     );
   }
 
@@ -351,20 +479,26 @@ function emailsFrom(page: Page): readonly EmailCandidate[] {
     if (decoded !== null) {
       add(
         decoded,
-        `Verified public email recovery v1: first-party anti-spam markup decodes to ${decoded}.`,
-        35,
+        `Verified public email recovery v2: first-party anti-spam markup decodes to ${decoded}.`,
+        45,
       );
     }
   }
 
-  const normalized = normalizeObfuscatedEmail(page.text);
-  for (
-    const match of normalized.matchAll(
-      /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi,
-    )
-  ) {
-    const raw = match[0];
-    add(raw, excerpt(normalized, raw), 25);
+  for (const [text, score, hostBound] of [
+    [page.text, 35, false],
+    [page.structuredText, 32, true],
+    [javascriptCloakedEmailText(page.html), 40, true],
+  ] as const) {
+    const normalized = normalizeObfuscatedEmail(text);
+    for (
+      const match of normalized.matchAll(
+        /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi,
+      )
+    ) {
+      const raw = match[0];
+      add(raw, excerpt(normalized, raw), score, hostBound);
+    }
   }
 
   return [...found.values()];
@@ -376,7 +510,11 @@ function choosePhone(
 ): PhoneCandidate | null {
   const tokens = businessTokens(businessName);
   const candidates = pages.flatMap((page) =>
-    extractPublicPhones(page.html, page.text).map((evidence) => ({
+    extractPublicPhones(
+      page.html,
+      `${page.text} ${page.structuredText}`.trim(),
+      { allowConflictingLocations: true },
+    ).map((evidence) => ({
       page,
       evidence,
       branchScore:
@@ -571,7 +709,7 @@ implements ContactRecoveryProvider {
             redirect: "manual",
             headers: {
               accept: "text/html,application/xhtml+xml",
-              "user-agent": "CleanUpCentral-LeadEngineLite/1.2",
+              "user-agent": "CleanUpCentral-LeadEngineLite/1.3",
             },
             signal: controller.signal,
           });
@@ -603,6 +741,7 @@ implements ContactRecoveryProvider {
             url,
             html: body.value,
             text: visibleText(body.value),
+            structuredText: structuredContactText(body.value),
             truncated: body.truncated,
             priority,
           };

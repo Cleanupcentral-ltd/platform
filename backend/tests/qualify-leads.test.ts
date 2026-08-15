@@ -451,3 +451,292 @@ test(
     );
   },
 );
+
+test(
+  "one exact Companies House name match auto-verifies after first-party identity is confirmed",
+  async () => {
+    const capture: {
+      complete?:
+        CompleteAutomaticQualificationInput;
+    } = {};
+    const commercialResearch:
+      FirstPartyResearchResult = {
+        canonicalWebsiteUrl:
+          "https://examplecommercial.co.uk/",
+        companyNumberAssertions: [],
+        legalOperatorAssertions: [],
+        charityNumberAssertions: [],
+        facts: [{
+          sourceUrl:
+            "https://examplecommercial.co.uk/",
+          factName: "business_name",
+          factValue: "Example Commercial Ltd",
+          sourceExcerpt:
+            "Example Commercial Ltd provides commercial property services.",
+          contentSha256:
+            "d".repeat(64),
+          contactType: null,
+          normalizedContactValue: null,
+        }],
+        visitedUrls: [
+          "https://examplecommercial.co.uk/",
+        ],
+        truncatedPageCount: 0,
+        organisationType: "commercial",
+        reviewReasons: [],
+      };
+    let automaticExactVerifications = 0;
+
+    const qualificationRepository:
+      AutomaticQualificationRepository = {
+        ...repository(capture),
+        async claimQualificationJobs() {
+          return [{
+            prospectId: PROSPECT_ID,
+            actorId: FOUNDER_ID,
+            businessName:
+              "Example Commercial Ltd",
+            sector:
+              "other_commercial_spaces",
+            websiteUrl:
+              "https://examplecommercial.co.uk/",
+            companyNumber: null,
+            attemptCount: 1,
+          }];
+        },
+      };
+
+    const service =
+      createAutomaticQualificationService({
+        repository: qualificationRepository,
+        firstPartyProvider: {
+          async research() {
+            return commercialResearch;
+          },
+        },
+        companiesHouseService: {
+          async search() {
+            return [{
+              companyName:
+                "EXAMPLE COMMERCIAL LTD",
+              companyNumber: "01234567",
+              companyStatus: "active",
+              companyType: "ltd",
+              registeredOfficeAddress: {
+                formatted: null,
+                postcode: null,
+              },
+              dateOfCreation: null,
+              officialUrl:
+                "https://find-and-update.company-information.service.gov.uk/company/01234567",
+            }, {
+              companyName:
+                "EXAMPLE COMMERCIAL HOLDINGS LTD",
+              companyNumber: "07654321",
+              companyStatus: "active",
+              companyType: "ltd",
+              registeredOfficeAddress: {
+                formatted: null,
+                postcode: null,
+              },
+              dateOfCreation: null,
+              officialUrl:
+                "https://find-and-update.company-information.service.gov.uk/company/07654321",
+            }];
+          },
+          async verify() {
+            throw new Error("not used");
+          },
+          async verifyAutomatically() {
+            throw new Error("not used");
+          },
+          async verifyAutomaticallyByLegalOperator(
+            _actorId,
+            _prospectId,
+            _attemptCount,
+            assertion,
+          ) {
+            automaticExactVerifications += 1;
+            assert.equal(
+              assertion.operatorName,
+              "Example Commercial Ltd",
+            );
+            return {
+              companyName:
+                "EXAMPLE COMMERCIAL LTD",
+              companyNumber: "01234567",
+              businessStatus: "active",
+              subscriberType: "corporate",
+              evidenceIds: [],
+              automaticAssessment: {
+                status: "updated",
+                assessment: assessment(true, []),
+              },
+            };
+          },
+        },
+        leadReviewService: {
+          async assess() {
+            return assessment(true, []);
+          },
+          async getProspect() {
+            return prospect(false);
+          },
+        },
+        batchSize: 5,
+        leaseSeconds: 180,
+        activationTotalLimit: null,
+      });
+
+    await service.runBatch();
+
+    assert.equal(
+      automaticExactVerifications,
+      1,
+    );
+    assert.equal(
+      capture.complete?.enrichmentStatus,
+      "auto_verified",
+    );
+    assert.equal(
+      capture.complete
+        ?.discoveredCompanyNumber,
+      "01234567",
+    );
+    assert.deepEqual(
+      capture.complete?.candidates,
+      [],
+    );
+    assert.deepEqual(
+      capture.complete?.reasons,
+      [],
+    );
+  },
+);
+
+test(
+  "ambiguous Companies House name matches still require founder review",
+  async () => {
+    const capture: {
+      complete?:
+        CompleteAutomaticQualificationInput;
+    } = {};
+    const commercialResearch:
+      FirstPartyResearchResult = {
+        canonicalWebsiteUrl:
+          "https://examplecommercial.co.uk/",
+        companyNumberAssertions: [],
+        legalOperatorAssertions: [],
+        charityNumberAssertions: [],
+        facts: [{
+          sourceUrl:
+            "https://examplecommercial.co.uk/",
+          factName: "business_name",
+          factValue: "Example Commercial Ltd",
+          sourceExcerpt:
+            "Example Commercial Ltd provides commercial property services.",
+          contentSha256:
+            "e".repeat(64),
+          contactType: null,
+          normalizedContactValue: null,
+        }],
+        visitedUrls: [
+          "https://examplecommercial.co.uk/",
+        ],
+        truncatedPageCount: 0,
+        organisationType: "commercial",
+        reviewReasons: [],
+      };
+    let automaticExactVerifications = 0;
+
+    const qualificationRepository:
+      AutomaticQualificationRepository = {
+        ...repository(capture),
+        async claimQualificationJobs() {
+          return [{
+            prospectId: PROSPECT_ID,
+            actorId: FOUNDER_ID,
+            businessName:
+              "Example Commercial Ltd",
+            sector:
+              "other_commercial_spaces",
+            websiteUrl:
+              "https://examplecommercial.co.uk/",
+            companyNumber: null,
+            attemptCount: 1,
+          }];
+        },
+      };
+
+    const exact = (companyNumber: string) => ({
+      companyName: "EXAMPLE COMMERCIAL LTD",
+      companyNumber,
+      companyStatus: "active",
+      companyType: "ltd",
+      registeredOfficeAddress: {
+        formatted: null,
+        postcode: null,
+      },
+      dateOfCreation: null,
+      officialUrl:
+        `https://find-and-update.company-information.service.gov.uk/company/${companyNumber}`,
+    });
+
+    const service =
+      createAutomaticQualificationService({
+        repository: qualificationRepository,
+        firstPartyProvider: {
+          async research() {
+            return commercialResearch;
+          },
+        },
+        companiesHouseService: {
+          async search() {
+            return [
+              exact("01234567"),
+              exact("07654321"),
+            ];
+          },
+          async verify() {
+            throw new Error("not used");
+          },
+          async verifyAutomatically() {
+            throw new Error("not used");
+          },
+          async verifyAutomaticallyByLegalOperator() {
+            automaticExactVerifications += 1;
+            throw new Error("must not auto-verify");
+          },
+        },
+        leadReviewService: {
+          async assess() {
+            return assessment(false, [
+              "unresolved_subscriber_type",
+            ]);
+          },
+          async getProspect() {
+            return prospect(false);
+          },
+        },
+        batchSize: 5,
+        leaseSeconds: 180,
+        activationTotalLimit: null,
+      });
+
+    await service.runBatch();
+
+    assert.equal(
+      automaticExactVerifications,
+      0,
+    );
+    assert.equal(
+      capture.complete?.enrichmentStatus,
+      "review_required",
+    );
+    assert.ok(
+      capture.complete?.reasons.includes(
+        "companies_house_match_requires_confirmation",
+      ),
+    );
+  },
+);

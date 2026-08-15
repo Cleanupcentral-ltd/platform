@@ -21,11 +21,15 @@ test(
       normalizePublicPhone("0044 20 8464 5566"),
       "02084645566",
     );
+    assert.equal(
+      normalizePublicPhone("0113 123 4567"),
+      "01131234567",
+    );
   },
 );
 
 test(
-  "rejects short numbers and non-UK values",
+  "rejects short, non-UK and synthetic-looking values",
   () => {
     assert.equal(
       normalizePublicPhone("01234567"),
@@ -33,6 +37,14 @@ test(
     );
     assert.equal(
       normalizePublicPhone("+1 212 555 0100"),
+      null,
+    );
+    assert.equal(
+      normalizePublicPhone("0 11 12 13 14 15"),
+      null,
+    );
+    assert.equal(
+      normalizePublicPhone("020 0000 0000"),
       null,
     );
   },
@@ -53,7 +65,11 @@ test(
     );
     assert.match(
       results[0]?.support ?? "",
-      /^Verified public phone v1: first-party tel link/,
+      /^Verified public phone v2: first-party tel link/,
+    );
+    assert.match(
+      results[0]?.context ?? "",
+      /Call us on 020 8464 5566/,
     );
   },
 );

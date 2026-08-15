@@ -3,6 +3,10 @@ import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 
 import {
+  isGenericBusinessEmail,
+} from "../../domain/business-email.js";
+
+import {
   detectContactForm,
 } from "../../domain/contact-form-evidence.js";
 
@@ -90,26 +94,6 @@ const LEGAL_OPERATOR_PATTERNS = [
   /\b(?:operated|owned|managed|run)\s+by\s+([a-z0-9][a-z0-9&'().,\- ]{1,100}?\b(?:ltd|limited|llp|plc|cic))\b/giu,
   /(?:©|\bcopyright\b)\s*(?:\d{4}(?:\s*[-–]\s*\d{4})?\s*)?(?:all\s+rights\s+reserved\s*)?by\s+([a-z0-9][a-z0-9&'().,\- ]{1,100}?\b(?:ltd|limited|llp|plc|cic))\b/giu,
 ] as const;
-
-const GENERIC_MAILBOXES = new Set([
-  "admin",
-  "bookings",
-  "business",
-  "commercial",
-  "contact",
-  "enquiries",
-  "enquiry",
-  "events",
-  "hello",
-  "info",
-  "office",
-  "operations",
-  "reception",
-  "sales",
-  "support",
-  "team",
-  "venue",
-]);
 
 const PERSONAL_MAIL_DOMAINS = new Set([
   "gmail.com",
@@ -953,9 +937,9 @@ implements FirstPartyResearchProvider {
       const emailPattern = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
       for (const match of page.text.matchAll(emailPattern)) {
         const email = match[0].toLowerCase();
-        const [localPart, domain] = email.split("@") as [string, string];
+        const domain = email.split("@")[1] ?? "";
         if (
-          !GENERIC_MAILBOXES.has(localPart) ||
+          !isGenericBusinessEmail(email) ||
           PERSONAL_MAIL_DOMAINS.has(domain)
         ) continue;
         addFact(page, "public_email", email, excerpt(page.text, match), "email");

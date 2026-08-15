@@ -31,8 +31,38 @@ function identityFact(): AutomaticResearchFact {
   };
 }
 
+function emailFact(
+  value = "accommodation@example.ac.uk",
+): AutomaticResearchFact {
+  return {
+    sourceUrl:
+      "https://example.ac.uk/contact",
+    factName: "public_email",
+    factValue: value,
+    sourceExcerpt:
+      `Accommodation enquiries: ${value}`,
+    contentSha256: "b".repeat(64),
+    contactType: "email",
+    normalizedContactValue: value,
+  };
+}
+
+function phoneFact(): AutomaticResearchFact {
+  return {
+    sourceUrl:
+      "https://example.ac.uk/contact",
+    factName: "public_phone",
+    factValue: "020 8464 5566",
+    sourceExcerpt:
+      "Call 020 8464 5566",
+    contentSha256: "c".repeat(64),
+    contactType: "phone",
+    normalizedContactValue: "02084645566",
+  };
+}
+
 function research(
-  contactFact?: AutomaticResearchFact,
+  contactFacts: readonly AutomaticResearchFact[] = [],
 ): FirstPartyResearchResult {
   return {
     canonicalWebsiteUrl:
@@ -42,9 +72,7 @@ function research(
     charityNumberAssertions: [],
     facts: [
       identityFact(),
-      ...(contactFact === undefined
-        ? []
-        : [contactFact]),
+      ...contactFacts,
     ],
     visitedUrls: [
       "https://example.ac.uk/accommodation",
@@ -52,7 +80,7 @@ function research(
     truncatedPageCount: 0,
     organisationType: "university",
     reviewReasons:
-      contactFact === undefined
+      contactFacts.length === 0
         ? ["no_generic_business_contact_found"]
         : [],
   };
@@ -63,6 +91,9 @@ function repository(
   completed: {
     value?: CompleteAutomaticQualificationInput;
   },
+  onRecord?: (
+    facts: readonly AutomaticResearchFact[],
+  ) => void,
 ): AutomaticQualificationRepository {
   return {
     async activate() {
@@ -88,6 +119,7 @@ function repository(
       _attemptCount,
       facts,
     ) {
+      onRecord?.(facts);
       recorded.push([...facts]);
       return facts.map((_, index) =>
         `44444444-4444-4444-8444-${String(index).padStart(12, "0")}`,
@@ -166,20 +198,6 @@ test(
     } = {};
     let recoveryCalls = 0;
 
-    const recoveredEmail: AutomaticResearchFact = {
-      sourceUrl:
-        "https://example.ac.uk/contact",
-      factName: "public_email",
-      factValue:
-        "accommodation@example.ac.uk",
-      sourceExcerpt:
-        "Accommodation enquiries: accommodation@example.ac.uk",
-      contentSha256: "b".repeat(64),
-      contactType: "email",
-      normalizedContactValue:
-        "accommodation@example.ac.uk",
-    };
-
     const service = createAutomaticQualificationService({
       repository:
         repository(recorded, completed),
@@ -192,7 +210,7 @@ test(
         async recover() {
           recoveryCalls += 1;
           return {
-            facts: [recoveredEmail],
+            facts: [emailFact()],
             visitedUrls: [
               "https://example.ac.uk/contact",
             ],
@@ -241,7 +259,7 @@ test(
 );
 
 test(
-  "does not run recovery when ordinary research already found a contact route",
+  "completes a missing email when ordinary research already found a phone",
   async () => {
     const recorded: AutomaticResearchFact[][] = [];
     const completed: {
@@ -249,25 +267,67 @@ test(
     } = {};
     let recoveryCalls = 0;
 
-    const existingPhone: AutomaticResearchFact = {
-      sourceUrl:
-        "https://example.ac.uk/accommodation",
-      factName: "public_phone",
-      factValue: "020 8464 5566",
-      sourceExcerpt:
-        "Call 020 8464 5566",
-      contentSha256: "c".repeat(64),
-      contactType: "phone",
-      normalizedContactValue:
-        "02084645566",
-    };
+    const service = createAutomaticQualificationService({
+      repository:
+        repository(recorded, completed),
+      firstPartyProvider: {
+        async research() {
+          return research([phoneFact()]);
+        },
+      },
+      contactRecoveryProvider: {
+        async recover() {
+          recoveryCalls += 1;
+          return {
+            facts: [
+              phoneFact(),
+              emailFact(),
+            ],
+            visitedUrls: [
+              "https://example.ac.uk/contact",
+            ],
+            truncatedPageCount: 0,
+          };
+        },
+      },
+      companiesHouseService:
+        companiesHouseService(),
+      leadReviewService:
+        leadReviewService(),
+      batchSize: 1,
+      leaseSeconds: 180,
+      activationTotalLimit: 1,
+    });
+
+    await service.runBatch();
+
+    assert.equal(recoveryCalls, 1);
+    assert.equal(recorded.length, 2);
+    assert.deepEqual(
+      recorded[1]?.map((fact) => fact.contactType),
+      ["email"],
+    );
+  },
+);
+
+test(
+  "does not run contact completion when ordinary research already found both email and phone",
+  async () => {
+    const recorded: AutomaticResearchFact[][] = [];
+    const completed: {
+      value?: CompleteAutomaticQualificationInput;
+    } = {};
+    let recoveryCalls = 0;
 
     const service = createAutomaticQualificationService({
       repository:
         repository(recorded, completed),
       firstPartyProvider: {
         async research() {
-          return research(existingPhone);
+          return research([
+            phoneFact(),
+            emailFact(),
+          ]);
         },
       },
       contactRecoveryProvider: {
@@ -304,5 +364,130 @@ test(
         recoveredFactCount: 0,
       },
     );
+  },
+);
+
+test(
+  "persists recovered contacts independently so one rejected fact cannot discard another valid route",
+  async () => {
+    const recorded: AutomaticResearchFact[][] = [];
+    const completed: {
+      value?: CompleteAutomaticQualificationInput;
+    } = {};
+    const storedTypes: string[] = [];
+    let initialWrite = true;
+
+    const qualificationRepository = repository(
+      recorded,
+      completed,
+      (facts) => {
+        if (initialWrite) {
+          initialWrite = false;
+          return;
+        }
+        if (facts[0]?.contactType === "email") {
+          throw new Error("email rejected");
+        }
+        if (facts[0]?.contactType !== null) {
+          storedTypes.push(facts[0]!.contactType!);
+        }
+      },
+    );
+
+    const service = createAutomaticQualificationService({
+      repository: qualificationRepository,
+      firstPartyProvider: {
+        async research() {
+          return research();
+        },
+      },
+      contactRecoveryProvider: {
+        async recover() {
+          return {
+            facts: [
+              emailFact(),
+              phoneFact(),
+            ],
+            visitedUrls: [
+              "https://example.ac.uk/contact",
+            ],
+            truncatedPageCount: 0,
+          };
+        },
+      },
+      companiesHouseService:
+        companiesHouseService(),
+      leadReviewService:
+        leadReviewService(),
+      batchSize: 1,
+      leaseSeconds: 180,
+      activationTotalLimit: 1,
+    });
+
+    await service.runBatch();
+
+    assert.deepEqual(storedTypes, ["phone"]);
+    assert.deepEqual(
+      completed.value?.researchSummary
+        .contactRecovery,
+      {
+        attempted: true,
+        status: "recovered",
+        visitedUrls: [
+          "https://example.ac.uk/contact",
+        ],
+        truncatedPageCount: 0,
+        recoveredFactCount: 1,
+      },
+    );
+  },
+);
+
+test(
+  "removes generic discovery descriptors from the first-party identity query without reducing it to one word",
+  async () => {
+    const recorded: AutomaticResearchFact[][] = [];
+    const completed: {
+      value?: CompleteAutomaticQualificationInput;
+    } = {};
+    let identityQuery = "";
+
+    const qualificationRepository = {
+      ...repository(recorded, completed),
+      async claimQualificationJobs() {
+        return [{
+          prospectId: PROSPECT_ID,
+          actorId: FOUNDER_ID,
+          businessName: "Community House Halls",
+          sector:
+            "community_halls_event_venues" as const,
+          websiteUrl:
+            "https://community.example/",
+          companyNumber: null,
+          attemptCount: 1,
+        }];
+      },
+    };
+
+    const service = createAutomaticQualificationService({
+      repository: qualificationRepository,
+      firstPartyProvider: {
+        async research(_url, businessName) {
+          identityQuery = businessName;
+          return research();
+        },
+      },
+      companiesHouseService:
+        companiesHouseService(),
+      leadReviewService:
+        leadReviewService(),
+      batchSize: 1,
+      leaseSeconds: 180,
+      activationTotalLimit: 1,
+    });
+
+    await service.runBatch();
+
+    assert.equal(identityQuery, "Community House");
   },
 );

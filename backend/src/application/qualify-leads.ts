@@ -117,6 +117,39 @@ function normalizedCompanyName(value: string): string {
     .replace(/[^A-Z0-9]+/g, "");
 }
 
+const FIRST_PARTY_IDENTITY_DESCRIPTORS =
+  new Set([
+    "agent",
+    "agents",
+    "coworking",
+    "estate",
+    "hall",
+    "halls",
+    "letting",
+    "lettings",
+    "office",
+    "offices",
+    "sales",
+    "space",
+  ]);
+
+function firstPartyIdentityQuery(
+  businessName: string,
+): string {
+  const words = businessName
+    .trim()
+    .split(/\s+/);
+  const core = words.filter((word) =>
+    !FIRST_PARTY_IDENTITY_DESCRIPTORS.has(
+      word.toLowerCase().replace(/[^a-z0-9]/g, ""),
+    ));
+
+  // Never reduce an identity check to a single generic token.
+  return core.length >= 2
+    ? core.join(" ")
+    : businessName;
+}
+
 function singlePremisesSupport(
   research: FirstPartyResearchResult,
   primaryPostcode: string | null,
@@ -258,7 +291,7 @@ export function createAutomaticQualificationService(
       try {
         research = await options.firstPartyProvider.research(
           websiteUrl,
-          businessName,
+          firstPartyIdentityQuery(businessName),
           job.sector,
         );
       } catch (error) {
@@ -290,13 +323,19 @@ export function createAutomaticQualificationService(
       const identityConfirmed =
         research.facts.some((fact) =>
           fact.factName === "business_name");
-      const initialContactFound =
+      const initialEmailFound =
         research.facts.some((fact) =>
-          fact.contactType !== null);
+          fact.contactType === "email");
+      const initialPhoneFound =
+        research.facts.some((fact) =>
+          fact.contactType === "phone");
+      const initialFormFound =
+        research.facts.some((fact) =>
+          fact.contactType === "contact_form");
 
       if (
         identityConfirmed &&
-        !initialContactFound &&
+        (!initialEmailFound || !initialPhoneFound) &&
         options.contactRecoveryProvider !==
           undefined
       ) {
@@ -315,18 +354,40 @@ export function createAutomaticQualificationService(
 
           const recoveredContacts =
             recovery.facts.filter((fact) =>
-              fact.contactType !== null);
-          recoveredContactFactCount =
-            recoveredContacts.length;
+              (
+                fact.contactType === "email" &&
+                !initialEmailFound
+              ) || (
+                fact.contactType === "phone" &&
+                !initialPhoneFound
+              ) || (
+                fact.contactType === "contact_form" &&
+                !initialFormFound
+              ));
 
-          if (recoveredContacts.length > 0) {
-            await options.repository.recordResearch(
-              job.prospectId,
-              job.actorId,
-              job.attemptCount,
-              recoveredContacts,
-            );
+          let persistedCount = 0;
+          for (const recoveredFact of recoveredContacts) {
+            try {
+              const evidenceIds =
+                await options.repository.recordResearch(
+                  job.prospectId,
+                  job.actorId,
+                  job.attemptCount,
+                  [recoveredFact],
+                );
+              if (evidenceIds.length > 0) {
+                persistedCount += 1;
+              }
+            } catch {
+              // One rejected contact must not discard another valid route.
+            }
+          }
+
+          recoveredContactFactCount = persistedCount;
+          if (persistedCount > 0) {
             contactRecoveryStatus = "recovered";
+          } else if (recoveredContacts.length > 0) {
+            contactRecoveryStatus = "failed";
           } else {
             contactRecoveryStatus =
               "no_contact_found";

@@ -1,5 +1,9 @@
 import { createHash } from "node:crypto";
 
+import type {
+  ContactRecoveryProvider,
+} from "../adapters/web/contact-recovery.js";
+
 import {
   FirstPartyResearchError,
 } from "../adapters/web/first-party-research.js";
@@ -45,6 +49,8 @@ export interface AutomaticQualificationServiceOptions {
     AutomaticQualificationRepository;
   readonly firstPartyProvider:
     FirstPartyResearchProvider;
+  readonly contactRecoveryProvider?:
+    ContactRecoveryProvider;
   readonly googlePlaceDetailsProvider?:
     GooglePlaceDetailsProvider;
   readonly companiesHouseService:
@@ -64,6 +70,12 @@ type Outcome =
   | "auto"
   | "review"
   | "complete"
+  | "failed";
+
+type ContactRecoveryStatus =
+  | "not_needed"
+  | "recovered"
+  | "no_contact_found"
   | "failed";
 
 function unique<T>(values: readonly T[]): readonly T[] {
@@ -226,7 +238,14 @@ export function createAutomaticQualificationService(
 
     let research: FirstPartyResearchResult | null = null;
     let additionalVerifiedFactCount = 0;
+    let recoveredContactFactCount = 0;
+    let contactRecoveryStatus:
+      ContactRecoveryStatus = "not_needed";
+    let contactRecoveryVisitedUrls:
+      readonly string[] = [];
+    let contactRecoveryTruncatedPageCount = 0;
     const reasons: string[] = [];
+
     if (websiteUrl === null) {
       reasons.push("no_first_party_website");
     } else {
@@ -255,12 +274,71 @@ export function createAutomaticQualificationService(
     }
 
     if (research !== null) {
-      reasons.push(...research.reviewReasons);
       await options.repository.recordResearch(
         job.prospectId,
         job.actorId,
         job.attemptCount,
         research.facts,
+      );
+
+      const identityConfirmed =
+        research.facts.some((fact) =>
+          fact.factName === "business_name");
+      const initialContactFound =
+        research.facts.some((fact) =>
+          fact.contactType !== null);
+
+      if (
+        identityConfirmed &&
+        !initialContactFound &&
+        options.contactRecoveryProvider !==
+          undefined
+      ) {
+        try {
+          const recovery =
+            await options.contactRecoveryProvider
+              .recover(
+                research.canonicalWebsiteUrl,
+                businessName,
+                job.sector,
+              );
+          contactRecoveryVisitedUrls =
+            recovery.visitedUrls;
+          contactRecoveryTruncatedPageCount =
+            recovery.truncatedPageCount;
+
+          const recoveredContacts =
+            recovery.facts.filter((fact) =>
+              fact.contactType !== null);
+          recoveredContactFactCount =
+            recoveredContacts.length;
+
+          if (recoveredContacts.length > 0) {
+            await options.repository.recordResearch(
+              job.prospectId,
+              job.actorId,
+              job.attemptCount,
+              recoveredContacts,
+            );
+            contactRecoveryStatus = "recovered";
+          } else {
+            contactRecoveryStatus =
+              "no_contact_found";
+          }
+        } catch {
+          // Contact recovery is a bounded additive pass.
+          // It must never restart or fail the core qualification run.
+          contactRecoveryStatus = "failed";
+        }
+      }
+
+      reasons.push(
+        ...research.reviewReasons.filter(
+          (reason) =>
+            reason !==
+              "no_generic_business_contact_found" ||
+            recoveredContactFactCount === 0,
+        ),
       );
 
       if (
@@ -571,8 +649,21 @@ export function createAutomaticQualificationService(
                 (item) =>
                   item.charityNumber,
               ),
+            contactRecovery: {
+              attempted:
+                contactRecoveryStatus !==
+                  "not_needed",
+              status: contactRecoveryStatus,
+              visitedUrls:
+                contactRecoveryVisitedUrls,
+              truncatedPageCount:
+                contactRecoveryTruncatedPageCount,
+              recoveredFactCount:
+                recoveredContactFactCount,
+            },
             verifiedFactCount:
               research.facts.length +
+              recoveredContactFactCount +
               additionalVerifiedFactCount,
           },
       discoveredCompanyNumber,

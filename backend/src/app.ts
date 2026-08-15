@@ -71,6 +71,10 @@ import {
 } from "./adapters/web/first-party-company-number.js";
 
 import {
+  FirstPartyContactRecoveryClient,
+} from "./adapters/web/contact-recovery.js";
+
+import {
   FirstPartyResearchClient,
 } from "./adapters/web/first-party-research.js";
 
@@ -587,6 +591,20 @@ export async function buildApp(
                     env.LEAD_WEBSITE_LOOKUP_MAX_BYTES,
                   maximumPages:
                     env.LEAD_WEBSITE_RESEARCH_MAX_PAGES,
+                  requestRetries:
+                    env.LEAD_WEBSITE_REQUEST_RETRIES,
+                }),
+              contactRecoveryProvider:
+                new FirstPartyContactRecoveryClient({
+                  timeoutMs:
+                    env.LEAD_WEBSITE_LOOKUP_TIMEOUT_MS,
+                  maximumBytes:
+                    env.LEAD_WEBSITE_LOOKUP_MAX_BYTES,
+                  maximumPages:
+                    Math.min(
+                      8,
+                      env.LEAD_WEBSITE_RESEARCH_MAX_PAGES + 2,
+                    ),
                   requestRetries:
                     env.LEAD_WEBSITE_REQUEST_RETRIES,
                 }),

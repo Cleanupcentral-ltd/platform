@@ -6,8 +6,11 @@ export interface ContactFormEvidence {
 const CONTACT_PATH =
   /(?:^|\/)(?:contact(?:-us)?|get-in-touch|enquir(?:y|ies)|inquir(?:y|ies)|function-enquiry)(?:\/|$)/i;
 
+const HARD_REJECT_PATH =
+  /(?:^|\/)(?:careers?|jobs?|vacanc(?:y|ies)|recruit(?:ment|ing)?|compliance|privacy(?:-policy)?|terms(?:-and-conditions)?|cookie(?:-policy)?|legal)(?:\/|$|[-_])/i;
+
 const NON_CONTACT_PATH =
-  /(?:privacy|terms|cookie|legal|login|sign-in|search|newsletter|subscribe)/i;
+  /(?:login|sign-in|search|newsletter|subscribe)/i;
 
 const CONTACT_LANGUAGE =
   /\b(?:contact\s+us|get\s+in\s+touch|send\s+(?:us\s+)?a\s+message|make\s+an?\s+enquir(?:y|ies)|general\s+enquir(?:y|ies)|how\s+can\s+we\s+help|your\s+message)\b/i;
@@ -44,6 +47,10 @@ function describeForm(
   formHtml: string,
   pageUrl: URL,
 ): ContactFormEvidence | null {
+  if (HARD_REJECT_PATH.test(pageUrl.pathname)) {
+    return null;
+  }
+
   const text = visibleFormText(formHtml);
   const hasTextarea = /<textarea\b/i.test(formHtml);
   const hasMessage =
@@ -89,7 +96,7 @@ function describeForm(
   );
 
   let score = 10;
-  if (contactPath) score += 6;
+  if (contactPath) score += 8;
   if (hasEmail) score += 2;
   if (hasName) score += 1;
   if (hasPhone) score += 1;
@@ -101,7 +108,7 @@ function describeForm(
   return {
     score,
     support:
-      `Verified contact form v2: form contains ${signals.join(", ")} fields.`,
+      `Verified contact form v3: form contains ${signals.join(", ")} fields.`,
   };
 }
 

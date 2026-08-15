@@ -23,7 +23,7 @@ test(
     assert.ok(result !== null);
     assert.match(
       result.support,
-      /^Verified contact form v2:/,
+      /^Verified contact form v3:/,
     );
   },
 );
@@ -46,6 +46,37 @@ test(
       ),
       null,
     );
+  },
+);
+
+test(
+  "hard rejects careers, compliance and legal forms even when they contain contact-like fields",
+  () => {
+    const strongForm = [
+      "<form>",
+      '<input name="name">',
+      '<input type="email" name="email">',
+      '<textarea name="message"></textarea>',
+      "<button>Send message</button>",
+      "</form>",
+    ].join("");
+
+    for (const path of [
+      "/about-us/careers/",
+      "/about-hunters/compliance/",
+      "/legal-aspects-of-buying-a-home/",
+      "/privacy-policy/",
+      "/terms-and-conditions/",
+    ]) {
+      assert.equal(
+        detectContactForm(
+          strongForm,
+          new URL(`https://example.com${path}`),
+        ),
+        null,
+        path,
+      );
+    }
   },
 );
 

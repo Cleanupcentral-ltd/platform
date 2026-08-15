@@ -62,17 +62,19 @@ export function matchSearchResultToProspect(
   const candidates = prospects.filter(
     (prospect) =>
       normaliseText(prospect.businessName) ===
-        name &&
-      (
-        postcode === null ||
-        normalisePostcode(
-          prospect.primaryPostcode,
-        ) === postcode
-      ),
+        name,
   );
 
-  if (candidates.length === 1) {
-    return candidates[0]!;
+  if (postcode !== null) {
+    const postcodeMatches = candidates.filter(
+      (prospect) =>
+        normalisePostcode(
+          prospect.primaryPostcode,
+        ) === postcode,
+    );
+    if (postcodeMatches.length === 1) {
+      return postcodeMatches[0]!;
+    }
   }
 
   const website = normaliseWebsite(
@@ -90,7 +92,9 @@ export function matchSearchResultToProspect(
     }
   }
 
-  return null;
+  return postcode === null && candidates.length === 1
+    ? candidates[0]!
+    : null;
 }
 
 export function prospectQualificationLabel(

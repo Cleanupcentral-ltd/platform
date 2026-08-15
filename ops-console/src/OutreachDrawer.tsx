@@ -36,31 +36,6 @@ type ContactOutcome =
   | "invalid_contact"
   | "do_not_contact";
 
-const CONTACT_OUTCOME_LABELS: Readonly<Record<
-  Exclude<ContactOutcome, "follow_up_required">,
-  string
->> = {
-  interested: "Interested",
-  not_interested: "Not interested",
-  no_response: "No answer / No response",
-  invalid_contact: "Invalid / Wrong contact details",
-  do_not_contact: "Do not contact",
-};
-
-const LEGACY_OUTCOME_LABELS: Readonly<Record<
-  string,
-  string
->> = {
-  won: "Won",
-  lost: "Lost",
-  not_now: "Not now / revisit later",
-  not_interested: "Not interested",
-  do_not_contact: "Do not contact",
-  interested: "Interested",
-  no_response: "No answer / No response",
-  invalid_contact: "Invalid / Wrong contact details",
-};
-
 function messageFrom(error: unknown): string {
   return error instanceof Error
     ? error.message
@@ -84,52 +59,14 @@ function contactNotes(
   contactType: ContactType,
   notes: string,
 ): string {
+  const label =
+    contactType === "phone"
+      ? "Phone"
+      : "Email";
   const founderNote = notes.trim();
-  return [
-    `Contact type: ${
-      contactType === "phone"
-        ? "Phone"
-        : "Email"
-    }`,
-    founderNote,
-  ].filter((value) => value !== "")
-    .join("\n");
-}
-
-function historyDetail(activity: {
-  readonly activityType: string;
-  readonly outcome: string | null;
-  readonly notes: string | null;
-}): string {
-  const noteLines = activity.notes
-    ?.split("\n") ?? [];
-  const contactType = noteLines[0]
-    ?.startsWith("Contact type: ")
-    ? noteLines.shift()?.replace(
-        "Contact type: ",
-        "",
-      ) ?? null
-    : null;
-  const founderNote = noteLines
-    .join(" ")
-    .trim();
-  const outcome = activity.outcome === null
-    ? activity.activityType ===
-        "follow_up_scheduled"
-      ? "Follow-up required"
-      : null
-    : LEGACY_OUTCOME_LABELS[
-        activity.outcome
-      ] ?? activity.outcome.replaceAll("_", " ");
-
-  return [
-    contactType,
-    outcome,
-    founderNote === "" ? null : founderNote,
-  ].filter(
-    (value): value is string =>
-      value !== null && value !== undefined,
-  ).join(" · ") || "Recorded";
+  return founderNote === ""
+    ? label
+    : `${label} · ${founderNote}`;
 }
 
 export function OutreachDrawer({
@@ -546,17 +483,19 @@ export function OutreachDrawer({
                     key={activity.id}
                   >
                     <strong>
-                      {activity.activityType ===
-                        "follow_up_scheduled"
-                        ? "Follow-up"
-                        : activity.activityType ===
-                            "outcome"
-                          ? "Contact"
-                          : activity.activityType
-                              .replaceAll("_", " ")}
+                      {activity.activityType
+                        .replaceAll("_", " ")}
                     </strong>
                     <span>
-                      {historyDetail(activity)}
+                      {activity.outcome === null
+                        ? activity.notes ?? "Recorded"
+                        : [
+                            activity.outcome
+                              .replaceAll("_", " "),
+                            activity.notes,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
                     </span>
                     <small>
                       {new Date(

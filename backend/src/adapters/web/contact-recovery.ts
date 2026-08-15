@@ -256,7 +256,7 @@ function javascriptCloakedEmailText(html: string): string {
 
     const assembled = new Map<string, string>();
     for (const assignment of body.matchAll(
-      /(?:var\s+)?(addy[a-z0-9_]*)\s*=\s*([^;]+);/gi,
+      /(?:var\s+)?(addy[a-z0-9_]*)\s*=\s*([\s\S]*?);(?=\s*(?:(?:var\s+)?addy[a-z0-9_]*\s*=|document\.|$))/gi,
     )) {
       const name = assignment[1]?.toLowerCase();
       const expression = assignment[2] ?? "";
@@ -489,6 +489,7 @@ function emailsFrom(page: Page): readonly EmailCandidate[] {
     [page.text, 35, false],
     [page.structuredText, 32, true],
     [javascriptCloakedEmailText(page.html), 40, true],
+    [decodeHtml(page.html), 28, true],
   ] as const) {
     const normalized = normalizeObfuscatedEmail(text);
     for (
@@ -502,6 +503,39 @@ function emailsFrom(page: Page): readonly EmailCandidate[] {
   }
 
   return [...found.values()];
+}
+
+function tokenProximityScore(
+  tokens: readonly string[],
+  evidence: PublicPhoneEvidence,
+): number {
+  const context = (evidence.context ?? "").toLowerCase();
+  if (context.length === 0) return 0;
+
+  const display = evidence.displayValue.toLowerCase();
+  const phoneIndex = context.indexOf(display);
+  const anchor = phoneIndex >= 0
+    ? phoneIndex
+    : Math.floor(context.length / 2);
+
+  let score = 0;
+  for (const token of tokens) {
+    const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    for (const match of context.matchAll(
+      new RegExp(`\\b${escaped}\\b`, "gi"),
+    )) {
+      const distance = Math.abs((match.index ?? anchor) - anchor);
+      if (distance <= 60) {
+        score += 12;
+        break;
+      }
+      if (distance <= 140) {
+        score += 3;
+        break;
+      }
+    }
+  }
+  return score;
 }
 
 function choosePhone(
@@ -518,8 +552,8 @@ function choosePhone(
       page,
       evidence,
       branchScore:
-        tokenMatches(tokens, page.url.pathname) * 3 +
-        tokenMatches(tokens, evidence.context ?? "") * 4,
+        tokenMatches(tokens, page.url.pathname) * 8 +
+        tokenProximityScore(tokens, evidence),
     })),
   ).sort((left, right) =>
     right.branchScore - left.branchScore ||

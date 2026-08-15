@@ -44,6 +44,7 @@ import {
 import "./verification-footer.css";
 import "./evidence-view.css";
 import "./evidence-review-layout.css";
+import "./sector-audit.css";
 
 interface LeadReviewViewProps {
   readonly backendUrl: string;
@@ -345,6 +346,14 @@ export function LeadReviewView({
     ).length,
     [evidenceGroups],
   );
+
+  const sectorVerified = useMemo(() => {
+    if (review === null) return false;
+    return review.evidence.some((item) =>
+      item.fieldName === "approved_sector" &&
+      item.fieldValue === review.sector &&
+      item.verificationStatus === "verified");
+  }, [review]);
 
   const selectedSummary = selectedId === null
     ? null
@@ -813,11 +822,25 @@ export function LeadReviewView({
                       EVIDENCE REVIEW
                     </p>
                     <h3>{review.businessName}</h3>
+                    <div className="le-evidence-sector-audit">
+                      <span className="le-evidence-sector-pill">
+                        {sectorLabel(review.sector)}
+                      </span>
+                      <span
+                        className={
+                          sectorVerified
+                            ? "le-evidence-sector-state is-verified"
+                            : "le-evidence-sector-state"
+                        }
+                      >
+                        {sectorVerified
+                          ? "Verified sector"
+                          : "Sector under review"}
+                      </span>
+                    </div>
                     <p>
                       {review.primaryPostcode ??
                         "Postcode pending"}
-                      {" · "}
-                      {sectorLabel(review.sector)}
                     </p>
                   </div>
                   <span className="le-score le-score-dark">

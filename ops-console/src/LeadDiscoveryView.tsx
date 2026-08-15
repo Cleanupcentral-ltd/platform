@@ -29,7 +29,10 @@ import {
   queueClass,
   queueKey,
   score,
+  sectorLabel,
 } from "./redesign-helpers";
+
+import "./sector-audit.css";
 
 interface LeadDiscoveryViewProps {
   readonly backendUrl: string;
@@ -496,6 +499,13 @@ export function LeadDiscoveryView({
                 const contactEmail =
                   row.prospect?.publicEmail ??
                   null;
+                const displaySector =
+                  row.prospect?.sector ??
+                  (
+                    sector === ALL_LEAD_SECTORS
+                      ? null
+                      : sector
+                  );
                 return (
                   <article
                     className="le-result-card"
@@ -503,12 +513,27 @@ export function LeadDiscoveryView({
                   >
                     <div className="le-result-top">
                       <div>
-                        {row.viewState ===
-                          "unseen" && (
-                            <span className="le-new-badge">
-                              NEW
-                            </span>
-                          )}
+                        <div className="le-sector-kicker-row">
+                          <span
+                            className={
+                              displaySector === null
+                                ? "le-sector-kicker is-pending"
+                                : "le-sector-kicker"
+                            }
+                          >
+                            {displaySector === null
+                              ? "Sector pending"
+                              : sectorLabel(
+                                  displaySector,
+                                )}
+                          </span>
+                          {row.viewState ===
+                            "unseen" && (
+                              <span className="le-new-badge">
+                                NEW
+                              </span>
+                            )}
+                        </div>
                         <h3>
                           {row.result.businessName}
                         </h3>

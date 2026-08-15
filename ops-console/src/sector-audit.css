@@ -1,0 +1,139 @@
+.le-sector-kicker-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-height: 22px;
+}
+
+.le-sector-kicker {
+  color: var(--le-gold-dark);
+  font-size: 10px;
+  font-weight: 850;
+  line-height: 1.4;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.le-sector-kicker.is-pending {
+  color: var(--le-stone);
+}
+
+.le-evidence-sector-audit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 9px;
+}
+
+.le-evidence-sector-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 5px 8px;
+  border: 1px solid #5a5039;
+  color: #f2d27e;
+  background: #24211b;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.35;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.le-evidence-sector-state {
+  color: #aaa59b;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.35;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.le-evidence-sector-state.is-verified {
+  color: #91d6b0;
+}
+
+.le-outreach-sector-kicker {
+  margin: 7px 0 0;
+  color: #d8b66c !important;
+  font-size: 10px !important;
+  font-weight: 850;
+  line-height: 1.4;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.le-outreach-sector-audit {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 14px;
+  border: 1px solid #3d3b37;
+  border-left: 3px solid #d8b66c;
+  border-radius: 10px;
+  background: #171717;
+}
+
+.le-outreach-sector-audit-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.le-outreach-sector-audit-head > span:first-child {
+  color: #d8b66c;
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.le-template-match {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 4px 7px;
+  border: 1px solid #355a44;
+  border-radius: 999px;
+  color: #a9ddb9;
+  background: #17231b;
+  font-size: 9px;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.le-template-match.is-warning {
+  border-color: #6c5532;
+  color: #f0ca82;
+  background: #2b2115;
+}
+
+.le-outreach-sector-audit-row {
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr);
+  gap: 12px;
+  align-items: baseline;
+}
+
+.le-outreach-sector-audit-row span {
+  color: #918d85;
+  font-size: 10px;
+}
+
+.le-outreach-sector-audit-row strong {
+  color: #f5f2eb;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+@media (max-width: 520px) {
+  .le-outreach-sector-audit-row {
+    grid-template-columns: 1fr;
+    gap: 3px;
+  }
+}

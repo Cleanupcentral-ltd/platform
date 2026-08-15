@@ -26,17 +26,14 @@ interface OutreachDrawerProps {
   ) => void;
 }
 
-type ActivityType =
-  | "contacted"
-  | "replied"
-  | "follow_up_scheduled"
-  | "outcome";
+type ContactType = "phone" | "email";
 
-type ActivityOutcome =
-  | "won"
-  | "lost"
-  | "not_now"
+type ContactOutcome =
+  | "interested"
   | "not_interested"
+  | "no_response"
+  | "follow_up_required"
+  | "invalid_contact"
   | "do_not_contact";
 
 function messageFrom(error: unknown): string {
@@ -56,6 +53,20 @@ function copyText(
     "",
     body,
   ].join("\n");
+}
+
+function contactNotes(
+  contactType: ContactType,
+  notes: string,
+): string {
+  const label =
+    contactType === "phone"
+      ? "Phone"
+      : "Email";
+  const founderNote = notes.trim();
+  return founderNote === ""
+    ? label
+    : `${label} · ${founderNote}`;
 }
 
 export function OutreachDrawer({
@@ -83,10 +94,10 @@ export function OutreachDrawer({
     useState(false);
   const [logOpen, setLogOpen] =
     useState(false);
-  const [activityType, setActivityType] =
-    useState<ActivityType>("contacted");
-  const [activityOutcome, setActivityOutcome] =
-    useState<ActivityOutcome>("not_now");
+  const [contactType, setContactType] =
+    useState<ContactType>("email");
+  const [contactOutcome, setContactOutcome] =
+    useState<ContactOutcome | "">("");
   const [notes, setNotes] =
     useState("");
   const [followUpAt, setFollowUpAt] =
@@ -148,45 +159,53 @@ export function OutreachDrawer({
     event: FormEvent<HTMLFormElement>,
   ) {
     event.preventDefault();
+
+    if (contactOutcome === "") {
+      onError(
+        "Choose an outcome before saving the contact.",
+      );
+      return;
+    }
+
+    const isFollowUp =
+      contactOutcome === "follow_up_required";
+    const resolvedFollowUp = isFollowUp
+      ? (
+          followUpAt === ""
+            ? null
+            : new Date(
+                followUpAt,
+              ).toISOString()
+        )
+      : null;
+
+    if (
+      isFollowUp &&
+      resolvedFollowUp === null
+    ) {
+      onError(
+        "Choose a follow-up date and time before saving the contact.",
+      );
+      return;
+    }
+
     setWorking(true);
     try {
-      const resolvedFollowUp =
-        activityType ===
-          "follow_up_scheduled"
-          ? (
-              followUpAt === ""
-                ? null
-                : new Date(
-                    followUpAt,
-                  ).toISOString()
-            )
-          : null;
-
-      if (
-        activityType ===
-          "follow_up_scheduled" &&
-        resolvedFollowUp === null
-      ) {
-        onError(
-          "Choose a follow-up date and time before saving the follow-up.",
-        );
-        return;
-      }
-
       await recordManualOutreachActivity(
         backendUrl,
         accessToken,
         prospectId,
         {
-          activityType,
-          outcome:
-            activityType === "outcome"
-              ? activityOutcome
-              : null,
-          notes:
-            notes.trim() === ""
-              ? null
-              : notes.trim(),
+          activityType: isFollowUp
+            ? "follow_up_scheduled"
+            : "outcome",
+          outcome: isFollowUp
+            ? null
+            : contactOutcome,
+          notes: contactNotes(
+            contactType,
+            notes,
+          ),
           followUpAt: resolvedFollowUp,
         },
       );
@@ -198,14 +217,14 @@ export function OutreachDrawer({
           prospectId,
         ),
       );
+      setContactOutcome("");
       setNotes("");
       setFollowUpAt("");
       onActivitySaved();
       onMessage(
-        activityType ===
-          "follow_up_scheduled"
-          ? "Follow-up recorded."
-          : "Outreach activity recorded.",
+        isFollowUp
+          ? "Contact logged and follow-up recorded."
+          : "Contact logged.",
       );
     } catch (error) {
       onError(messageFrom(error));
@@ -332,8 +351,8 @@ export function OutreachDrawer({
               }
             >
               {logOpen
-                ? "Close activity form"
-                : "Log contact / activity"}
+                ? "Close contact form"
+                : "Log contact"}
             </button>
 
             {logOpen && (
@@ -342,60 +361,69 @@ export function OutreachDrawer({
                 onSubmit={saveActivity}
               >
                 <label>
-                  <span>Activity</span>
+                  <span>Contact type</span>
                   <select
-                    value={activityType}
+                    value={contactType}
                     onChange={(event) =>
-                      setActivityType(
+                      setContactType(
                         event.target.value as
-                          ActivityType,
+                          ContactType,
                       )
                     }
                   >
-                    <option value="contacted">
-                      Contacted
+                    <option value="phone">
+                      Phone
                     </option>
-                    <option value="replied">
-                      Replied
-                    </option>
-                    <option value="follow_up_scheduled">
-                      Follow-up scheduled
-                    </option>
-                    <option value="outcome">
-                      Outcome
+                    <option value="email">
+                      Email
                     </option>
                   </select>
                 </label>
 
-                {activityType === "outcome" && (
-                  <label>
-                    <span>Outcome</span>
-                    <select
-                      value={activityOutcome}
-                      onChange={(event) =>
-                        setActivityOutcome(
-                          event.target.value as
-                            ActivityOutcome,
-                        )
+                <label>
+                  <span>Outcome</span>
+                  <select
+                    value={contactOutcome}
+                    onChange={(event) => {
+                      const next =
+                        event.target.value as
+                          ContactOutcome | "";
+                      setContactOutcome(next);
+                      if (
+                        next !==
+                          "follow_up_required"
+                      ) {
+                        setFollowUpAt("");
                       }
-                    >
-                      <option value="won">Won</option>
-                      <option value="lost">Lost</option>
-                      <option value="not_now">
-                        Not now / revisit later
-                      </option>
-                      <option value="not_interested">
-                        Not interested
-                      </option>
-                      <option value="do_not_contact">
-                        Do not contact
-                      </option>
-                    </select>
-                  </label>
-                )}
+                    }}
+                    required
+                  >
+                    <option value="" disabled>
+                      Select outcome
+                    </option>
+                    <option value="interested">
+                      Interested
+                    </option>
+                    <option value="not_interested">
+                      Not interested
+                    </option>
+                    <option value="no_response">
+                      No answer / No response
+                    </option>
+                    <option value="follow_up_required">
+                      Follow-up required
+                    </option>
+                    <option value="invalid_contact">
+                      Invalid / Wrong contact details
+                    </option>
+                    <option value="do_not_contact">
+                      Do not contact
+                    </option>
+                  </select>
+                </label>
 
-                {activityType ===
-                  "follow_up_scheduled" && (
+                {contactOutcome ===
+                  "follow_up_required" && (
                     <label>
                       <span>Follow-up date</span>
                       <input
@@ -421,6 +449,7 @@ export function OutreachDrawer({
                         event.target.value,
                       )
                     }
+                    maxLength={950}
                     placeholder="Optional founder note"
                   />
                 </label>
@@ -432,7 +461,7 @@ export function OutreachDrawer({
                 >
                   {working
                     ? "Saving…"
-                    : "Save activity"}
+                    : "Save contact"}
                 </button>
               </form>
             )}
@@ -458,9 +487,15 @@ export function OutreachDrawer({
                         .replaceAll("_", " ")}
                     </strong>
                     <span>
-                      {activity.outcome ??
-                        activity.notes ??
-                        "Recorded"}
+                      {activity.outcome === null
+                        ? activity.notes ?? "Recorded"
+                        : [
+                            activity.outcome
+                              .replaceAll("_", " "),
+                            activity.notes,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
                     </span>
                     <small>
                       {new Date(

@@ -50,7 +50,7 @@ export interface FirstPartyContactRecoveryOptions {
   ) => Promise<readonly string[]>;
 }
 
-interface LoadedPage {
+interface Page {
   readonly url: URL;
   readonly html: string;
   readonly text: string;
@@ -64,96 +64,58 @@ interface QueuedPage {
 }
 
 interface EmailCandidate {
-  readonly page: LoadedPage;
+  readonly page: Page;
   readonly email: string;
   readonly support: string;
   readonly score: number;
 }
 
 interface PhoneCandidate {
-  readonly page: LoadedPage;
+  readonly page: Page;
   readonly evidence: PublicPhoneEvidence;
   readonly branchScore: number;
-  readonly totalScore: number;
 }
 
 const GENERIC_MAILBOXES = new Set([
-  "accommodation",
-  "admin",
-  "bookings",
-  "business",
-  "commercial",
-  "contact",
-  "enquiries",
-  "enquiry",
-  "events",
-  "facilities",
-  "functions",
-  "hello",
-  "hire",
-  "housing",
-  "info",
-  "lettings",
-  "management",
-  "office",
-  "operations",
-  "property",
-  "reception",
-  "reservations",
-  "residences",
-  "sales",
-  "student",
-  "students",
-  "support",
-  "team",
-  "venue",
+  "accommodation", "admin", "bookings", "business", "commercial",
+  "contact", "enquiries", "enquiry", "events", "facilities",
+  "functions", "hello", "hire", "housing", "info", "lettings",
+  "management", "office", "operations", "property", "reception",
+  "reservations", "residences", "sales", "student", "students",
+  "support", "team", "venue",
 ]);
 
 const PERSONAL_MAIL_DOMAINS = new Set([
-  "gmail.com",
-  "googlemail.com",
-  "hotmail.com",
-  "icloud.com",
-  "live.co.uk",
-  "live.com",
-  "outlook.com",
-  "yahoo.co.uk",
-  "yahoo.com",
+  "gmail.com", "googlemail.com", "hotmail.com", "icloud.com",
+  "live.co.uk", "live.com", "outlook.com", "yahoo.co.uk", "yahoo.com",
 ]);
 
-const DISALLOWED_DISCOVERY_PATH =
+const DISALLOWED_PATH =
   /(?:^|\/)(?:careers?|jobs?|vacanc(?:y|ies)|recruit(?:ment|ing)?|compliance|privacy(?:-policy)?|terms(?:-and-conditions)?|cookie(?:-policy)?|legal|news|blog)(?:\/|$|[-_])/i;
 
-const CONTACT_DISCOVERY =
+const CONTACT_LINK =
   /(?:contact(?:-us)?|get[-_ ]?in[-_ ]?touch|enquir(?:y|ies)|inquir(?:y|ies)|find[-_ ]?us)/i;
 
-const LOCATION_DISCOVERY =
+const LOCATION_LINK =
   /(?:our[-_ ]?(?:offices?|branches?|locations?)|offices?|branches?|locations?|find[-_ ]?(?:an[-_ ]?)?(?:office|branch|location))/i;
 
-const HIRE_DISCOVERY =
+const HIRE_LINK =
   /(?:venue[-_ ]?hire|hall[-_ ]?hire|room[-_ ]?hire|function[-_ ]?(?:room|enquir)|hire|bookings?|reservations?)/i;
 
-const SECTOR_LINK_PATTERNS:
-  Readonly<Record<LeadSector, readonly RegExp[]>> = {
-    short_let_serviced_accommodation: [
-      /(?:apartments?|accommodation|locations?|properties|reservations?)/i,
-    ],
-    offices_coworking: [
-      /(?:offices?|workspace|cowork|business[-_ ]?centre|locations?)/i,
-    ],
-    community_halls_event_venues: [
-      /(?:venue|hall|function|events?|hire|bookings?)/i,
-    ],
-    estate_letting_agents: [
-      /(?:estate[-_ ]?agents?|lettings?|sales|property[-_ ]?management|branches?|offices?)/i,
-    ],
-    university_accommodation: [
-      /(?:accommodation|residences?|halls?|student[-_ ]?living|contact)/i,
-    ],
-    other_commercial_spaces: [
-      /(?:commercial|property|premises|units?|locations?|offices?)/i,
-    ],
-  };
+const SECTOR_LINKS: Readonly<Record<LeadSector, RegExp>> = {
+  short_let_serviced_accommodation:
+    /(?:apartments?|accommodation|locations?|properties|reservations?)/i,
+  offices_coworking:
+    /(?:offices?|workspace|cowork|business[-_ ]?centre|locations?)/i,
+  community_halls_event_venues:
+    /(?:venue|hall|function|events?|hire|bookings?)/i,
+  estate_letting_agents:
+    /(?:estate[-_ ]?agents?|lettings?|sales|property[-_ ]?management|branches?|offices?)/i,
+  university_accommodation:
+    /(?:accommodation|residences?|halls?|student[-_ ]?living|contact)/i,
+  other_commercial_spaces:
+    /(?:commercial|property|premises|units?|locations?|offices?)/i,
+};
 
 const FALLBACK_PATHS = [
   "/contact",
@@ -168,111 +130,26 @@ const FALLBACK_PATHS = [
   "/hire",
 ] as const;
 
-const BUSINESS_TOKEN_STOPWORDS = new Set([
-  "accommodation",
-  "agent",
-  "agents",
-  "and",
-  "commercial",
-  "company",
-  "community",
-  "coworking",
-  "development",
-  "division",
-  "estate",
-  "event",
-  "events",
-  "hall",
-  "halls",
-  "house",
-  "letting",
-  "lettings",
-  "limited",
-  "ltd",
-  "office",
-  "offices",
-  "property",
-  "sales",
-  "student",
-  "the",
-  "university",
-  "venue",
+const BUSINESS_STOPWORDS = new Set([
+  "accommodation", "agent", "agents", "and", "commercial", "company",
+  "community", "coworking", "development", "division", "estate", "event",
+  "events", "hall", "halls", "house", "letting", "lettings", "limited",
+  "ltd", "office", "offices", "property", "sales", "student", "the",
+  "university", "venue",
 ]);
 
 function sha256(value: string): string {
-  return createHash("sha256")
-    .update(value)
-    .digest("hex");
-}
-
-function ipv4IsPublic(address: string): boolean {
-  const octets = address.split(".").map(Number);
-  if (
-    octets.length !== 4 ||
-    octets.some((value) =>
-      !Number.isInteger(value) ||
-      value < 0 || value > 255)
-  ) return false;
-
-  const [first, second, third] = octets as [
-    number,
-    number,
-    number,
-  ];
-
-  return !(
-    first === 0 || first === 10 || first === 127 ||
-    (first === 100 && second >= 64 && second <= 127) ||
-    (first === 169 && second === 254) ||
-    (first === 172 && second >= 16 && second <= 31) ||
-    (first === 192 && second === 168) ||
-    (first === 192 && second === 0) ||
-    (first === 198 && (second === 18 || second === 19)) ||
-    (first === 198 && second === 51 && third === 100) ||
-    (first === 203 && second === 0 && third === 113) ||
-    first >= 224
-  );
-}
-
-function ipIsPublic(address: string): boolean {
-  const kind = isIP(address);
-  if (kind === 4) return ipv4IsPublic(address);
-  if (kind !== 6) return false;
-
-  const normalized = address.toLowerCase();
-  if (normalized.startsWith("::ffff:")) {
-    return ipv4IsPublic(normalized.slice(7));
-  }
-
-  return !(
-    normalized === "::" ||
-    normalized === "::1" ||
-    normalized.startsWith("fc") ||
-    normalized.startsWith("fd") ||
-    normalized.startsWith("2001:db8:") ||
-    /^fe[89ab]/.test(normalized) ||
-    normalized.startsWith("ff")
-  );
-}
-
-async function defaultResolveHost(
-  hostname: string,
-): Promise<readonly string[]> {
-  return (await lookup(hostname, {
-    all: true,
-    verbatim: true,
-  })).map((record) => record.address);
+  return createHash("sha256").update(value).digest("hex");
 }
 
 function decodeHtml(value: string): string {
   return value
-    .replace(/&#(x?[0-9a-f]+);?/gi, (
-      full,
-      encoded: string,
-    ) => {
-      const hex = encoded.toLowerCase().startsWith("x");
-      const raw = hex ? encoded.slice(1) : encoded;
-      const code = Number.parseInt(raw, hex ? 16 : 10);
+    .replace(/&#(x?[0-9a-f]+);?/gi, (full, encoded: string) => {
+      const isHex = encoded.toLowerCase().startsWith("x");
+      const code = Number.parseInt(
+        isHex ? encoded.slice(1) : encoded,
+        isHex ? 16 : 10,
+      );
       if (!Number.isFinite(code) || code <= 0 || code > 0x10ffff) {
         return full;
       }
@@ -285,66 +162,51 @@ function decodeHtml(value: string): string {
     .replace(/&nbsp;/gi, " ")
     .replace(/&amp;/gi, "&")
     .replace(/&quot;/gi, '"')
-    .replace(/&apos;/gi, "'")
+    .replace(/&apos;|&#39;/gi, "'")
     .replace(/&lt;/gi, "<")
     .replace(/&gt;/gi, ">");
 }
 
-function htmlText(html: string): string {
+function visibleText(html: string): string {
   return decodeHtml(
     html
       .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ")
       .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ")
       .replace(/<noscript\b[^>]*>[\s\S]*?<\/noscript>/gi, " ")
       .replace(/<[^>]+>/g, " "),
-  )
-    .replace(/\s+/g, " ")
-    .trim();
+  ).replace(/\s+/g, " ").trim();
 }
 
-function visibleAnchorText(value: string): string {
-  return htmlText(value);
+function businessTokens(value: string): readonly string[] {
+  return [...new Set(
+    value
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim()
+      .split(/\s+/)
+      .filter((word) =>
+        word.length >= 3 && !BUSINESS_STOPWORDS.has(word)),
+  )];
 }
 
-function normalizedWords(value: string): readonly string[] {
-  return value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim()
-    .split(/\s+/)
-    .filter((word) =>
-      word.length >= 3 &&
-      !BUSINESS_TOKEN_STOPWORDS.has(word));
-}
-
-function businessTokens(
-  businessName: string,
-): readonly string[] {
-  return [...new Set(normalizedWords(businessName))];
-}
-
-function tokenMatchCount(
+function tokenMatches(
   tokens: readonly string[],
   value: string,
 ): number {
   const normalized = value
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, " ");
-
   return tokens.filter((token) =>
-    new RegExp(`\\b${token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i")
-      .test(normalized),
+    new RegExp(
+      `\\b${token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`,
+      "i",
+    ).test(normalized),
   ).length;
 }
 
-function excerptAround(
-  text: string,
-  needle: string,
-): string {
-  const index = text.toLowerCase()
-    .indexOf(needle.toLowerCase());
+function excerpt(text: string, needle: string): string {
+  const index = text.toLowerCase().indexOf(needle.toLowerCase());
   if (index < 0) return text.slice(0, 360).trim();
-
   return text.slice(
     Math.max(0, index - 160),
     Math.min(text.length, index + needle.length + 200),
@@ -355,109 +217,78 @@ function linkPriority(
   href: string,
   label: string,
   sector: LeadSector,
-  targetTokens: readonly string[],
+  tokens: readonly string[],
 ): number {
-  const combined = `${href} ${label}`;
-  if (DISALLOWED_DISCOVERY_PATH.test(href)) return -1;
-
-  let score = 0;
-  if (CONTACT_DISCOVERY.test(combined)) score = 100;
-  else if (LOCATION_DISCOVERY.test(combined)) score = 90;
-  else if (HIRE_DISCOVERY.test(combined)) score = 85;
-  else if (
-    SECTOR_LINK_PATTERNS[sector].some((pattern) =>
-      pattern.test(combined))
-  ) score = 70;
-  else return -1;
-
-  score += tokenMatchCount(targetTokens, combined) * 12;
+  if (DISALLOWED_PATH.test(href)) return -1;
+  const value = `${href} ${label}`;
+  let score = CONTACT_LINK.test(value)
+    ? 100
+    : LOCATION_LINK.test(value)
+      ? 90
+      : HIRE_LINK.test(value)
+        ? 85
+        : SECTOR_LINKS[sector].test(value)
+          ? 70
+          : -1;
+  if (score < 0) return score;
+  score += tokenMatches(tokens, value) * 12;
   return score;
 }
 
-function pageLinks(
-  html: string,
-  sourceUrl: URL,
+function discoveredLinks(
+  page: Page,
   sector: LeadSector,
-  targetTokens: readonly string[],
+  tokens: readonly string[],
 ): readonly QueuedPage[] {
-  const results = new Map<string, QueuedPage>();
-
+  const found = new Map<string, QueuedPage>();
   for (
-    const match of html.matchAll(
+    const match of page.html.matchAll(
       /<a\b[^>]*\bhref\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi,
     )
   ) {
     const href = match[1];
     if (href === undefined) continue;
-
-    const label = visibleAnchorText(match[2] ?? "");
     const priority = linkPriority(
       href,
-      label,
+      visibleText(match[2] ?? ""),
       sector,
-      targetTokens,
+      tokens,
     );
     if (priority < 0) continue;
-
     try {
-      const candidate = new URL(href, sourceUrl);
-      candidate.hash = "";
-      if (
-        candidate.protocol !== "https:" ||
-        candidate.origin !== sourceUrl.origin
-      ) continue;
-
-      const current = results.get(candidate.toString());
+      const url = new URL(href, page.url);
+      url.hash = "";
+      if (url.protocol !== "https:" || url.origin !== page.url.origin) {
+        continue;
+      }
+      const current = found.get(url.toString());
       if (current === undefined || current.priority < priority) {
-        results.set(candidate.toString(), {
-          url: candidate,
-          priority,
-        });
+        found.set(url.toString(), { url, priority });
       }
     } catch {
-      // Malformed links are not eligible for first-party recovery.
+      // Ignore malformed links.
     }
   }
-
-  return [...results.values()].sort(
-    (left, right) =>
-      right.priority - left.priority ||
-      left.url.toString().localeCompare(
-        right.url.toString(),
-      ),
-  );
-}
-
-function fallbackPages(
-  sourceUrl: URL,
-): readonly QueuedPage[] {
-  return FALLBACK_PATHS.map((path, index) => ({
-    url: new URL(path, sourceUrl.origin),
-    priority: 55 - index,
-  }));
+  return [...found.values()];
 }
 
 function decodeCfEmail(value: string): string | null {
-  const encoded = value.trim();
   if (
-    encoded.length < 4 ||
-    encoded.length % 2 !== 0 ||
-    !/^[0-9a-f]+$/i.test(encoded)
+    value.length < 4 ||
+    value.length % 2 !== 0 ||
+    !/^[0-9a-f]+$/i.test(value)
   ) return null;
-
-  const key = Number.parseInt(encoded.slice(0, 2), 16);
-  let decoded = "";
-  for (let index = 2; index < encoded.length; index += 2) {
-    decoded += String.fromCharCode(
-      Number.parseInt(encoded.slice(index, index + 2), 16) ^ key,
+  const key = Number.parseInt(value.slice(0, 2), 16);
+  let result = "";
+  for (let index = 2; index < value.length; index += 2) {
+    result += String.fromCharCode(
+      Number.parseInt(value.slice(index, index + 2), 16) ^ key,
     );
   }
-  return decoded;
+  return result;
 }
 
-function normalizeObfuscatedEmailText(
-  value: string,
-): string {
+function normalizeObfuscatedEmail(value: string): string {
   return value
     .replace(/\s*(?:\[at\]|\(at\)|\{at\})\s*/gi, "@")
     .replace(/\s+at\s+(?=[a-z0-9.-]+\s+(?:\[dot\]|\(dot\)|\{dot\}|dot\s))/gi, "@")
@@ -467,47 +298,30 @@ function normalizeObfuscatedEmailText(
     .replace(/\s*\.\s*/g, ".");
 }
 
-function approvedGenericEmail(
-  value: string,
-): string | null {
-  const email = value
+function approvedEmail(raw: string): string | null {
+  const email = raw
     .trim()
     .replace(/^mailto:/i, "")
     .split(/[?#]/, 1)[0]!
     .toLowerCase();
-
-  if (
-    !/^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/.test(email)
-  ) return null;
-
+  if (!/^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/.test(email)) {
+    return null;
+  }
   const [localPart, domain] = email.split("@") as [string, string];
   if (PERSONAL_MAIL_DOMAINS.has(domain)) return null;
-
-  const mailboxRoot = localPart.split(/[._+-]/, 1)[0] ?? "";
-  return GENERIC_MAILBOXES.has(mailboxRoot)
-    ? email
-    : null;
+  const mailbox = localPart.split(/[._+-]/, 1)[0] ?? "";
+  return GENERIC_MAILBOXES.has(mailbox) ? email : null;
 }
 
-function emailCandidates(
-  page: LoadedPage,
-): readonly EmailCandidate[] {
+function emailsFrom(page: Page): readonly EmailCandidate[] {
   const found = new Map<string, EmailCandidate>();
-  const add = (
-    rawValue: string,
-    support: string,
-    score: number,
-  ) => {
-    const email = approvedGenericEmail(rawValue);
+  const add = (raw: string, support: string, score: number) => {
+    const email = approvedEmail(raw);
     if (email === null) return;
     const current = found.get(email);
-    if (current !== undefined && current.score >= score) return;
-    found.set(email, {
-      page,
-      email,
-      support,
-      score,
-    });
+    if (current === undefined || current.score < score) {
+      found.set(email, { page, email, support, score });
+    }
   };
 
   for (
@@ -519,7 +333,7 @@ function emailCandidates(
     try {
       raw = decodeURIComponent(raw);
     } catch {
-      // A malformed mailto value cannot be percent-decoded, but the raw value may still be usable.
+      // Keep the raw value if decoding fails.
     }
     add(
       raw,
@@ -543,135 +357,60 @@ function emailCandidates(
     }
   }
 
-  const normalizedText = normalizeObfuscatedEmailText(
-    decodeHtml(page.text),
-  );
+  const normalized = normalizeObfuscatedEmail(page.text);
   for (
-    const match of normalizedText.matchAll(
+    const match of normalized.matchAll(
       /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi,
     )
   ) {
     const raw = match[0];
-    add(
-      raw,
-      excerptAround(normalizedText, raw),
-      25,
-    );
+    add(raw, excerpt(normalized, raw), 25);
   }
 
   return [...found.values()];
 }
 
-function phonePageBranchScore(
-  businessName: string,
-  page: LoadedPage,
-  evidence: PublicPhoneEvidence,
-): number {
-  const tokens = businessTokens(businessName);
-  if (tokens.length === 0) return 0;
-
-  const pathMatches = tokenMatchCount(
-    tokens,
-    page.url.pathname,
-  );
-  const contextMatches = tokenMatchCount(
-    tokens,
-    evidence.context ?? "",
-  );
-
-  return pathMatches * 3 + contextMatches * 4;
-}
-
 function choosePhone(
-  pages: readonly LoadedPage[],
+  pages: readonly Page[],
   businessName: string,
 ): PhoneCandidate | null {
-  const byNumber = new Map<string, PhoneCandidate>();
-
-  for (const page of pages) {
-    for (
-      const evidence of extractPublicPhones(
-        page.html,
-        page.text,
-      )
-    ) {
-      const branchScore = phonePageBranchScore(
-        businessName,
-        page,
-        evidence,
-      );
-      const candidate: PhoneCandidate = {
-        page,
-        evidence,
-        branchScore,
-        totalScore:
-          evidence.score +
-          page.priority +
-          branchScore * 10,
-      };
-      const current = byNumber.get(
-        evidence.normalizedValue,
-      );
-      if (
-        current === undefined ||
-        current.totalScore < candidate.totalScore
-      ) {
-        byNumber.set(
-          evidence.normalizedValue,
-          candidate,
-        );
-      }
-    }
-  }
-
-  const candidates = [...byNumber.values()]
-    .sort((left, right) =>
-      right.totalScore - left.totalScore ||
-      right.branchScore - left.branchScore ||
-      left.evidence.normalizedValue.localeCompare(
-        right.evidence.normalizedValue,
-      ));
+  const tokens = businessTokens(businessName);
+  const candidates = pages.flatMap((page) =>
+    extractPublicPhones(page.html, page.text).map((evidence) => ({
+      page,
+      evidence,
+      branchScore:
+        tokenMatches(tokens, page.url.pathname) * 3 +
+        tokenMatches(tokens, evidence.context ?? "") * 4,
+    })),
+  ).sort((left, right) =>
+    right.branchScore - left.branchScore ||
+    right.evidence.score - left.evidence.score ||
+    right.page.priority - left.page.priority,
+  );
 
   const best = candidates[0];
   if (best === undefined) return null;
   if (candidates.length === 1) return best;
-
   const second = candidates[1]!;
-  if (best.branchScore > second.branchScore) {
-    return best;
-  }
+  if (best.branchScore > second.branchScore) return best;
 
-  const bestPagePathScore = tokenMatchCount(
-    businessTokens(businessName),
-    best.page.url.pathname,
-  );
-  const allBestPage = candidates.every(
-    (candidate) =>
-      candidate.page.url.toString() ===
-        best.page.url.toString(),
-  );
-
+  const samePage = candidates.every((candidate) =>
+    candidate.page.url.toString() === best.page.url.toString());
   if (
-    allBestPage &&
-    bestPagePathScore > 0
-  ) {
-    return best;
-  }
+    samePage &&
+    tokenMatches(tokens, best.page.url.pathname) > 0
+  ) return best;
 
-  // Several locations/numbers are present without a unique branch match.
-  // Do not persist an arbitrary number.
   return null;
 }
 
 function contactFact(
-  page: LoadedPage,
+  page: Page,
   factName: AutomaticResearchFact["factName"],
   factValue: string,
   support: string,
-  contactType: Exclude<
-    AutomaticResearchFact["contactType"],
-    null
-  >,
+  contactType: Exclude<AutomaticResearchFact["contactType"], null>,
   normalizedContactValue: string,
 ): AutomaticResearchFact {
   return {
@@ -685,6 +424,52 @@ function contactFact(
     contactType,
     normalizedContactValue,
   };
+}
+
+function ipv4IsPublic(address: string): boolean {
+  const octets = address.split(".").map(Number);
+  if (octets.length !== 4 || octets.some((value) =>
+    !Number.isInteger(value) || value < 0 || value > 255)) {
+    return false;
+  }
+  const [first, second, third] = octets as [number, number, number];
+  return !(
+    first === 0 || first === 10 || first === 127 ||
+    (first === 100 && second >= 64 && second <= 127) ||
+    (first === 169 && second === 254) ||
+    (first === 172 && second >= 16 && second <= 31) ||
+    (first === 192 && second === 168) ||
+    (first === 192 && second === 0) ||
+    (first === 198 && (second === 18 || second === 19)) ||
+    (first === 198 && second === 51 && third === 100) ||
+    (first === 203 && second === 0 && third === 113) ||
+    first >= 224
+  );
+}
+
+function ipIsPublic(address: string): boolean {
+  const kind = isIP(address);
+  if (kind === 4) return ipv4IsPublic(address);
+  if (kind !== 6) return false;
+  const normalized = address.toLowerCase();
+  if (normalized.startsWith("::ffff:")) {
+    return ipv4IsPublic(normalized.slice(7));
+  }
+  return !(
+    normalized === "::" || normalized === "::1" ||
+    normalized.startsWith("fc") || normalized.startsWith("fd") ||
+    normalized.startsWith("2001:db8:") || /^fe[89ab]/.test(normalized) ||
+    normalized.startsWith("ff")
+  );
+}
+
+async function defaultResolveHost(
+  hostname: string,
+): Promise<readonly string[]> {
+  return (await lookup(hostname, {
+    all: true,
+    verbatim: true,
+  })).map((record) => record.address);
 }
 
 export class FirstPartyContactRecoveryClient
@@ -707,22 +492,17 @@ implements ContactRecoveryProvider {
     this.resolveHost = options.resolveHost ?? defaultResolveHost;
   }
 
-  private async safeUrl(
-    value: string,
-    upgradeHttp = false,
-  ): Promise<URL> {
+  private async safeUrl(value: string, upgradeHttp = false): Promise<URL> {
     let url: URL;
     try {
       url = new URL(value);
     } catch {
       throw new FirstPartyResearchError("unsafe_url");
     }
-
     if (upgradeHttp && url.protocol === "http:") {
       url.protocol = "https:";
       url.port = "";
     }
-
     if (
       url.protocol !== "https:" ||
       url.username !== "" ||
@@ -732,75 +512,45 @@ implements ContactRecoveryProvider {
       url.hostname.endsWith(".localhost") ||
       url.hostname.endsWith(".local") ||
       url.hostname.endsWith(".internal")
-    ) {
-      throw new FirstPartyResearchError("unsafe_url");
-    }
+    ) throw new FirstPartyResearchError("unsafe_url");
 
     const addresses = isIP(url.hostname) === 0
       ? await this.resolveHost(url.hostname)
       : [url.hostname];
-
-    if (
-      addresses.length === 0 ||
-      addresses.some((address) => !ipIsPublic(address))
-    ) {
+    if (addresses.length === 0 || addresses.some((item) => !ipIsPublic(item))) {
       throw new FirstPartyResearchError("unsafe_url");
     }
-
     url.hash = "";
     return url;
   }
 
-  private async boundedText(
-    response: Response,
-  ): Promise<{
+  private async boundedBody(response: Response): Promise<{
     readonly value: string;
     readonly truncated: boolean;
   }> {
-    if (response.body === null) {
-      return {
-        value: "",
-        truncated: false,
-      };
-    }
-
+    if (response.body === null) return { value: "", truncated: false };
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let total = 0;
     let value = "";
-
     while (true) {
       const chunk = await reader.read();
       if (chunk.done) {
-        return {
-          value: value + decoder.decode(),
-          truncated: false,
-        };
+        return { value: value + decoder.decode(), truncated: false };
       }
-
       const remaining = this.maximumBytes - total;
       if (remaining <= 0) {
         await reader.cancel();
-        return {
-          value: value + decoder.decode(),
-          truncated: true,
-        };
+        return { value: value + decoder.decode(), truncated: true };
       }
-
       const accepted = chunk.value.byteLength > remaining
         ? chunk.value.slice(0, remaining)
         : chunk.value;
       total += accepted.byteLength;
-      value += decoder.decode(accepted, {
-        stream: true,
-      });
-
+      value += decoder.decode(accepted, { stream: true });
       if (accepted.byteLength < chunk.value.byteLength) {
         await reader.cancel();
-        return {
-          value: value + decoder.decode(),
-          truncated: true,
-        };
+        return { value: value + decoder.decode(), truncated: true };
       }
     }
   }
@@ -808,93 +558,51 @@ implements ContactRecoveryProvider {
   private async requestPage(
     initialUrl: URL,
     priority: number,
-  ): Promise<LoadedPage> {
+  ): Promise<Page> {
     let url = initialUrl;
-
     for (let redirects = 0; redirects <= 3; redirects += 1) {
-      let followedRedirect = false;
-
+      let redirectUrl: URL | null = null;
       for (let attempt = 0; attempt <= this.requestRetries; attempt += 1) {
         const controller = new AbortController();
-        const timeout = setTimeout(
-          () => controller.abort(),
-          this.timeoutMs,
-        );
-
+        const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
         try {
-          const response = await this.fetchFunction(
-            url,
-            {
-              method: "GET",
-              redirect: "manual",
-              headers: {
-                accept:
-                  "text/html,application/xhtml+xml",
-                "user-agent":
-                  "CleanUpCentral-LeadEngineLite/1.2",
-              },
-              signal: controller.signal,
+          const response = await this.fetchFunction(url, {
+            method: "GET",
+            redirect: "manual",
+            headers: {
+              accept: "text/html,application/xhtml+xml",
+              "user-agent": "CleanUpCentral-LeadEngineLite/1.2",
             },
-          );
-
-          if (
-            response.status >= 300 &&
-            response.status < 400
-          ) {
-            const location = response.headers.get(
-              "location",
-            );
+            signal: controller.signal,
+          });
+          if (response.status >= 300 && response.status < 400) {
+            const location = response.headers.get("location");
             if (location === null || redirects === 3) {
-              throw new FirstPartyResearchError(
-                "temporarily_unavailable",
-              );
+              throw new FirstPartyResearchError("temporarily_unavailable");
             }
-            url = await this.safeUrl(
+            redirectUrl = await this.safeUrl(
               new URL(location, url).toString(),
               true,
             );
-            followedRedirect = true;
             break;
           }
-
-          if (
-            [408, 425, 429, 500, 502, 503, 504]
-              .includes(response.status)
-          ) {
-            if (attempt < this.requestRetries) {
-              continue;
-            }
-            throw new FirstPartyResearchError(
-              "temporarily_unavailable",
-            );
+          if ([408, 425, 429, 500, 502, 503, 504].includes(response.status)) {
+            if (attempt < this.requestRetries) continue;
+            throw new FirstPartyResearchError("temporarily_unavailable");
           }
-
           if (!response.ok) {
-            throw new FirstPartyResearchError(
-              "unavailable",
-            );
+            throw new FirstPartyResearchError("unavailable");
           }
-
-          const mediaType = (
-            response.headers.get("content-type") ?? ""
-          )
-            .split(";", 1)[0]
-            ?.trim()
-            .toLowerCase();
-          if (
-            mediaType !== "text/html" &&
-            mediaType !== "application/xhtml+xml"
-          ) {
-            throw new FirstPartyResearchError(
-              "invalid_content",
-            );
+          const type = (response.headers.get("content-type") ?? "")
+            .split(";", 1)[0]?.trim().toLowerCase();
+          if (type !== "text/html" && type !== "application/xhtml+xml") {
+            throw new FirstPartyResearchError("invalid_content");
           }
-
-          const body = await this.boundedText(response);
+          const body = await this.boundedBody(response);
           return {
             url,
             html: body.value,
-            text: htmlText(body.value),
+            text: visibleText(body.value),
             truncated: body.truncated,
             priority,
           };
@@ -902,25 +610,20 @@ implements ContactRecoveryProvider {
           if (
             error instanceof FirstPartyResearchError &&
             error.failure !== "temporarily_unavailable"
-          ) {
-            throw error;
-          }
+          ) throw error;
           if (attempt >= this.requestRetries) {
-            throw new FirstPartyResearchError(
-              "temporarily_unavailable",
-            );
+            throw new FirstPartyResearchError("temporarily_unavailable");
           }
         } finally {
           clearTimeout(timeout);
         }
       }
-
-      if (followedRedirect) continue;
+      if (redirectUrl !== null) {
+        url = redirectUrl;
+        continue;
+      }
     }
-
-    throw new FirstPartyResearchError(
-      "temporarily_unavailable",
-    );
+    throw new FirstPartyResearchError("temporarily_unavailable");
   }
 
   async recover(
@@ -928,200 +631,123 @@ implements ContactRecoveryProvider {
     businessName: string,
     sector: LeadSector,
   ): Promise<ContactRecoveryResult> {
-    const start = await this.safeUrl(
-      websiteUrl,
-      true,
-    );
-    const targetTokens = businessTokens(businessName);
-    const queue: QueuedPage[] = [{
-      url: start,
-      priority: 120,
-    }];
-    const queued = new Set<string>([
-      start.toString(),
-    ]);
+    const start = await this.safeUrl(websiteUrl, true);
+    const tokens = businessTokens(businessName);
+    const queue: QueuedPage[] = [{ url: start, priority: 120 }];
+    const queued = new Set([start.toString()]);
     const visited = new Set<string>();
-    const pages: LoadedPage[] = [];
+    const pages: Page[] = [];
 
-    const enqueue = (
-      candidates: readonly QueuedPage[],
-    ) => {
-      for (const candidate of candidates) {
-        const key = candidate.url.toString();
-        if (
-          visited.has(key) ||
-          queued.has(key)
-        ) continue;
+    const enqueue = (items: readonly QueuedPage[]) => {
+      for (const item of items) {
+        const key = item.url.toString();
+        if (visited.has(key) || queued.has(key)) continue;
         queued.add(key);
-        queue.push(candidate);
+        queue.push(item);
       }
       queue.sort((left, right) =>
         right.priority - left.priority ||
-        left.url.toString().localeCompare(
-          right.url.toString(),
-        ));
+        left.url.toString().localeCompare(right.url.toString()));
     };
 
-    while (
-      queue.length > 0 &&
-      pages.length < this.maximumPages
-    ) {
+    while (queue.length > 0 && pages.length < this.maximumPages) {
       const requested = queue.shift()!;
       queued.delete(requested.url.toString());
-      if (visited.has(requested.url.toString())) {
-        continue;
-      }
-
+      if (visited.has(requested.url.toString())) continue;
       try {
-        const loaded = await this.requestPage(
-          requested.url,
-          requested.priority,
-        );
+        const page = await this.requestPage(requested.url, requested.priority);
         visited.add(requested.url.toString());
-        visited.add(loaded.url.toString());
-
-        if (loaded.url.origin !== start.origin) {
-          continue;
-        }
-
-        pages.push(loaded);
-        enqueue(pageLinks(
-          loaded.html,
-          loaded.url,
-          sector,
-          targetTokens,
-        ));
-
+        visited.add(page.url.toString());
+        if (page.url.origin !== start.origin) continue;
+        pages.push(page);
+        enqueue(discoveredLinks(page, sector, tokens));
         if (pages.length === 1) {
-          enqueue(fallbackPages(loaded.url));
+          enqueue(FALLBACK_PATHS.map((path, index) => ({
+            url: new URL(path, page.url.origin),
+            priority: 55 - index,
+          })));
         }
       } catch (error) {
         visited.add(requested.url.toString());
         if (
           error instanceof FirstPartyResearchError &&
-          [
-            "temporarily_unavailable",
-            "unavailable",
-            "invalid_content",
-          ].includes(error.failure)
-        ) {
-          continue;
-        }
+          ["temporarily_unavailable", "unavailable", "invalid_content"]
+            .includes(error.failure)
+        ) continue;
         throw error;
       }
     }
 
     const facts: AutomaticResearchFact[] = [];
-    const seen = new Set<string>();
-    const addFact = (
-      fact: AutomaticResearchFact,
-    ) => {
-      const key = `${fact.factName}\n${
-        fact.normalizedContactValue ??
-        fact.factValue.toLowerCase()
-      }`;
-      if (seen.has(key)) return;
-      seen.add(key);
-      facts.push(fact);
-    };
 
-    const emailByAddress =
-      new Map<string, EmailCandidate>();
-    for (
-      const candidate of pages.flatMap(
-        (page) => emailCandidates(page),
-      )
-    ) {
-      const current = emailByAddress.get(
-        candidate.email,
-      );
+    const distinctEmails = new Map<string, EmailCandidate>();
+    for (const candidate of pages.flatMap(emailsFrom)) {
+      const current = distinctEmails.get(candidate.email);
       if (
         current === undefined ||
         candidate.score > current.score ||
         (
           candidate.score === current.score &&
-          candidate.page.priority >
-            current.page.priority
+          candidate.page.priority > current.page.priority
         )
-      ) {
-        emailByAddress.set(
-          candidate.email,
-          candidate,
-        );
-      }
+      ) distinctEmails.set(candidate.email, candidate);
     }
 
-    const emails = [...emailByAddress.values()]
-      .sort((left, right) =>
-        right.score - left.score ||
-        right.page.priority - left.page.priority ||
-        left.email.localeCompare(right.email),
-      );
-
-    for (const email of emails.slice(0, 3)) {
-      addFact(contactFact(
-        email.page,
+    for (
+      const candidate of [...distinctEmails.values()]
+        .sort((left, right) =>
+          right.score - left.score ||
+          right.page.priority - left.page.priority ||
+          left.email.localeCompare(right.email))
+        .slice(0, 3)
+    ) {
+      facts.push(contactFact(
+        candidate.page,
         "public_email",
-        email.email,
-        email.support,
+        candidate.email,
+        candidate.support,
         "email",
-        email.email,
+        candidate.email,
       ));
     }
 
-    const phone = choosePhone(
-      pages,
-      businessName,
-    );
+    const phone = choosePhone(pages, businessName);
     if (phone !== null) {
-      addFact(contactFact(
+      facts.push(contactFact(
         phone.page,
         "public_phone",
         phone.evidence.displayValue,
-        phone.evidence.context ||
-          phone.evidence.support,
+        phone.evidence.context || phone.evidence.support,
         "phone",
         phone.evidence.normalizedValue,
       ));
     }
 
-    const bestForm = pages
+    const form = pages
       .map((page) => ({
         page,
-        evidence: detectContactForm(
-          page.html,
-          page.url,
-        ),
+        evidence: detectContactForm(page.html, page.url),
       }))
-      .filter((candidate) =>
-        candidate.evidence !== null)
+      .filter((item) => item.evidence !== null)
       .sort((left, right) =>
-        (right.evidence?.score ?? 0) -
-          (left.evidence?.score ?? 0) ||
-        right.page.priority - left.page.priority,
-      )[0];
+        (right.evidence?.score ?? 0) - (left.evidence?.score ?? 0) ||
+        right.page.priority - left.page.priority)[0];
 
-    if (
-      bestForm !== undefined &&
-      bestForm.evidence !== null
-    ) {
-      addFact(contactFact(
-        bestForm.page,
+    if (form?.evidence !== null && form?.evidence !== undefined) {
+      facts.push(contactFact(
+        form.page,
         "contact_form_url",
-        bestForm.page.url.toString(),
-        bestForm.evidence.support,
+        form.page.url.toString(),
+        form.evidence.support,
         "contact_form",
-        bestForm.page.url.toString().toLowerCase(),
+        form.page.url.toString().toLowerCase(),
       ));
     }
 
     return {
       facts,
-      visitedUrls: pages.map((page) =>
-        page.url.toString()),
-      truncatedPageCount: pages.filter(
-        (page) => page.truncated,
-      ).length,
+      visitedUrls: pages.map((page) => page.url.toString()),
+      truncatedPageCount: pages.filter((page) => page.truncated).length,
     };
   }
 }

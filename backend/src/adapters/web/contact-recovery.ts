@@ -1025,8 +1025,33 @@ implements ContactRecoveryProvider {
       facts.push(fact);
     };
 
-    const emails = pages
-      .flatMap((page) => emailCandidates(page))
+    const emailByAddress =
+      new Map<string, EmailCandidate>();
+    for (
+      const candidate of pages.flatMap(
+        (page) => emailCandidates(page),
+      )
+    ) {
+      const current = emailByAddress.get(
+        candidate.email,
+      );
+      if (
+        current === undefined ||
+        candidate.score > current.score ||
+        (
+          candidate.score === current.score &&
+          candidate.page.priority >
+            current.page.priority
+        )
+      ) {
+        emailByAddress.set(
+          candidate.email,
+          candidate,
+        );
+      }
+    }
+
+    const emails = [...emailByAddress.values()]
       .sort((left, right) =>
         right.score - left.score ||
         right.page.priority - left.page.priority ||

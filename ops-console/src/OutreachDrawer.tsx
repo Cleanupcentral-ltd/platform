@@ -5,12 +5,18 @@ import {
 } from "react";
 
 import {
+  LEAD_SECTOR_OPTIONS,
+} from "./lead-search-api";
+
+import {
   getManualOutreachWorkspace,
   previewManualOutreachDraft,
   recordManualOutreachActivity,
   type ManualOutreachPreview,
   type ManualOutreachWorkspace,
 } from "./manual-outreach-api";
+
+import "./sector-audit.css";
 
 interface OutreachDrawerProps {
   readonly backendUrl: string;
@@ -67,6 +73,24 @@ function contactNotes(
   return founderNote === ""
     ? label
     : `${label} · ${founderNote}`;
+}
+
+function templateLabel(
+  templateId: string,
+): string {
+  const templateSector =
+    LEAD_SECTOR_OPTIONS.find((item) =>
+      templateId ===
+        `initial_outreach_v2_${item.value}`,
+    );
+  return templateSector?.label ?? templateId;
+}
+
+function templateMatchesSector(
+  preview: ManualOutreachPreview,
+): boolean {
+  return preview.templateId ===
+    `initial_outreach_v2_${preview.sector}`;
 }
 
 export function OutreachDrawer({
@@ -260,7 +284,9 @@ export function OutreachDrawer({
                 "Preparing outreach…"}
             </h2>
             {preview !== null && (
-              <p>{preview.sectorLabel}</p>
+              <p className="le-outreach-sector-kicker">
+                {preview.sectorLabel}
+              </p>
             )}
           </div>
           <button
@@ -291,6 +317,37 @@ export function OutreachDrawer({
               <small>
                 First-party generic business email
               </small>
+            </div>
+
+            <div className="le-outreach-sector-audit">
+              <div className="le-outreach-sector-audit-head">
+                <span>Draft sector check</span>
+                <span
+                  className={
+                    templateMatchesSector(preview)
+                      ? "le-template-match"
+                      : "le-template-match is-warning"
+                  }
+                >
+                  {templateMatchesSector(preview)
+                    ? "Matched"
+                    : "Check template"}
+                </span>
+              </div>
+              <div className="le-outreach-sector-audit-row">
+                <span>Verified sector</span>
+                <strong>
+                  {preview.sectorLabel}
+                </strong>
+              </div>
+              <div className="le-outreach-sector-audit-row">
+                <span>Email template</span>
+                <strong>
+                  {templateLabel(
+                    preview.templateId,
+                  )}
+                </strong>
+              </div>
             </div>
 
             <button

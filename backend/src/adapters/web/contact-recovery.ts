@@ -861,6 +861,10 @@ implements ContactRecoveryProvider {
     const queued = new Set([start.toString()]);
     const visited = new Set<string>();
     const pages: Page[] = [];
+    const requestAttempts: Array<{
+      readonly url: string;
+      readonly outcome: string;
+    }> = [];
 
     const enqueue = (items: readonly QueuedPage[]) => {
       for (const item of items) {
@@ -880,6 +884,10 @@ implements ContactRecoveryProvider {
       if (visited.has(requested.url.toString())) continue;
       try {
         const page = await this.requestPage(requested.url, requested.priority);
+        requestAttempts.push({
+          url: requested.url.toString(),
+          outcome: "fetched",
+        });
         visited.add(requested.url.toString());
         visited.add(page.url.toString());
         if (page.url.origin !== start.origin) continue;
@@ -892,6 +900,12 @@ implements ContactRecoveryProvider {
           })));
         }
       } catch (error) {
+        requestAttempts.push({
+          url: requested.url.toString(),
+          outcome: error instanceof FirstPartyResearchError
+            ? error.failure
+            : "unexpected_error",
+        });
         visited.add(requested.url.toString());
         if (
           error instanceof FirstPartyResearchError &&
@@ -935,6 +949,15 @@ implements ContactRecoveryProvider {
       ));
     }
 
+    const distinctPhoneValues = new Set(
+      pages.flatMap((page) =>
+        extractPublicPhones(
+          page.html,
+          `${page.text} ${page.structuredText}`.trim(),
+          { allowConflictingLocations: true },
+        ).map((item) => item.normalizedValue),
+      ),
+    );
     const phone = choosePhone(pages, businessName);
     if (phone !== null) {
       facts.push(contactFact(
@@ -967,6 +990,19 @@ implements ContactRecoveryProvider {
         form.page.url.toString().toLowerCase(),
       ));
     }
+
+    console.info(JSON.stringify({
+      msg: "Lead contact recovery diagnostics",
+      startUrl: start.toString(),
+      requestAttempts: requestAttempts.slice(0, 24),
+      successfulPageCount: pages.length,
+      truncatedPageCount:
+        pages.filter((page) => page.truncated).length,
+      distinctEmailCandidateCount: distinctEmails.size,
+      distinctPhoneCandidateCount: distinctPhoneValues.size,
+      phoneSelected: phone !== null,
+      recoveredFactTypes: facts.map((fact) => fact.factName),
+    }));
 
     return {
       facts,

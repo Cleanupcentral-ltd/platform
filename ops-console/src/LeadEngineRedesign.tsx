@@ -119,6 +119,28 @@ export function LeadEngineRedesign({
     void refreshProspects();
   }, [refreshProspects]);
 
+  useEffect(() => {
+    const qualificationInFlight =
+      prospects.some((prospect) =>
+        prospect.companyEnrichment
+          ?.qualificationState ===
+          "processing" ||
+        prospect.companyEnrichment?.status ===
+          "pending" ||
+        prospect.companyEnrichment?.status ===
+          "processing",
+      );
+    if (!qualificationInFlight) {
+      return;
+    }
+
+    const timer = window.setInterval(
+      () => void refreshProspects(),
+      30_000,
+    );
+    return () => window.clearInterval(timer);
+  }, [prospects, refreshProspects]);
+
   const selectReviewProspect = useCallback(
     (prospectId: string | null) => {
       setSelectedId(prospectId);

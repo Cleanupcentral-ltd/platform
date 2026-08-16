@@ -120,9 +120,13 @@ const SECTOR_LINKS: Readonly<Record<LeadSector, RegExp>> = {
 
 const FALLBACK_PATHS = [
   "/contact",
+  "/contact.html",
   "/contact-us",
+  "/contact-us.html",
   "/get-in-touch",
+  "/get-in-touch.html",
   "/enquiries",
+  "/enquiries.html",
   "/locations",
   "/our-locations",
   "/offices",
@@ -130,6 +134,8 @@ const FALLBACK_PATHS = [
   "/branches",
   "/hire",
 ] as const;
+
+const CONTACT_RECOVERY_MAX_BYTES = 1_048_576;
 
 const BUSINESS_STOPWORDS = new Set([
   "accommodation", "agent", "agents", "and", "commercial", "company",
@@ -657,7 +663,13 @@ implements ContactRecoveryProvider {
 
   constructor(options: FirstPartyContactRecoveryOptions) {
     this.timeoutMs = options.timeoutMs;
-    this.maximumBytes = options.maximumBytes;
+    // Contact Recovery only runs after ordinary first-party research has missed
+    // a usable route. Give that second pass one additional bounded read window
+    // without changing the ordinary research limit or exceeding 1 MiB.
+    this.maximumBytes = Math.min(
+      CONTACT_RECOVERY_MAX_BYTES,
+      options.maximumBytes * 2,
+    );
     this.maximumPages = options.maximumPages ?? 8;
     this.requestRetries = options.requestRetries ?? 1;
     this.fetchFunction = options.fetchFunction ?? fetch;

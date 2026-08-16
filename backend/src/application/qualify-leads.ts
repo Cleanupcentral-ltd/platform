@@ -313,11 +313,25 @@ export function createAutomaticQualificationService(
     }
 
     if (research !== null) {
+      const factsForPersistence = research.facts.map((fact) => {
+        if (fact.factName !== "business_name") {
+          return fact;
+        }
+        const originalBusinessName = businessName.trim();
+        return {
+          ...fact,
+          factValue: originalBusinessName,
+          contentSha256: sha256(
+            `${fact.sourceUrl}\nbusiness_name\n${originalBusinessName}\n${fact.sourceExcerpt}`,
+          ),
+        };
+      });
+
       await options.repository.recordResearch(
         job.prospectId,
         job.actorId,
         job.attemptCount,
-        research.facts,
+        factsForPersistence,
       );
 
       const identityConfirmed =

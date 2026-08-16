@@ -350,25 +350,20 @@ function discoveredLinks(
   tokens: readonly string[],
 ): readonly QueuedPage[] {
   const found = new Map<string, QueuedPage>();
-  for (
-    const match of page.html.matchAll(
-      /<a\b[^>]*\bhref\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi,
-    )
-  ) {
-    const href = match[1];
-    if (href === undefined) continue;
+
+  const add = (href: string, label: string) => {
     const priority = linkPriority(
       href,
-      visibleText(match[2] ?? ""),
+      label,
       sector,
       tokens,
     );
-    if (priority < 0) continue;
+    if (priority < 0) return;
     try {
       const url = new URL(href, page.url);
       url.hash = "";
       if (url.protocol !== "https:" || url.origin !== page.url.origin) {
-        continue;
+        return;
       }
       const current = found.get(url.toString());
       if (current === undefined || current.priority < priority) {
@@ -377,7 +372,30 @@ function discoveredLinks(
     } catch {
       // Ignore malformed links.
     }
+  };
+
+  for (
+    const match of page.html.matchAll(
+      /<a\b[^>]*\bhref\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi,
+    )
+  ) {
+    const href = match[1];
+    if (href === undefined) continue;
+    add(href, visibleText(match[2] ?? ""));
   }
+
+  // A truncated or page-builder navigation fragment can contain the href
+  // without a complete closing anchor. Contact-like URLs are still useful
+  // discovery evidence, so inspect raw href attributes as a bounded fallback.
+  for (
+    const match of page.html.matchAll(
+      /\bhref\s*=\s*["']([^"']+)["']/gi,
+    )
+  ) {
+    const href = match[1];
+    if (href !== undefined) add(href, "");
+  }
+
   return [...found.values()];
 }
 
@@ -549,19 +567,40 @@ function choosePhone(
   businessName: string,
 ): PhoneCandidate | null {
   const tokens = businessTokens(businessName);
-  const candidates = pages.flatMap((page) =>
-    extractPublicPhones(
+  const distinct = new Map<string, PhoneCandidate>();
+
+  for (const page of pages) {
+    for (const evidence of extractPublicPhones(
       page.html,
       `${page.text} ${page.structuredText}`.trim(),
       { allowConflictingLocations: true },
-    ).map((evidence) => ({
-      page,
-      evidence,
-      branchScore:
-        tokenMatches(tokens, page.url.pathname) * 8 +
-        tokenProximityScore(tokens, evidence),
-    })),
-  ).sort((left, right) =>
+    )) {
+      const candidate: PhoneCandidate = {
+        page,
+        evidence,
+        branchScore:
+          tokenMatches(tokens, page.url.pathname) * 8 +
+          tokenProximityScore(tokens, evidence),
+      };
+      const current = distinct.get(evidence.normalizedValue);
+      if (
+        current === undefined ||
+        candidate.branchScore > current.branchScore ||
+        (
+          candidate.branchScore === current.branchScore &&
+          candidate.evidence.score > current.evidence.score
+        ) || (
+          candidate.branchScore === current.branchScore &&
+          candidate.evidence.score === current.evidence.score &&
+          candidate.page.priority > current.page.priority
+        )
+      ) {
+        distinct.set(evidence.normalizedValue, candidate);
+      }
+    }
+  }
+
+  const candidates = [...distinct.values()].sort((left, right) =>
     right.branchScore - left.branchScore ||
     right.evidence.score - left.evidence.score ||
     right.page.priority - left.page.priority,

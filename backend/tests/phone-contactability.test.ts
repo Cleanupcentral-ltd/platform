@@ -14,8 +14,6 @@ const PROSPECT_ID =
   "11111111-1111-4111-8111-111111111111";
 const PHONE_EVIDENCE_ID =
   "22222222-2222-4222-8222-222222222222";
-const SUBSCRIBER_EVIDENCE_ID =
-  "33333333-3333-4333-8333-333333333333";
 
 function evidence(
   id: string,
@@ -37,7 +35,7 @@ function evidence(
   };
 }
 
-function phoneOnlyProspect(): LeadProspectReview {
+function phoneReadyProspect(): LeadProspectReview {
   return {
     id: PROSPECT_ID,
     businessName: "Example Business",
@@ -50,14 +48,19 @@ function phoneOnlyProspect(): LeadProspectReview {
     hasActiveSuppression: false,
     evidence: [
       evidence(
+        "11111111-2222-4222-8222-222222222222",
+        "business_name",
+        "Example Business",
+      ),
+      evidence(
+        "11111111-3333-4333-8333-333333333333",
+        "approved_sector",
+        "offices_coworking",
+      ),
+      evidence(
         PHONE_EVIDENCE_ID,
         "public_phone",
         "020 8464 5566",
-      ),
-      evidence(
-        SUBSCRIBER_EVIDENCE_ID,
-        "subscriber_type",
-        "corporate",
       ),
     ],
     contacts: [{
@@ -74,10 +77,10 @@ function phoneOnlyProspect(): LeadProspectReview {
 }
 
 test(
-  "a verified first-party phone is a usable contact route but does not fake email readiness",
+  "a verified first-party phone can make a prospect ready without subscriber, active-status or score gates",
   () => {
     const result = calculateLeadAssessment(
-      phoneOnlyProspect(),
+      phoneReadyProspect(),
     );
 
     assert.equal(
@@ -85,15 +88,15 @@ test(
         .compliantContactability.points,
       1,
     );
+    assert.equal(result.totalScore, 5);
     assert.equal(
-      result.blockers.includes(
-        "no_verified_contact_route",
-      ),
-      false,
+      result.eligibilityResult,
+      "eligible",
     );
+    assert.deepEqual(result.blockers, []);
     assert.equal(
-      result.blockers.includes(
-        "unapproved_email_basis",
+      result.rationale.includes(
+        "Email drafting remains separately gated",
       ),
       true,
     );

@@ -100,7 +100,7 @@ test(
 );
 
 test(
-  "strict v2 automatic contact form evidence earns contactability",
+  "strict v2 automatic contact form evidence earns score but does not count as a direct Ready route",
   () => {
     const result = calculateLeadAssessment(
       prospect(
@@ -116,11 +116,16 @@ test(
         .compliantContactability.points,
       1,
     );
+    assert.ok(
+      result.blockers.includes(
+        "no_verified_contact_route",
+      ),
+    );
   },
 );
 
 test(
-  "founder-reviewed contact forms remain trusted",
+  "founder-reviewed contact forms remain trusted evidence but do not count as a direct Ready route",
   () => {
     const result = calculateLeadAssessment(
       prospect(
@@ -135,6 +140,11 @@ test(
       result.scoreBreakdown
         .compliantContactability.points,
       1,
+    );
+    assert.ok(
+      result.blockers.includes(
+        "no_verified_contact_route",
+      ),
     );
   },
 );

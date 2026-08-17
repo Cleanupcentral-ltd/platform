@@ -274,6 +274,20 @@ function verifiedSector(
   return prospect.sector;
 }
 
+function hasApprovedEmailBasis(
+  prospect: LeadProspectReview,
+): boolean {
+  return verified(
+    prospect,
+    "subscriber_type",
+  ).some(
+    (item) =>
+      item.fieldValue
+        .trim()
+        .toLowerCase() === "corporate",
+  );
+}
+
 function buildPreview(
   prospect: LeadProspectReview,
   requestedContactId: string | null,
@@ -298,6 +312,8 @@ function buildPreview(
 
   const sector = verifiedSector(prospect);
   const sectorCopy = SECTOR_COPY[sector];
+  const emailBasisApproved =
+    hasApprovedEmailBasis(prospect);
   const evidenceById = new Map(
     verified(prospect).map((item) => [
       item.id,
@@ -310,6 +326,7 @@ function buildPreview(
         contact.sourceEvidenceId,
       );
       return (
+        emailBasisApproved &&
         contact.contactType === "email" &&
         contact.verificationStatus === "verified" &&
         source?.fieldName === "public_email" &&

@@ -266,7 +266,7 @@ test(
 );
 
 test(
-  "a personal mailbox stays in founder review even with corporate evidence",
+  "a personal mailbox is not an approved direct email route even with corporate evidence",
   () => {
     const emailEvidence = evidence(
       "10000000-0000-4000-8000-000000000011",
@@ -309,14 +309,14 @@ test(
     );
     assert.ok(
       result.blockers.includes(
-        "unapproved_email_basis",
+        "no_verified_contact_route",
       ),
     );
   },
 );
 
 test(
-  "score_below_ready_threshold regression: otherwise clear 6-point prospect remains research required",
+  "priority score does not gate an otherwise clear prospect",
   () => {
     const sameSource = "https://example.com/";
     const records = [
@@ -373,11 +373,78 @@ test(
     assert.equal(result.totalScore, 6);
     assert.equal(
       result.eligibilityResult,
+      "eligible",
+    );
+    assert.deepEqual(result.blockers, []);
+  },
+);
+
+test(
+  "lack of active-status evidence does not block a business unless inactive evidence exists",
+  () => {
+    const records = [
+      evidence(
+        "10000000-0000-4000-8000-000000000041",
+        "first_party_website",
+        "business_name",
+        "Example Offices",
+      ),
+      evidence(
+        "10000000-0000-4000-8000-000000000042",
+        "first_party_website",
+        "approved_sector",
+        "offices_coworking",
+      ),
+      evidence(
+        "10000000-0000-4000-8000-000000000043",
+        "first_party_website",
+        "public_phone",
+        "020 8000 0000",
+      ),
+    ];
+    const base = prospect({
+      evidence: records,
+      hasSearchProvenance: false,
+      contacts: [{
+        id:
+          "20000000-0000-4000-8000-000000000041",
+        contactType: "phone",
+        contactValue: "020 8000 0000",
+        normalizedValue: "02080000000",
+        sourceEvidenceId: records[2]!.id,
+        verificationStatus: "verified",
+      }],
+    });
+
+    const eligible = calculateLeadAssessment(base);
+    assert.equal(
+      eligible.eligibilityResult,
+      "eligible",
+    );
+    assert.deepEqual(eligible.blockers, []);
+
+    const inactive = calculateLeadAssessment(
+      prospect({
+        ...base,
+        evidence: [
+          ...records,
+          evidence(
+            "10000000-0000-4000-8000-000000000044",
+            "companies_house",
+            "business_status",
+            "inactive",
+          ),
+        ],
+      }),
+    );
+    assert.equal(
+      inactive.eligibilityResult,
       "research_required",
     );
-    assert.deepEqual(
-      result.blockers,
-      ["score_below_ready_threshold"],
+    assert.ok(
+      inactive.blockers.includes(
+        "active_status_unverified_or_inactive",
+      ),
     );
   },
 );

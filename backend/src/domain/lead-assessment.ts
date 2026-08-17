@@ -10,19 +10,12 @@ import {
 } from "./business-email.js";
 
 export const LEAD_SCORING_VERSION =
-  "cuc-lel-0-10-v1.5";
+  "cuc-lel-0-10-v1.6";
 
+// Retained as ranking reference points. Score no longer gates outreach
+// eligibility; it orders otherwise eligible prospects by opportunity value.
 export const LEAD_READY_MINIMUM_SCORE = 7;
 export const LEAD_VENUE_READY_MINIMUM_SCORE = 6;
-
-function minimumReadyScore(
-  prospect: LeadProspectReview,
-): number {
-  return prospect.sector ===
-    "community_halls_event_venues"
-    ? LEAD_VENUE_READY_MINIMUM_SCORE
-    : LEAD_READY_MINIMUM_SCORE;
-}
 
 export const LEAD_QUALIFICATION_BLOCKERS = {
   missingVerifiedIdentity:
@@ -306,38 +299,42 @@ function scaleScore(
   };
 }
 
-function contactabilityScore(
+function verifiedFirstPartyContacts(
   prospect: LeadProspectReview,
-): DimensionScore {
+): {
+  readonly emails: readonly LeadContactRecord[];
+  readonly phones: readonly LeadContactRecord[];
+  readonly forms: readonly LeadContactRecord[];
+} {
   const evidenceById = new Map(
     persistentEvidence(prospect).map(
       (item) => [item.id, item],
     ),
   );
-  const verifiedContacts =
-    prospect.contacts.filter(
-      (item) =>
-        item.verificationStatus ===
-          "verified" &&
-        evidenceById.has(
-          item.sourceEvidenceId,
-        ),
-    );
-  const emails = verifiedContacts.filter(
+  const contacts = prospect.contacts.filter(
+    (item) =>
+      item.verificationStatus ===
+        "verified" &&
+      evidenceById.has(
+        item.sourceEvidenceId,
+      ),
+  );
+
+  const emails = contacts.filter(
     (item) => {
       const source = evidenceById.get(
         item.sourceEvidenceId,
       );
       return item.contactType === "email" &&
-      source?.sourceType ===
-        "first_party_website" &&
-      source.fieldName === "public_email" &&
-      isGenericBusinessEmail(
-        item.normalizedValue,
-      );
+        source?.sourceType ===
+          "first_party_website" &&
+        source.fieldName === "public_email" &&
+        isGenericBusinessEmail(
+          item.normalizedValue,
+        );
     },
   );
-  const phones = verifiedContacts.filter(
+  const phones = contacts.filter(
     (item) => {
       const source = evidenceById.get(
         item.sourceEvidenceId,
@@ -348,7 +345,7 @@ function contactabilityScore(
         source.fieldName === "public_phone";
     },
   );
-  const forms = verifiedContacts.filter(
+  const forms = contacts.filter(
     (item) =>
       item.contactType ===
         "contact_form" &&
@@ -358,15 +355,30 @@ function contactabilityScore(
         ),
       ),
   );
-  const subscriberType = normalizedFact(
-    persistentEvidence(
-      prospect,
-      "subscriber_type",
-    ),
-  );
+
+  return { emails, phones, forms };
+}
+
+function approvedEmailBasis(
+  prospect: LeadProspectReview,
+  emails: readonly LeadContactRecord[],
+): boolean {
+  return emails.length > 0 &&
+    normalizedFact(
+      persistentEvidence(
+        prospect,
+        "subscriber_type",
+      ),
+    ) === "corporate";
+}
+
+function contactabilityScore(
+  prospect: LeadProspectReview,
+): DimensionScore {
+  const { emails, phones, forms } =
+    verifiedFirstPartyContacts(prospect);
   const compliantEmail =
-    emails.length > 0 &&
-    subscriberType === "corporate";
+    approvedEmailBasis(prospect, emails);
 
   if (compliantEmail) {
     const supporting = [
@@ -408,6 +420,32 @@ function contactabilityScore(
       "No compliant verified public contact route is available.",
     evidenceIds: [],
   };
+}
+
+function hasDirectOutreachRoute(
+  prospect: LeadProspectReview,
+): boolean {
+  const { emails, phones } =
+    verifiedFirstPartyContacts(prospect);
+
+  // A verified business phone is independently usable. Email remains
+  // channel-gated and only qualifies when its corporate basis is verified.
+  return phones.length > 0 ||
+    approvedEmailBasis(prospect, emails);
+}
+
+function hasVerifiedInactiveStatus(
+  prospect: LeadProspectReview,
+): boolean {
+  return persistentEvidence(
+    prospect,
+    "business_status",
+  ).some(
+    (item) =>
+      item.fieldValue
+        .trim()
+        .toLowerCase() === "inactive",
+  );
 }
 
 function confidenceScore(
@@ -521,25 +559,13 @@ export function calculateLeadAssessment(
         .unverifiedSector,
     );
   }
-  if (!prospect.hasSearchProvenance) {
-    blockers.push(
-      LEAD_QUALIFICATION_BLOCKERS
-        .missingSearchProvenance,
-    );
-  }
-  const activeStatus = normalizedFact(
-    persistentEvidence(
-      prospect,
-      "business_status",
-    ),
-  );
-  if (activeStatus !== "active") {
+  if (hasVerifiedInactiveStatus(prospect)) {
     blockers.push(
       LEAD_QUALIFICATION_BLOCKERS
         .inactiveOrUnverified,
     );
   }
-  if (compliantContactability.points === 0) {
+  if (!hasDirectOutreachRoute(prospect)) {
     blockers.push(
       LEAD_QUALIFICATION_BLOCKERS
         .noVerifiedContact,
@@ -552,64 +578,12 @@ export function calculateLeadAssessment(
     );
   }
 
-  const subscriberType = normalizedFact(
-    persistentEvidence(
-      prospect,
-      "subscriber_type",
-    ),
-  );
-  if (
-    subscriberType === null ||
-    subscriberType === "unknown"
-  ) {
-    blockers.push(
-      LEAD_QUALIFICATION_BLOCKERS
-        .unresolvedSubscriber,
-    );
-  }
-  const persistentEvidenceById =
-    new Map(
-      persistentEvidence(prospect).map(
-        (item) => [item.id, item],
-      ),
-    );
-  const hasApprovedEmailBasis =
-    subscriberType === "corporate" &&
-    prospect.contacts.some((contact) => {
-      const source = persistentEvidenceById.get(
-        contact.sourceEvidenceId,
-      );
-      return contact.verificationStatus ===
-          "verified" &&
-        contact.contactType === "email" &&
-        source?.sourceType ===
-          "first_party_website" &&
-        source.fieldName === "public_email" &&
-        isGenericBusinessEmail(
-          contact.normalizedValue,
-        );
-    });
-  if (!hasApprovedEmailBasis) {
-    blockers.push(
-      LEAD_QUALIFICATION_BLOCKERS
-        .unapprovedEmailBasis,
-    );
-  }
-
   const totalScore =
     dimensions.reduce(
       (sum, item) =>
         sum + item.points,
       0,
     );
-  const readyMinimumScore =
-    minimumReadyScore(prospect);
-  if (totalScore < readyMinimumScore) {
-    blockers.push(
-      LEAD_QUALIFICATION_BLOCKERS
-        .scoreBelowReadyThreshold,
-    );
-  }
   const citedEvidence = [
     ...new Set(
       dimensions.flatMap(
@@ -637,8 +611,8 @@ export function calculateLeadAssessment(
     blockers,
     rationale:
       eligibilityResult === "eligible"
-        ? `Ready for founder draft approval with a transparent score of ${totalScore}/10. Outlook drafting and sending remain disabled.`
-        : `Research required. Score ${totalScore}/10 does not override ${blockers.length} qualification blocker${blockers.length === 1 ? "" : "s"}.`,
+        ? `Ready for founder outreach with a transparent priority score of ${totalScore}/10. Email drafting remains separately gated by verified corporate email basis; sending remains disabled.`
+        : `Research required. Priority score ${totalScore}/10 does not override ${blockers.length} genuine qualification blocker${blockers.length === 1 ? "" : "s"}.`,
     evidenceIds: citedEvidence,
   };
 }

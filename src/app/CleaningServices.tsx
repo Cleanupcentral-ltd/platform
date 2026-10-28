@@ -468,11 +468,12 @@ export default function CleaningServicesPage() {
                 <span className="hidden size-14 place-items-center border border-[#B08A3C] text-[#B08A3C] lg:grid">
                   <Icon size={28} strokeWidth={1.75} />
                 </span>
-                {expanded && details && details.included.length > 0 && (
+                {details && details.included.length > 0 && (
                   <div
                     id={detailId}
                     role="region"
                     aria-labelledby={toggleId}
+                    hidden={!expanded}
                     className="col-span-full border-t border-[#D8D5CF] bg-white px-5 py-6 sm:px-7"
                   >
                     <h3 className="text-sm font-bold">Typically included</h3>

@@ -10,7 +10,7 @@ const APPROVED_PAGE_HASHES = Object.freeze({
     "5e26eca627e03f37bbf25e7a49c2f6fb631cd9bf3a1c545214e4ac7a74d36c45",
 
   "src/app/CleaningServices.tsx":
-    "d0017033306d44e8ab4a66ca2e336d620284eb08345284f531e618a5c8f37d25",
+    "2381c7f49c81b10fdd9998054a2c656a67dfb6b3a50d08410f16cd780269413d",
 
   "src/app/FAQs.tsx":
     "18c13605eb0a1d03c5300ac83e07be624f319fb8fea890448223a603e9a7feef",
@@ -111,6 +111,57 @@ expectText(
   publicRoutes,
   '"commercial-cleaning"',
   "New commercial page must be included in the existing route-entry build",
+);
+
+/*
+ * Cleaning Services: progressive disclosure must remain compact and usable.
+ * Keep Wix CMS loading and original residential/Airbnb quote routes intact.
+ */
+const cleaningServices = readSource("src/app/CleaningServices.tsx");
+for (const key of [
+  "cleaning-services.standard-clean",
+  "cleaning-services.deep-clean",
+  "cleaning-services.end-of-tenancy",
+  "cleaning-services.airbnb-turnover",
+]) {
+  expectText(cleaningServices, key, "Missing residential/turnover service: " + key);
+}
+expectText(cleaningServices, "const [expandedService, setExpandedService]", "Accordion must use single-open state");
+expectText(cleaningServices, "aria-expanded={expanded}", "Accordion buttons must expose expanded state");
+expectText(cleaningServices, "aria-controls={detailId}", "Accordion buttons must link their panels");
+expectText(cleaningServices, "hidden={!expanded}", "Collapsed panels must be hidden accessibly");
+expectText(
+  cleaningServices,
+  "setExpandedService(expanded ? null : serviceKey)",
+  "Opening a service must close the previously expanded service",
+);
+expectText(
+  cleaningServices,
+  'serviceKey === "cleaning-services.commercial-cleaning"',
+  "Commercial service card must link to dedicated service page",
+);
+expectText(
+  cleaningServices,
+  '"Explore Commercial Cleaning"',
+  "Commercial service CTA must describe the information page",
+);
+expectText(
+  cleaningServices,
+  "previousServiceDescriptions[serviceKey]",
+  "Existing Wix CMS descriptions must retain editorial override priority",
+);
+for (const userPhoto of [
+  "60287c_22a9f12201094c8f87bc625d3a23e68f",
+  "60287c_a8da34d879854581b0d3483dbba336c3",
+  "60287c_009d7a4272b84dceb905eef71262c958",
+  "60287c_3db1b40e4bc74791b3a2efc4dd37d4ee",
+]) {
+  expectText(cleaningServices, userPhoto, "A selected portfolio photo is missing");
+}
+expectText(
+  cleaningServices,
+  "Exact inclusions are confirmed in your agreed service scope.",
+  "Typical service inclusions must not become unconditional guarantees",
 );
 
 /*

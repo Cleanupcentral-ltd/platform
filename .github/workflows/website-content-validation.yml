@@ -26,7 +26,11 @@ jobs:
           cache: npm
       - name: Install locked dependencies
         run: npm ci
-      - name: Run existing website regression tests
-        run: npm test
+      - name: Print approved page fingerprints for review
+        run: sha256sum src/app/Home.tsx src/app/About.tsx src/app/CleaningServices.tsx src/app/FAQs.tsx src/app/PropertySupport.tsx
+      - name: Typecheck source
+        run: npm run test:typecheck
       - name: Build public website
         run: npm run build
+      - name: Run existing website regression tests
+        run: npm test

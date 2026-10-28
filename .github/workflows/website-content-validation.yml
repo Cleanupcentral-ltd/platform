@@ -1,0 +1,32 @@
+name: Website content validation
+
+on:
+  push:
+    branches:
+      - feat/website-content-commercial-reviews
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Run existing website regression tests
+        run: npm test
+      - name: Build public website
+        run: npm run build

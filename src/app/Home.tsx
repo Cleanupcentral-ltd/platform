@@ -225,6 +225,9 @@ export default function Home() {
   const finalCta = usePageSection("home.final-cta");
 
   const cmsConfidence = usePageSections("Home", "Confidence Strip");
+  const cmsServices = usePageSections("Home", "Services Overview").filter(
+    (item) => item.contentType === "Card",
+  );
   const cmsSteps = usePageSections("Home", "How It Works").filter(
     (item) => item.contentType === "Step",
   );
@@ -240,7 +243,9 @@ export default function Home() {
     : cmsConfidence;
   // Present all four core services even when the Wix CMS still holds the
   // previous two-card content. Keep existing CMS introductions and other sections.
-  const serviceCards = fallbackServiceCards;
+  const serviceCards = fallbackServiceCards.map(
+    (fallback) => cmsServices.find((item) => item.title === fallback.title) ?? fallback,
+  );
   const steps = useFallbacks ? fallbackSteps : cmsSteps;
 
   const heroContent = hero ?? {
@@ -438,7 +443,7 @@ export default function Home() {
       {serviceCards.length > 0 && (
         <section className="border-y border-[#D8D5CF] bg-white">
           <div className="mx-auto max-w-[1440px] px-5 py-16 sm:px-10 lg:px-16">
-            {(useFallbacks || servicesIntro) && (
+            {(
               <div className="mx-auto max-w-lg text-center">
                 <Eyebrow>
                   {valueOrFallback(
@@ -552,7 +557,7 @@ export default function Home() {
                 Rated 5.0 out of 5 from 8 Google reviews, as checked in October 2026.
               </p>
             </div>
-            <a href="https://maps.app.goo.gl/q9pdJ2RTTePA7UkY9" target="_blank" rel="noopener noreferrer"
+            <a href="https://www.google.com/maps/place/Clean+Up+Central/@47.73855,12.5088275,4z/data=!4m8!3m7!1s0x6e7d3ff64dc0c9af:0x192bc3099124e339!8m2!3d47.73855!4d12.5088275!9m1!1b1!16s%2Fg%2F11z95fgvmf" target="_blank" rel="noopener noreferrer"
                className="inline-flex min-h-11 items-center gap-2 text-xs font-bold uppercase tracking-[.08em] text-[#121212] hover:text-[#7A5A1E]">
               Read Google reviews <ArrowRight size={17} aria-hidden="true" />
             </a>

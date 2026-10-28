@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, Building2, Check, CheckCircle2, CloudUpload, FileText, KeyRound, Menu, ShieldCheck, Sparkles, Trash2, X } from "lucide-react";
-import { Link, useSearchParams } from "react-router";
+import { Link, useNavigate, useSearchParams } from "react-router";
 import horizontalFullColour from "@/imports/IMG_1776556945431__2_.png";
 import { PRICES, calculateSelectedRoomsEstimate, calculateWholePropertyEstimate, formatGBP } from "./pricing.js";
 import { createQuotePayload } from "./quotePayload.js";
 import { createBackendQuotePayload } from "./quoteRequestMapper.js";
 import { createQuoteSubmissionId, fetchTravelEstimate, resolveQuoteApiBaseUrl, submitQuoteRequest, uploadQuoteAttachments } from "./quoteSubmission.js";
+import { trackConfirmedQuoteLead } from "./quoteLeadTracking.js";
 import { bookingDateBounds, validateBookingDate } from "./bookingValidation.js";
 
 type Category = "Residential Cleaning" | "Airbnb Turnover" | "Commercial Cleaning" | "Property Support";
@@ -135,6 +136,7 @@ function entryRouteForService(serviceParam: string | null): EntryRoute {
 }
 
 export default function QuotePage() {
+  const navigate = useNavigate();
   const [params] = useSearchParams();
   const serviceParam = params.get("service");
   const entryRoute = entryRouteForService(serviceParam);
@@ -237,7 +239,20 @@ export default function QuotePage() {
       }
 
       setReference(response.confirmation.quoteNumber);
-      go("submitted");
+      // Only the backend-confirmed submission can trigger a lead event.
+      // Using the existing Google tag respects the website tracking setup.
+      trackConfirmedQuoteLead({
+        response,
+        submissionId: activeSubmissionId,
+        category: data.category,
+      }, window);
+      navigate("/quote/thank-you", {
+        replace: true,
+        state: {
+          confirmed: true,
+          quoteNumber: response.confirmation.quoteNumber,
+        },
+      });
     } catch (error) {
       setErrors([
         error instanceof Error

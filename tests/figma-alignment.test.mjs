@@ -4,22 +4,22 @@ import { readFileSync } from "node:fs";
 
 const APPROVED_PAGE_HASHES = Object.freeze({
   "src/app/Home.tsx":
-    "df634a6a6e411fdcc7c92798931433739aaa13a68d7b1fc33928e62041a152c1",
+    "9c38dca3cfeccadfeeb153f40fe911f5e6d6e14440fe10978210bfd494e2aa65",
 
   "src/app/About.tsx":
-    "7d509720d349561df48fd6c3fee5a2aeafd9d20807d2a974dfb1a74da8255094",
+    "5e26eca627e03f37bbf25e7a49c2f6fb631cd9bf3a1c545214e4ac7a74d36c45",
 
   "src/app/CleaningServices.tsx":
-    "bae12137027858a96cb2041d3b6a30deb36bdc8efc44c5e3babef76c2d38f59c",
+    "f7f09a8b881d38a3c2c1d9565e0ac3f6509aacddb8f205d84e8089cfec11cf00",
 
   "src/app/FAQs.tsx":
-    "6c65213682186f60eabb398f27b40a65e42ccb344275e41b1b1c0bc9b8b9253e",
+    "18c13605eb0a1d03c5300ac83e07be624f319fb8fea890448223a603e9a7feef",
 
   "src/app/PlaceholderPage.tsx":
     "97ec745b8908a6a80849a9c04aa50d2f5f5ea5eecece946fab347fc0e96ad9a3",
 
   "src/app/PropertySupport.tsx":
-    "89684063e9e89c8a1ab33efe161a2b8dbaca9aeece735bdfeb9239ffcd08a876",
+    "3a564ae3a4f6303c7e53cc710d73051da75699f1625a96f02330e222cc648cb1",
 });
 
 const readSource = (file) => readFileSync(file, "utf8");
@@ -52,6 +52,166 @@ for (const [file, approvedDigest] of Object.entries(
     `${file} drifted from the approved Wix/Figma-aligned source`,
   );
 }
+
+/*
+ * Proposed content-update baseline for PR #68.
+ * These deliberate page changes remain fingerprinted for future drift checks.
+ * The older quote journey and CMS protections below remain in place.
+ * Founder approval is required before this baseline is merged.
+ */
+const updatedHome = readSource("src/app/Home.tsx");
+for (const service of [
+  'heading: "Residential Cleaning"',
+  'heading: "Commercial Cleaning"',
+  'heading: "Airbnb & Short-Let Cleaning"',
+  'heading: "Property Support"',
+]) {
+  expectText(updatedHome, service, "Homepage must retain all four service categories: " + service);
+}
+expectText(
+  updatedHome,
+  "const serviceCards = fallbackServiceCards.map(",
+  "New homepage service cards must still allow matching Wix CMS overrides",
+);
+expectText(updatedHome, "Read Google reviews", "Homepage must link to genuine Google reviews");
+expectText(
+  updatedHome,
+  "Rated 5.0 out of 5 from all Google reviews, as checked in October 2026.",
+  "Homepage must omit the review count while retaining the accurate Google rating",
+);
+assert.equal(
+  updatedHome.includes('home.confidence.professional-standards'),
+  false,
+  "The redundant homepage confidence strip should remain removed",
+);
+expectText(updatedHome, "Google review", "Homepage testimonials must remain attributed");
+
+const commercialPage = readSource("src/app/CommercialCleaning.tsx");
+expectText(
+  commercialPage,
+  'Reliable Cleaning for <span className="text-[#B08A3C]">Every Working Environment.</span>',
+  "Commercial page must use its distinct hero headline",
+);
+expectText(
+  commercialPage,
+  'const commercialQuote = "/quote?service=commercial-cleaning";',
+  "Commercial page must use the existing custom quote journey",
+);
+for (const section of [
+  "Offices and workplaces",
+  "Gyms and fitness studios",
+  "Coworking spaces",
+  "Communal areas",
+  "Commercial cleaning FAQs",
+]) {
+  expectText(commercialPage, section, "Commercial page missing: " + section);
+}
+const publicRoutes = readSource("scripts/generate-clean-route-entries.mjs");
+expectText(
+  publicRoutes,
+  '"commercial-cleaning"',
+  "New commercial page must be included in the existing route-entry build",
+);
+
+/*
+ * Cleaning Services: progressive disclosure must remain compact and usable.
+ * Keep Wix CMS loading and original residential/Airbnb quote routes intact.
+ */
+const cleaningServices = readSource("src/app/CleaningServices.tsx");
+for (const key of [
+  "cleaning-services.standard-clean",
+  "cleaning-services.deep-clean",
+  "cleaning-services.end-of-tenancy",
+  "cleaning-services.airbnb-turnover",
+]) {
+  expectText(cleaningServices, key, "Missing residential/turnover service: " + key);
+}
+expectText(cleaningServices, "60287c_1480d1c651dc41c49e26d5272208fccb", "Services hero must use the selected modern bathroom (option 4)");
+expectText(cleaningServices, 'photo: "https://static.wixstatic.com/media/60287c_7691a0fdcb57444c9b3adad75f6ccf9b~mv2.jpg"', "End of Tenancy card must use the modern living room photograph");
+assert.equal(
+  (cleaningServices.match(/60287c_7691a0fdcb57444c9b3adad75f6ccf9b/g) ?? []).length,
+  1,
+  "Living room photo must not be reused elsewhere on the Services page",
+);
+assert.equal(
+  (cleaningServices.match(/60287c_1480d1c651dc41c49e26d5272208fccb/g) ?? []).length,
+  1,
+  "Bathroom photo must only appear as the Services page hero",
+);
+expectText(cleaningServices, "Illustrative bright modern living room with a sofa and armchair", "End of Tenancy photograph must be accurately described as illustrative");
+expectText(cleaningServices, "src={heroImage}", "The selected residential hero must be displayed even when legacy Wix CMS supplies an older hero");
+expectText(cleaningServices, "const [expandedService, setExpandedService]", "Accordion must use single-open state");
+expectText(cleaningServices, "aria-expanded={expanded}", "Accordion buttons must expose expanded state");
+expectText(cleaningServices, "aria-controls={detailId}", "Accordion buttons must link their panels");
+expectText(cleaningServices, "hidden={!expanded}", "Collapsed panels must be hidden accessibly");
+expectText(
+  cleaningServices,
+  "setExpandedService(expanded ? null : serviceKey)",
+  "Opening a service must close the previously expanded service",
+);
+expectText(
+  cleaningServices,
+  'serviceKey === "cleaning-services.commercial-cleaning"',
+  "Commercial service card must link to dedicated service page",
+);
+expectText(
+  cleaningServices,
+  '"Explore Commercial Cleaning"',
+  "Commercial service CTA must describe the information page",
+);
+expectText(
+  cleaningServices,
+  "previousServiceDescriptions[serviceKey]",
+  "Existing Wix CMS descriptions must retain editorial override priority",
+);
+for (const userPhoto of [
+  "60287c_22a9f12201094c8f87bc625d3a23e68f",
+  "60287c_a8da34d879854581b0d3483dbba336c3",
+  "60287c_7691a0fdcb57444c9b3adad75f6ccf9b",
+  "60287c_3db1b40e4bc74791b3a2efc4dd37d4ee",
+]) {
+  expectText(cleaningServices, userPhoto, "An approved service photo is missing");
+}
+// Founder Operations Handbook v3: paid extras are distinct from Standard/Deep.
+// End of Tenancy expressly includes appliance, cupboard and internal window interiors.
+for (const includedTask of [
+  "Kitchen, bathroom, bedroom and living-area cleaning",
+  "Dusting and sanitising accessible surfaces",
+  "Everything included in a Standard Clean",
+  "Moderate limescale and grease removal",
+  "Inside oven and detailed appliance cleaning",
+  "Inside fridge/freezer, cupboards and drawers",
+  "Internal windows, frames and ledges",
+  "Bed making and linen changes when clean linen is supplied",
+  "Damage and missing-item reporting",
+]) {
+  expectText(cleaningServices, includedTask, "Handbook service inclusion missing: " + includedTask);
+}
+for (const exclusion of [
+  "Oven interiors, fridge interiors, internal windows and grout cleaning are paid add-ons, not part of a Standard Clean.",
+  "Oven interiors, fridge interiors, internal windows and grout cleaning are paid add-ons, not part of a Deep Clean.",
+  "Full radiator cleaning is also charged separately.",
+  "Laundry and consumable restocking are charged separately.",
+  "Linen hire is not currently offered.",
+  "A deposit return is not guaranteed.",
+]) {
+  expectText(cleaningServices, exclusion, "Handbook boundary missing: " + exclusion);
+}
+expectText(
+  cleaningServices,
+  'border-l-2 border-l-[#B08A3C] bg-[#F1EDE4]',
+  "Expanded inclusions must use the approved warm stone surface rather than a white box",
+);
+assert.equal(
+  cleaningServices.includes('bg-white px-5 py-6 sm:px-7'),
+  false,
+  "Expanded inclusions must not regress to the white background",
+);
+expectText(
+  cleaningServices,
+  "{details.noteLabel}: ",
+  "Each expanded service should clearly label paid add-ons or exclusions",
+);
 
 /*
  * Quote journey regression checks.
@@ -144,6 +304,12 @@ expectPattern(
   routes,
   /window\.scrollTo\(\{\s*top:\s*0,\s*left:\s*0,\s*behavior:\s*"auto"\s*\}\)/,
   "Internal navigation must reset the destination page to the top",
+);
+
+expectText(
+  routes,
+  '{ path: "/commercial-cleaning", Component: CommercialCleaningPage }',
+  "Commercial page must use the existing hash router",
 );
 
 /*

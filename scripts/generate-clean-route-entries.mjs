@@ -8,6 +8,7 @@ const publicRoutes = [
   "home",
   "about",
   "cleaning-services",
+  "commercial-cleaning",
   "property-support",
   "quote",
   "get-a-quote",

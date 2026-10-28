@@ -42,6 +42,7 @@ const navigation = [
   ["Home", "/home"],
   ["About", "/about"],
   ["Cleaning Services", "/cleaning-services"],
+  ["Commercial Cleaning", "/commercial-cleaning"],
   ["Property Support", "/property-support"],
   ["Contact Us", "/contact"],
 ] as const;

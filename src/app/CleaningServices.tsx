@@ -5,6 +5,7 @@ import {
   DoorOpen,
   KeyRound,
   Menu,
+  ChevronDown,
   Sparkles,
   WandSparkles,
   X,
@@ -20,8 +21,10 @@ import {
 import { resolveCmsImage } from "@/cms/cmsMedia";
 import type { PageSection } from "@/cms/cmsTypes";
 
+// Use an actual Clean Up Central residential living room rather than the previous stock image.
+// Option 4: illustrative modern residential bathroom by Clay Banks (Unsplash, DsrHsPt3uFg).
 const heroImage =
-  "https://images.unsplash.com/photo-1769253523308-f7bff35c60b1?w=1400&h=1000&fit=crop&auto=format";
+  "https://static.wixstatic.com/media/60287c_1480d1c651dc41c49e26d5272208fccb~mv2.jpg";
 
 const serviceImages = [
   "https://images.unsplash.com/photo-1519710164239-da123dc03ef4?w=720&h=520&fit=crop&auto=format",
@@ -31,10 +34,98 @@ const serviceImages = [
   "https://images.unsplash.com/photo-1588540680816-e9af87bdce01?w=720&h=520&fit=crop&auto=format",
 ];
 
+// Service details stay compact until a visitor chooses to expand a row.
+// Every item is indicative; the confirmed quote/service specification governs.
+const serviceDetails: Record<string, {
+  summary: string;
+  included: string[];
+  noteLabel: string;
+  note: string;
+  photo?: string;
+  photoAlt?: string;
+}> = {
+  "cleaning-services.standard-clean": {
+    summary: "Routine cleaning for occupied homes and properties already in reasonable condition.",
+    included: [
+      "Kitchen, bathroom, bedroom and living-area cleaning",
+      "Dusting and sanitising accessible surfaces",
+      "Vacuuming and mopping accessible floors",
+      "Emptying general waste bins",
+    ],
+    noteLabel: "Paid add-ons / exclusions",
+    note: "Oven interiors, fridge interiors, internal windows and grout cleaning are paid add-ons, not part of a Standard Clean. Full radiator cleaning is also charged separately. Cupboard interiors and specialist stain treatment require separate agreement or assessment.",
+    photo: "https://static.wixstatic.com/media/60287c_22a9f12201094c8f87bc625d3a23e68f~mv2.jpg",
+    photoAlt: "Clean bathroom from Clean Up Central's completed cleaning work",
+  },
+  "cleaning-services.deep-clean": {
+    summary: "A more detailed clean for first-time, seasonal or built-up properties requiring extra attention.",
+    included: [
+      "Everything included in a Standard Clean",
+      "Detailed dusting of skirtings, window sills, door frames and light switches",
+      "Dusting of accessible radiator surfaces",
+      "Moderate limescale and grease removal",
+    ],
+    noteLabel: "Paid add-ons / exclusions",
+    note: "Oven interiors, fridge interiors, internal windows and grout cleaning are paid add-ons, not part of a Deep Clean. Full radiator cleaning is also charged separately. Specialist stain treatment requires separate assessment.",
+    photo: "https://static.wixstatic.com/media/60287c_a8da34d879854581b0d3483dbba336c3~mv2.jpg",
+    photoAlt: "Clean stainless-steel kitchen hob from Clean Up Central's cleaning portfolio",
+  },
+  "cleaning-services.end-of-tenancy": {
+    summary: "A full internal move-out clean for landlord inspection or incoming occupants, quoted individually.",
+    included: [
+      "Everything included in a Deep Clean",
+      "Inside oven and detailed appliance cleaning",
+      "Inside fridge/freezer, cupboards and drawers",
+      "Internal windows, frames and ledges",
+      "Final presentation check",
+    ],
+    noteLabel: "Not included",
+    note: "External windows, carpet shampooing, repairs, maintenance, pest control, heavy mould remediation and specialist restoration are excluded. A deposit return is not guaranteed.",
+    photo: "https://static.wixstatic.com/media/60287c_7691a0fdcb57444c9b3adad75f6ccf9b~mv2.jpg",
+    photoAlt: "Illustrative bright modern living room with a sofa and armchair (Unsplash photograph by Franco Debartolo)",
+  },
+  "cleaning-services.airbnb-turnover": {
+    summary: "Guest-ready cleaning between stays, including presentation checks and supplied-linen changes.",
+    included: [
+      "Standard cleaning of guest areas and bin removal",
+      "Bed making and linen changes when clean linen is supplied",
+      "Towel replacement when towels are supplied",
+      "Consumable checks and guest-ready presentation inspection",
+      "Damage and missing-item reporting",
+    ],
+    noteLabel: "Additional charges / exclusions",
+    note: "Laundry and consumable restocking are charged separately. Linen hire is not currently offered. Repairs, maintenance, booking management and replacing missing items at our expense are excluded.",
+    photo: "https://static.wixstatic.com/media/60287c_3db1b40e4bc74791b3a2efc4dd37d4ee~mv2.jpg",
+    photoAlt: "Guest-ready bed prepared by Clean Up Central",
+  },
+  "cleaning-services.commercial-cleaning": {
+    summary: "One-off and recurring cleaning for offices, gyms, coworking spaces and shared commercial areas.",
+    included: [],
+    noteLabel: "",
+    note: "",
+  },
+};
+
+// If a Wix CMS editor has customised a description, respect their wording.
+// Replace only the original generic defaults with clearer approved copy.
+const previousServiceDescriptions: Record<string, string> = {
+  "cleaning-services.standard-clean":
+    "Routine maintenance cleaning for occupied properties in reasonable condition.",
+  "cleaning-services.deep-clean":
+    "Detailed restorative cleaning for built-up or first-time properties.",
+  "cleaning-services.end-of-tenancy":
+    "Full internal move-out clean prepared for inspection or incoming occupants.",
+  "cleaning-services.airbnb-turnover":
+    "Guest-ready cleaning, presentation checks and reporting between stays. Dirty-condition estimates are provisional and reviewed.",
+  "cleaning-services.commercial-cleaning":
+    "Quote-based cleaning for offices and light commercial premises.",
+};
+
 const navigation = [
   ["Home", "/home"],
   ["About", "/about"],
   ["Cleaning Services", "/cleaning-services"],
+  ["Commercial Cleaning", "/commercial-cleaning"],
   ["Property Support", "/property-support"],
   ["Contact Us", "/contact"],
 ] as const;
@@ -169,6 +260,7 @@ function GoldButton({
 
 export default function CleaningServicesPage() {
   const [drawer, setDrawer] = useState(false);
+  const [expandedService, setExpandedService] = useState<string | null>(null);
   const { loading, error } = useCms();
   const useFallbacks = loading || Boolean(error);
 
@@ -192,7 +284,7 @@ export default function CleaningServicesPage() {
     heading: "The right clean for every property.",
     body: "Choose the service that best fits your property, then we will guide you through the most suitable next step.",
     image: heroImage,
-    imageAltText: "Calm premium bathroom interior",
+    imageAltText: "Illustrative modern residential bathroom with vanity and tiled floor",
   };
 
   const finalCtaContent = finalCta ?? {
@@ -284,11 +376,8 @@ export default function CleaningServicesPage() {
           </div>
           <div className="min-h-[330px] sm:min-h-[440px] lg:min-h-[510px]">
             <img
-              src={resolveCmsImage(heroContent.image, heroImage)}
-              alt={valueOrFallback(
-                heroContent.imageAltText,
-                "Calm premium bathroom interior",
-              )}
+              src={heroImage}
+              alt="Illustrative modern residential bathroom with vanity and tiled floor"
               className="size-full object-cover"
             />
           </div>
@@ -308,6 +397,18 @@ export default function CleaningServicesPage() {
               service.heading,
               fallback.heading ?? "Cleaning Service",
             );
+            const details = serviceDetails[serviceKey];
+            const cmsDescription = service.body?.trim() || "";
+            const summary =
+              details && (!cmsDescription || cmsDescription === previousServiceDescriptions[serviceKey])
+                ? details.summary
+                : valueOrFallback(
+                    service.body,
+                    fallback.body ?? "Professional cleaning planned around your property requirements.",
+                  );
+            const expanded = expandedService === serviceKey;
+            const detailId = `service-details-${index}`;
+            const toggleId = `service-toggle-${index}`;
             const fallbackImage =
               typeof fallback.image === "string"
                 ? fallback.image
@@ -319,8 +420,8 @@ export default function CleaningServicesPage() {
                 className="grid gap-5 border-b border-[#D8D5CF] py-5 sm:grid-cols-[140px_1fr_auto] sm:items-center sm:gap-6 lg:grid-cols-[180px_1fr_72px] lg:py-6"
               >
                 <img
-                  src={resolveCmsImage(service.image, fallbackImage)}
-                  alt={valueOrFallback(
+                  src={details?.photo ?? resolveCmsImage(service.image, fallbackImage)}
+                  alt={details?.photoAlt ?? valueOrFallback(
                     service.imageAltText,
                     fallback.imageAltText ?? `${heading} service interior`,
                   )}
@@ -336,28 +437,67 @@ export default function CleaningServicesPage() {
                     </span>
                   </div>
                   <p className="mt-2 max-w-2xl text-sm leading-6 text-[#66635E]">
-                    {valueOrFallback(
-                      service.body,
-                      fallback.body ?? "Professional cleaning planned around your property requirements.",
-                    )}
+                    {summary}
                   </p>
                   <Link
-                    to={valueOrFallback(
-                      service.primaryCtaLink,
-                      fallback.primaryCtaLink ?? "/quote",
-                    )}
+                    to={
+                      serviceKey === "cleaning-services.commercial-cleaning"
+                        ? "/commercial-cleaning"
+                        : valueOrFallback(
+                            service.primaryCtaLink,
+                            fallback.primaryCtaLink ?? "/quote",
+                          )
+                    }
                     className="mt-3 inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.1em] text-[#B08A3C] transition duration-[var(--motion-standard)] ease-[var(--ease-out)] hover:text-[#7A5A1E]"
                   >
-                    {valueOrFallback(
-                      service.primaryCtaText,
-                      fallback.primaryCtaText ?? "Get a Quote",
-                    )}
+                    {serviceKey === "cleaning-services.commercial-cleaning"
+                      ? "Explore Commercial Cleaning"
+                      : valueOrFallback(
+                          service.primaryCtaText,
+                          fallback.primaryCtaText ?? "Get a Quote",
+                        )}
                     <ArrowRight size={15} strokeWidth={1.75} />
                   </Link>
+                  {details && details.included.length > 0 && (
+                    <button
+                      id={toggleId}
+                      type="button"
+                      aria-expanded={expanded}
+                      aria-controls={detailId}
+                      onClick={() => setExpandedService(expanded ? null : serviceKey)}
+                      className="mt-3 flex min-h-10 items-center gap-2 text-xs font-semibold text-[#343434] underline-offset-4 hover:text-[#7A5A1E] hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#B08A3C]"
+                    >
+                      {expanded ? "Hide typical inclusions" : "View typical inclusions"}
+                      <ChevronDown size={16} aria-hidden="true" className={expanded ? "rotate-180" : ""} />
+                    </button>
+                  )}
                 </div>
                 <span className="hidden size-14 place-items-center border border-[#B08A3C] text-[#B08A3C] lg:grid">
                   <Icon size={28} strokeWidth={1.75} />
                 </span>
+                {details && details.included.length > 0 && (
+                  <div
+                    id={detailId}
+                    role="region"
+                    aria-labelledby={toggleId}
+                    hidden={!expanded}
+                    className="col-span-full border-t border-[#D8D5CF] border-l-2 border-l-[#B08A3C] bg-[#F1EDE4] px-5 py-5 sm:px-7"
+                  >
+                    <h3 className="text-sm font-bold">Typically included</h3>
+                    <ul className="mt-4 grid gap-x-10 gap-y-3 sm:grid-cols-2">
+                      {details.included.map((item) => (
+                        <li key={item} className="flex items-start gap-3 text-sm leading-6 text-[#343434]">
+                          <span aria-hidden="true" className="mt-2 size-1.5 shrink-0 rounded-full bg-[#B08A3C]" />
+                          {item}
+                        </li>
+                      ))}
+                    </ul>
+                    <p className="mt-5 border-t border-[#D8D5CF] pt-4 text-xs leading-6 text-[#66635E]">
+                      <strong className="font-semibold text-[#343434]">{details.noteLabel}: </strong>
+                      {details.note}
+                    </p>
+                  </div>
+                )}
               </article>
             );
           })}

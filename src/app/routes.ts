@@ -4,6 +4,7 @@ import Home from "./Home";
 import DesignSystem from "./DesignSystem";
 import AboutPage from "./About";
 import CleaningServicesPage from "./CleaningServices";
+import CommercialCleaningPage from "./CommercialCleaning";
 import PropertySupportPage from "./PropertySupport";
 import ContactPage from "./Contact";
 import QuotePage from "./Quote";
@@ -30,6 +31,7 @@ export const router = createHashRouter([
       { path: "/design-system", Component: DesignSystem },
       { path: "/about", Component: AboutPage },
       { path: "/cleaning-services", Component: CleaningServicesPage },
+      { path: "/commercial-cleaning", Component: CommercialCleaningPage },
       { path: "/property-support", Component: PropertySupportPage },
       { path: "/quote", Component: QuotePage },
       { path: "/get-a-quote", Component: QuotePage },

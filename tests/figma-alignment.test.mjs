@@ -89,7 +89,7 @@ expectText(updatedHome, "Google review", "Homepage testimonials must remain attr
 const commercialPage = readSource("src/app/CommercialCleaning.tsx");
 expectText(
   commercialPage,
-  'Reliable cleaning for <span className="text-[#B08A3C]">every working environment.</span>',
+  'Reliable Cleaning for <span className="text-[#B08A3C]">Every Working Environment.</span>',
   "Commercial page must use its distinct hero headline",
 );
 expectText(

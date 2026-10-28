@@ -126,7 +126,18 @@ for (const key of [
 ]) {
   expectText(cleaningServices, key, "Missing residential/turnover service: " + key);
 }
-expectText(cleaningServices, "60287c_c95ac754a6334a13a80c3105899bdfad", "Cleaning Services hero must use the uploaded residential living room photograph");
+expectText(cleaningServices, "60287c_1480d1c651dc41c49e26d5272208fccb", "Services hero must use the selected modern bathroom (option 4)");
+expectText(cleaningServices, 'photo: "https://static.wixstatic.com/media/60287c_c95ac754a6334a13a80c3105899bdfad~mv2.jpg"', "End of Tenancy card must use the modern living room photograph");
+assert.equal(
+  (cleaningServices.match(/60287c_c95ac754a6334a13a80c3105899bdfad/g) ?? []).length,
+  1,
+  "Living room photo must not be reused elsewhere on the Services page",
+);
+assert.equal(
+  (cleaningServices.match(/60287c_1480d1c651dc41c49e26d5272208fccb/g) ?? []).length,
+  1,
+  "Bathroom photo must only appear as the Services page hero",
+);
 expectText(cleaningServices, "src={heroImage}", "The selected residential hero must be displayed even when legacy Wix CMS supplies an older hero");
 expectText(cleaningServices, "const [expandedService, setExpandedService]", "Accordion must use single-open state");
 expectText(cleaningServices, "aria-expanded={expanded}", "Accordion buttons must expose expanded state");
@@ -155,7 +166,7 @@ expectText(
 for (const userPhoto of [
   "60287c_22a9f12201094c8f87bc625d3a23e68f",
   "60287c_a8da34d879854581b0d3483dbba336c3",
-  "60287c_009d7a4272b84dceb905eef71262c958",
+  "60287c_c95ac754a6334a13a80c3105899bdfad",
   "60287c_3db1b40e4bc74791b3a2efc4dd37d4ee",
 ]) {
   expectText(cleaningServices, userPhoto, "A selected portfolio photo is missing");

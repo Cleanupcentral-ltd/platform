@@ -81,8 +81,8 @@ const serviceDetails: Record<string, {
     ],
     noteLabel: "Not included",
     note: "External windows, carpet shampooing, repairs, maintenance, pest control, heavy mould remediation and specialist restoration are excluded. A deposit return is not guaranteed.",
-    photo: "https://static.wixstatic.com/media/60287c_c95ac754a6334a13a80c3105899bdfad~mv2.jpg",
-    photoAlt: "Modern residential living room cleaned and prepared by Clean Up Central",
+    photo: "https://static.wixstatic.com/media/60287c_7691a0fdcb57444c9b3adad75f6ccf9b~mv2.jpg",
+    photoAlt: "Illustrative bright modern living room with a sofa and armchair (Unsplash photograph by Franco Debartolo)",
   },
   "cleaning-services.airbnb-turnover": {
     summary: "Guest-ready cleaning between stays, including presentation checks and supplied-linen changes.",

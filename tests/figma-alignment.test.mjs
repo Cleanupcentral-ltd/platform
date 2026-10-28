@@ -10,7 +10,7 @@ const APPROVED_PAGE_HASHES = Object.freeze({
     "5e26eca627e03f37bbf25e7a49c2f6fb631cd9bf3a1c545214e4ac7a74d36c45",
 
   "src/app/CleaningServices.tsx":
-    "fc138a2584500d341a0622569096e2cc5a6864954825c3d1c4ac194f47b488a6",
+    "dcec3af8854de6468896fa8bfb03c8de738df1873a646e20a64350adbcab0d5f",
 
   "src/app/FAQs.tsx":
     "18c13605eb0a1d03c5300ac83e07be624f319fb8fea890448223a603e9a7feef",
@@ -173,16 +173,24 @@ for (const includedTask of [
 ]) {
   expectText(cleaningServices, includedTask, "Handbook service inclusion missing: " + includedTask);
 }
-for (const exclusion of [
-  "Oven interiors, fridge interiors, internal windows and grout cleaning are paid add-ons, not part of a Standard Clean.",
-  "Oven interiors, fridge interiors, internal windows and grout cleaning are paid add-ons, not part of a Deep Clean.",
-  "Full radiator cleaning is also charged separately.",
-  "Laundry and consumable restocking are charged separately.",
+// The quote generator already prices optional extras. Keep public copy concise
+// without losing the key handbook distinction for off-site laundry/restocking.
+for (const boundary of [
+  'noteLabel: "Optional extras"',
+  "Additional services can be selected and priced separately in the quote generator.",
+  'noteLabel: "Service boundaries"',
+  "Deposit returns cannot be guaranteed.",
+  'noteLabel: "Laundry & restocking"',
+  "Off-site laundry and consumable restocking are charged separately.",
   "Linen hire is not currently offered.",
-  "A deposit return is not guaranteed.",
 ]) {
-  expectText(cleaningServices, exclusion, "Handbook boundary missing: " + exclusion);
+  expectText(cleaningServices, boundary, "Service boundary missing: " + boundary);
 }
+assert.equal(
+  cleaningServices.includes("Oven interiors, fridge interiors, internal windows and grout cleaning are paid add-ons, not part of a Standard Clean."),
+  false,
+  "Do not duplicate the quote generator's itemised add-on catalogue on the Services page",
+);
 expectText(
   cleaningServices,
   'border-l-2 border-l-[#B08A3C] bg-[#F1EDE4]',

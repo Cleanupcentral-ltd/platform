@@ -10,7 +10,7 @@ const APPROVED_PAGE_HASHES = Object.freeze({
     "5e26eca627e03f37bbf25e7a49c2f6fb631cd9bf3a1c545214e4ac7a74d36c45",
 
   "src/app/CleaningServices.tsx":
-    "fc138a2584500d341a0622569096e2cc5a6864954825c3d1c4ac194f47b488a6",
+    "fb8975c9db41f457b6f161a6e31977b6b57c27ea05b760456d8ff4ca3e02a6bb",
 
   "src/app/FAQs.tsx":
     "18c13605eb0a1d03c5300ac83e07be624f319fb8fea890448223a603e9a7feef",
@@ -126,6 +126,8 @@ for (const key of [
 ]) {
   expectText(cleaningServices, key, "Missing residential/turnover service: " + key);
 }
+expectText(cleaningServices, "60287c_c95ac754a6334a13a80c3105899bdfad", "Cleaning Services hero must use the uploaded residential living room photograph");
+expectText(cleaningServices, "src={heroImage}", "The selected residential hero must be displayed even when legacy Wix CMS supplies an older hero");
 expectText(cleaningServices, "const [expandedService, setExpandedService]", "Accordion must use single-open state");
 expectText(cleaningServices, "aria-expanded={expanded}", "Accordion buttons must expose expanded state");
 expectText(cleaningServices, "aria-controls={detailId}", "Accordion buttons must link their panels");

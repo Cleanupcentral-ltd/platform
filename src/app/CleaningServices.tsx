@@ -37,61 +37,69 @@ const serviceImages = [
 const serviceDetails: Record<string, {
   summary: string;
   included: string[];
+  noteLabel: string;
   note: string;
   photo?: string;
   photoAlt?: string;
 }> = {
   "cleaning-services.standard-clean": {
-    summary: "Routine upkeep for homes and properties already in reasonable condition, ideal for ongoing maintenance.",
+    summary: "Routine cleaning for occupied homes and properties already in reasonable condition.",
     included: [
-      "Dusting and wiping accessible surfaces",
-      "Cleaning kitchen worktops, sink and appliance exteriors",
-      "Cleaning bathroom surfaces, fixtures and mirrors",
+      "Kitchen, bathroom, bedroom and living-area cleaning",
+      "Dusting and sanitising accessible surfaces",
       "Vacuuming and mopping accessible floors",
+      "Emptying general waste bins",
     ],
-    note: "Inside ovens, fridge interiors, windows and intensive grout or stain treatment are separate services where applicable.",
+    noteLabel: "Paid add-ons / exclusions",
+    note: "Oven interiors, fridge interiors, internal windows and grout cleaning are paid add-ons, not part of a Standard Clean. Full radiator cleaning is also charged separately. Cupboard interiors and specialist stain treatment require separate agreement or assessment.",
     photo: "https://static.wixstatic.com/media/60287c_22a9f12201094c8f87bc625d3a23e68f~mv2.jpg",
     photoAlt: "Clean bathroom from Clean Up Central's completed cleaning work",
   },
   "cleaning-services.deep-clean": {
-    summary: "A more intensive clean for built-up dirt and areas that need more attention than routine upkeep.",
+    summary: "A more detailed clean for first-time, seasonal or built-up properties requiring extra attention.",
     included: [
-      "Detailed cleaning of agreed kitchen and bathroom surfaces",
-      "Additional attention to visible grease and built-up dirt",
-      "Dusting reachable edges, skirtings and fixtures",
-      "Thorough cleaning of accessible floors",
+      "Everything included in a Standard Clean",
+      "Detailed dusting of skirtings, window sills, door frames and light switches",
+      "Dusting of accessible radiator surfaces",
+      "Moderate limescale and grease removal",
     ],
-    note: "Oven and fridge interiors, specialist stain removal and grout treatment may require separate add-ons.",
+    noteLabel: "Paid add-ons / exclusions",
+    note: "Oven interiors, fridge interiors, internal windows and grout cleaning are paid add-ons, not part of a Deep Clean. Full radiator cleaning is also charged separately. Specialist stain treatment requires separate assessment.",
     photo: "https://static.wixstatic.com/media/60287c_a8da34d879854581b0d3483dbba336c3~mv2.jpg",
     photoAlt: "Clean stainless-steel kitchen hob from Clean Up Central's cleaning portfolio",
   },
   "cleaning-services.end-of-tenancy": {
-    summary: "Detailed move-out cleaning based on the property's condition and the agreed requirements.",
+    summary: "A full internal move-out clean for landlord inspection or incoming occupants, quoted individually.",
     included: [
-      "Cleaning agreed rooms and accessible interior surfaces",
-      "Detailed attention to kitchens, bathrooms and fixtures",
-      "Cleaning accessible floors and skirting areas",
-      "Reviewing additional internal tasks before the quote is confirmed",
+      "Everything included in a Deep Clean",
+      "Inside oven and detailed appliance cleaning",
+      "Inside fridge/freezer, cupboards and drawers",
+      "Internal windows, frames and ledges",
+      "Final presentation check",
     ],
-    note: "Cupboard interiors, appliance interiors and any additional requirements are specified in the individual quotation.",
+    noteLabel: "Not included",
+    note: "External windows, carpet shampooing, repairs, maintenance, pest control, heavy mould remediation and specialist restoration are excluded. A deposit return is not guaranteed.",
     photo: "https://static.wixstatic.com/media/60287c_009d7a4272b84dceb905eef71262c958~mv2.jpg",
     photoAlt: "Neatly prepared living and dining room from Clean Up Central's cleaning portfolio",
   },
   "cleaning-services.airbnb-turnover": {
-    summary: "Guest-ready turnover cleaning and presentation checks between stays, with linen arrangements agreed in advance.",
+    summary: "Guest-ready cleaning between stays, including presentation checks and supplied-linen changes.",
     included: [
-      "Cleaning the kitchen, bathroom and accessible floors",
-      "Preparing beds using the agreed clean linen",
-      "Emptying bins and preparing guest-facing areas",
-      "Reporting visible concerns when included in the arrangement",
+      "Standard cleaning of guest areas and bin removal",
+      "Bed making and linen changes when clean linen is supplied",
+      "Towel replacement when towels are supplied",
+      "Consumable checks and guest-ready presentation inspection",
+      "Damage and missing-item reporting",
     ],
-    note: "Laundry, linen supply, restocking, extensive filming and additional inspections are separate unless agreed in the turnover specification.",
+    noteLabel: "Additional charges / exclusions",
+    note: "Laundry and consumable restocking are charged separately. Linen hire is not currently offered. Repairs, maintenance, booking management and replacing missing items at our expense are excluded.",
     photo: "https://static.wixstatic.com/media/60287c_3db1b40e4bc74791b3a2efc4dd37d4ee~mv2.jpg",
     photoAlt: "Guest-ready bed prepared by Clean Up Central",
   },
   "cleaning-services.commercial-cleaning": {
     summary: "One-off and recurring cleaning for offices, gyms, coworking spaces and shared commercial areas.",
     included: [],
+    noteLabel: "",
     note: "",
   },
 };
@@ -474,7 +482,7 @@ export default function CleaningServicesPage() {
                     role="region"
                     aria-labelledby={toggleId}
                     hidden={!expanded}
-                    className="col-span-full border-t border-[#D8D5CF] bg-white px-5 py-6 sm:px-7"
+                    className="col-span-full border-t border-[#D8D5CF] border-l-2 border-l-[#B08A3C] bg-[#F1EDE4] px-5 py-5 sm:px-7"
                   >
                     <h3 className="text-sm font-bold">Typically included</h3>
                     <ul className="mt-4 grid gap-x-10 gap-y-3 sm:grid-cols-2">
@@ -485,9 +493,9 @@ export default function CleaningServicesPage() {
                         </li>
                       ))}
                     </ul>
-                    <p className="mt-5 border-t border-[#EAE7E1] pt-4 text-xs leading-6 text-[#66635E]">
-                      <strong className="font-semibold text-[#343434]">Additional work: </strong>
-                      {details.note} Exact inclusions are confirmed in your agreed service scope.
+                    <p className="mt-5 border-t border-[#D8D5CF] pt-4 text-xs leading-6 text-[#66635E]">
+                      <strong className="font-semibold text-[#343434]">{details.noteLabel}: </strong>
+                      {details.note}
                     </p>
                   </div>
                 )}

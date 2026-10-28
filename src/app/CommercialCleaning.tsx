@@ -167,7 +167,7 @@ export default function CommercialCleaningPage() {
         <div className="flex min-h-[430px] flex-col justify-center px-5 py-16 sm:px-10 lg:px-20">
           <p className="text-[10px] font-bold uppercase tracking-[.18em] text-[#7A5A1E]">Cleaning for London businesses</p>
           <h1 id="commercial-title" className="mt-6 max-w-xl font-serif text-[48px] leading-[.98] tracking-[-.035em] sm:text-[62px]">
-            Commercial cleaning, <span className="text-[#B08A3C]">tailored to your premises.</span>
+            Reliable cleaning for <span className="text-[#B08A3C]">every working environment.</span>
           </h1>
           <p className="mt-6 max-w-lg text-base leading-7 text-[#343434]">
             Reliable, professionally coordinated cleaning for offices, workplaces and shared commercial spaces across London. One-off or ongoing support, with a clear scope of work and straightforward communication.

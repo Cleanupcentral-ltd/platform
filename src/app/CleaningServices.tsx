@@ -21,8 +21,9 @@ import {
 import { resolveCmsImage } from "@/cms/cmsMedia";
 import type { PageSection } from "@/cms/cmsTypes";
 
+// Use an actual Clean Up Central residential living room rather than the previous stock image.
 const heroImage =
-  "https://images.unsplash.com/photo-1769253523308-f7bff35c60b1?w=1400&h=1000&fit=crop&auto=format";
+  "https://static.wixstatic.com/media/60287c_009d7a4272b84dceb905eef71262c958~mv2.jpg";
 
 const serviceImages = [
   "https://images.unsplash.com/photo-1519710164239-da123dc03ef4?w=720&h=520&fit=crop&auto=format",
@@ -282,7 +283,7 @@ export default function CleaningServicesPage() {
     heading: "The right clean for every property.",
     body: "Choose the service that best fits your property, then we will guide you through the most suitable next step.",
     image: heroImage,
-    imageAltText: "Calm premium bathroom interior",
+    imageAltText: "Freshly prepared residential living room after a Clean Up Central cleaning visit",
   };
 
   const finalCtaContent = finalCta ?? {
@@ -374,11 +375,8 @@ export default function CleaningServicesPage() {
           </div>
           <div className="min-h-[330px] sm:min-h-[440px] lg:min-h-[510px]">
             <img
-              src={resolveCmsImage(heroContent.image, heroImage)}
-              alt={valueOrFallback(
-                heroContent.imageAltText,
-                "Calm premium bathroom interior",
-              )}
+              src={heroImage}
+              alt="Freshly prepared residential living room after a Clean Up Central cleaning visit"
               className="size-full object-cover"
             />
           </div>

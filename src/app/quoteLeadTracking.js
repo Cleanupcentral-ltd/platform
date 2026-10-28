@@ -42,10 +42,10 @@ export function trackConfirmedQuoteLead(
 
   try {
     if (typeof environment?.gtag === "function") {
-      environment.gtag("event", "generate_lead", parameters);
+      environment.gtag("event", "cuc_quote_submitted", parameters);
     } else if (Array.isArray(environment?.dataLayer)) {
       environment.dataLayer.push({
-        event: "generate_lead",
+        event: "cuc_quote_submitted",
         ...parameters,
       });
     } else {

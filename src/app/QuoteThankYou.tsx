@@ -12,7 +12,7 @@ type ConfirmationState = {
  * /#/quote/thank-you with ephemeral router state; manually visiting or sharing
  * this URL cannot display a successful submission.
  *
- * Google Ads/GA4 must count the confirmed generate_lead event, NOT every
+ * Google Ads/GA4 must count the confirmed cuc_quote_submitted event, NOT every
  * visit or page_view at this route (hash-based SPA navigation can be missed,
  * reloaded or opened manually).
  */

@@ -8,6 +8,7 @@ import CommercialCleaningPage from "./CommercialCleaning";
 import PropertySupportPage from "./PropertySupport";
 import ContactPage from "./Contact";
 import QuotePage from "./Quote";
+import QuoteThankYouPage from "./QuoteThankYou";
 import FAQsPage from "./FAQs";
 import PrivacyPage from "./Privacy";
 import TermsPage from "./Terms";
@@ -34,6 +35,7 @@ export const router = createHashRouter([
       { path: "/commercial-cleaning", Component: CommercialCleaningPage },
       { path: "/property-support", Component: PropertySupportPage },
       { path: "/quote", Component: QuotePage },
+      { path: "/quote/thank-you", Component: QuoteThankYouPage },
       { path: "/get-a-quote", Component: QuotePage },
       { path: "/contact", Component: ContactPage },
       { path: "/faqs", Component: FAQsPage },

@@ -34,7 +34,7 @@ test("tracks one actual confirmed quote through an existing Google tag", () => {
   assert.equal(trackConfirmedQuoteLead(eventInput, environment), true);
   assert.deepEqual(environment.events, [[
     "event",
-    "generate_lead",
+    "cuc_quote_submitted",
     {
       lead_type: "quote_request",
       service_category: "Commercial Cleaning",
@@ -65,7 +65,7 @@ test("falls back to dataLayer if Google Tag Manager is present without gtag", ()
   const environment = { dataLayer: [] };
   assert.equal(trackConfirmedQuoteLead(eventInput, environment), true);
   assert.deepEqual(environment.dataLayer, [{
-    event: "generate_lead",
+    event: "cuc_quote_submitted",
     lead_type: "quote_request",
     service_category: "Commercial Cleaning",
   }]);

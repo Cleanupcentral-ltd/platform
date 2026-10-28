@@ -37,7 +37,7 @@ test("direct navigation without confirmation state redirects to the quote form",
     /return <Navigate to="\/quote" replace \/>/,
   );
   assert.ok(!confirmation.includes("trackConfirmedQuoteLead"));
-  assert.ok(!confirmation.includes('gtag("event", "generate_lead"'));
+  assert.ok(!confirmation.includes('gtag("event", "cuc_quote_submitted"'));
   assert.ok(!confirmation.includes("dataLayer.push("));
 });
 

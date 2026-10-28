@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 
 const APPROVED_PAGE_HASHES = Object.freeze({
   "src/app/Home.tsx":
-    "65b9638734fe5d5ba69e34b29f915f27b799202d7f567ef7fbf32bc87d3f36a0",
+    "9c38dca3cfeccadfeeb153f40fe911f5e6d6e14440fe10978210bfd494e2aa65",
 
   "src/app/About.tsx":
     "5e26eca627e03f37bbf25e7a49c2f6fb631cd9bf3a1c545214e4ac7a74d36c45",
@@ -74,9 +74,24 @@ expectText(
   "New homepage service cards must still allow matching Wix CMS overrides",
 );
 expectText(updatedHome, "Read Google reviews", "Homepage must link to genuine Google reviews");
+expectText(
+  updatedHome,
+  "Rated 5.0 out of 5 from all Google reviews, as checked in October 2026.",
+  "Homepage must omit the review count while retaining the accurate Google rating",
+);
+assert.equal(
+  updatedHome.includes('home.confidence.professional-standards'),
+  false,
+  "The redundant homepage confidence strip should remain removed",
+);
 expectText(updatedHome, "Google review", "Homepage testimonials must remain attributed");
 
 const commercialPage = readSource("src/app/CommercialCleaning.tsx");
+expectText(
+  commercialPage,
+  'Commercial cleaning, <span className="text-[#B08A3C]">tailored to your premises.</span>',
+  "Commercial page must use its distinct hero headline",
+);
 expectText(
   commercialPage,
   'const commercialQuote = "/quote?service=commercial-cleaning";',

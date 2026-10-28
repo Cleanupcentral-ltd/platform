@@ -43,7 +43,8 @@ const commercialFrequencies = ["Daily", "Five times weekly", "Three times weekly
 const supportFrequencies = ["Weekly", "Fortnightly", "Monthly", "Ad hoc", "Other"];
 const propertyStatuses = ["Occupied", "Vacant", "Short-let / holiday let", "Other / not sure"];
 const stages = ["Service Type", "Property Details", "Your Details", "Summary"];
-const navigation = [["Home", "/home"], ["About", "/about"], ["Cleaning Services", "/cleaning-services"], ["Property Support", "/property-support"], ["Contact Us", "/contact"]] as const;
+const navigation = [["Home", "/home"], ["About", "/about"], ["Cleaning Services", "/cleaning-services"],
+  ["Commercial Cleaning", "/commercial-cleaning"], ["Property Support", "/property-support"], ["Contact Us", "/contact"]] as const;
 
 const initialData: QuoteData = {
   category: "", propertyType: "", propertyTypeOther: "", serviceType: "", cleaningScope: "", bedrooms: 0, bathrooms: 1,

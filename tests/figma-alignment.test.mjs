@@ -4,22 +4,22 @@ import { readFileSync } from "node:fs";
 
 const APPROVED_PAGE_HASHES = Object.freeze({
   "src/app/Home.tsx":
-    "df634a6a6e411fdcc7c92798931433739aaa13a68d7b1fc33928e62041a152c1",
+    "14ed51f712a8ca5421920d66ffc9e6a3e5ce95a6d4abfc5b9f25ef1b61ff8674",
 
   "src/app/About.tsx":
-    "7d509720d349561df48fd6c3fee5a2aeafd9d20807d2a974dfb1a74da8255094",
+    "5e26eca627e03f37bbf25e7a49c2f6fb631cd9bf3a1c545214e4ac7a74d36c45",
 
   "src/app/CleaningServices.tsx":
-    "bae12137027858a96cb2041d3b6a30deb36bdc8efc44c5e3babef76c2d38f59c",
+    "d0017033306d44e8ab4a66ca2e336d620284eb08345284f531e618a5c8f37d25",
 
   "src/app/FAQs.tsx":
-    "6c65213682186f60eabb398f27b40a65e42ccb344275e41b1b1c0bc9b8b9253e",
+    "18c13605eb0a1d03c5300ac83e07be624f319fb8fea890448223a603e9a7feef",
 
   "src/app/PlaceholderPage.tsx":
     "97ec745b8908a6a80849a9c04aa50d2f5f5ea5eecece946fab347fc0e96ad9a3",
 
   "src/app/PropertySupport.tsx":
-    "89684063e9e89c8a1ab33efe161a2b8dbaca9aeece735bdfeb9239ffcd08a876",
+    "3a564ae3a4f6303c7e53cc710d73051da75699f1625a96f02330e222cc648cb1",
 });
 
 const readSource = (file) => readFileSync(file, "utf8");
@@ -52,6 +52,51 @@ for (const [file, approvedDigest] of Object.entries(
     `${file} drifted from the approved Wix/Figma-aligned source`,
   );
 }
+
+/*
+ * Proposed content-update baseline for PR #68.
+ * These deliberate page changes remain fingerprinted for future drift checks.
+ * The older quote journey and CMS protections below remain in place.
+ * Founder approval is required before this baseline is merged.
+ */
+const updatedHome = readSource("src/app/Home.tsx");
+for (const service of [
+  'heading: "Residential Cleaning"',
+  'heading: "Commercial Cleaning"',
+  'heading: "Airbnb & Short-Let Cleaning"',
+  'heading: "Property Support"',
+]) {
+  expectText(updatedHome, service, "Homepage must retain all four service categories: " + service);
+}
+expectText(
+  updatedHome,
+  "const serviceCards = fallbackServiceCards.map(",
+  "New homepage service cards must still allow matching Wix CMS overrides",
+);
+expectText(updatedHome, "Read Google reviews", "Homepage must link to genuine Google reviews");
+expectText(updatedHome, "Google review", "Homepage testimonials must remain attributed");
+
+const commercialPage = readSource("src/app/CommercialCleaning.tsx");
+expectText(
+  commercialPage,
+  'const commercialQuote = "/quote?service=commercial-cleaning";',
+  "Commercial page must use the existing custom quote journey",
+);
+for (const section of [
+  "Offices and workplaces",
+  "Gyms and fitness studios",
+  "Coworking spaces",
+  "Communal areas",
+  "Commercial cleaning FAQs",
+]) {
+  expectText(commercialPage, section, "Commercial page missing: " + section);
+}
+const publicRoutes = readSource("scripts/generate-clean-route-entries.mjs");
+expectText(
+  publicRoutes,
+  '"commercial-cleaning"',
+  "New commercial page must be included in the existing route-entry build",
+);
 
 /*
  * Quote journey regression checks.
@@ -144,6 +189,12 @@ expectPattern(
   routes,
   /window\.scrollTo\(\{\s*top:\s*0,\s*left:\s*0,\s*behavior:\s*"auto"\s*\}\)/,
   "Internal navigation must reset the destination page to the top",
+);
+
+expectText(
+  routes,
+  '{ path: "/commercial-cleaning", Component: CommercialCleaningPage }',
+  "Commercial page must use the existing hash router",
 );
 
 /*

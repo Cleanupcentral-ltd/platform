@@ -1,13 +1,11 @@
 import { useState, type ReactNode } from "react";
 import {
   ArrowRight,
-  Building2,
   Calculator,
   CalendarCheck,
   ClipboardCheck,
   Menu,
   Phone,
-  ShieldCheck,
   X,
 } from "lucide-react";
 import { Link } from "react-router";
@@ -28,25 +26,6 @@ const keysImage =
   "https://images.unsplash.com/photo-1741156386380-0236c72eb6f9?w=900&h=640&fit=crop&auto=format";
 
 type Icon = typeof ArrowRight;
-
-const fallbackConfidence: PageSection[] = [
-  {
-    title: "home.confidence.professional-standards",
-    heading: "Professional cleaning standards",
-  },
-  {
-    title: "home.confidence.residential-commercial",
-    heading: "Residential and commercial cleaning",
-  },
-  {
-    title: "home.confidence.airbnb-turnover",
-    heading: "Airbnb turnover support",
-  },
-  {
-    title: "home.confidence.online-quotations",
-    heading: "Simple online quotations",
-  },
-];
 
 const fallbackServiceCards: PageSection[] = [
   {
@@ -224,7 +203,6 @@ export default function Home() {
   const howItWorksIntro = usePageSection("home.how-it-works.intro");
   const finalCta = usePageSection("home.final-cta");
 
-  const cmsConfidence = usePageSections("Home", "Confidence Strip");
   const cmsServices = usePageSections("Home", "Services Overview").filter(
     (item) => item.contentType === "Card",
   );
@@ -238,9 +216,6 @@ export default function Home() {
   const email = useSiteSetting("contact.email");
   const copyright = useSiteSetting("legal.copyright");
 
-  const confidence = useFallbacks
-    ? fallbackConfidence
-    : cmsConfidence;
   // Present all four core services even when the Wix CMS still holds the
   // previous two-card content. Keep existing CMS introductions and other sections.
   const serviceCards = fallbackServiceCards.map(
@@ -270,12 +245,6 @@ export default function Home() {
     ["Contact", "/contact"],
   ] as const;
 
-  const confidenceIcons: Icon[] = [
-    ShieldCheck,
-    Building2,
-    CalendarCheck,
-    ClipboardCheck,
-  ];
   const stepIcons: Icon[] = [ClipboardCheck, Calculator, CalendarCheck];
 
   const contactLines = [
@@ -416,30 +385,6 @@ export default function Home() {
         </section>
       )}
 
-      {confidence.length > 0 && (
-        <section className="mx-auto max-w-[1440px] px-5 py-10 sm:px-10 lg:px-16">
-          <div className="grid border-y border-[#D8D5CF] sm:grid-cols-2 lg:grid-cols-4">
-            {confidence.map((item, index) => {
-              const ConfidenceIcon =
-                confidenceIcons[index] ?? ShieldCheck;
-              return (
-                <div
-                  key={item.title ?? item.heading ?? index}
-                  className={`flex min-h-28 items-center gap-4 border-b border-[#D8D5CF] py-5 sm:px-5 sm:[&:nth-child(odd)]:border-r lg:border-b-0 lg:border-r lg:px-6 lg:last:border-r-0 ${index > 1 ? "sm:border-b-0" : ""}`}
-                >
-                  <span className="grid size-9 place-items-center border border-[#B08A3C] text-[#B08A3C]">
-                    <ConfidenceIcon size={18} strokeWidth={1.75} />
-                  </span>
-                  <p className="max-w-40 text-[12px] font-bold leading-5">
-                    {item.heading}
-                  </p>
-                </div>
-              );
-            })}
-          </div>
-        </section>
-      )}
-
       {serviceCards.length > 0 && (
         <section className="border-y border-[#D8D5CF] bg-white">
           <div className="mx-auto max-w-[1440px] px-5 py-16 sm:px-10 lg:px-16">
@@ -554,7 +499,7 @@ export default function Home() {
                 Trusted by our customers.
               </h2>
               <p className="mt-3 text-sm text-[#66635E]">
-                Rated 5.0 out of 5 from 8 Google reviews, as checked in October 2026.
+                Rated 5.0 out of 5 from all Google reviews, as checked in October 2026.
               </p>
             </div>
             <a href="https://www.google.com/maps/place/Clean+Up+Central/@47.73855,12.5088275,4z/data=!4m8!3m7!1s0x6e7d3ff64dc0c9af:0x192bc3099124e339!8m2!3d47.73855!4d12.5088275!9m1!1b1!16s%2Fg%2F11z95fgvmf" target="_blank" rel="noopener noreferrer"

@@ -22,8 +22,9 @@ import { resolveCmsImage } from "@/cms/cmsMedia";
 import type { PageSection } from "@/cms/cmsTypes";
 
 // Use an actual Clean Up Central residential living room rather than the previous stock image.
+// Option 4: illustrative modern residential bathroom by Clay Banks (Unsplash, DsrHsPt3uFg).
 const heroImage =
-  "https://static.wixstatic.com/media/60287c_c95ac754a6334a13a80c3105899bdfad~mv2.jpg";
+  "https://static.wixstatic.com/media/60287c_1480d1c651dc41c49e26d5272208fccb~mv2.jpg";
 
 const serviceImages = [
   "https://images.unsplash.com/photo-1519710164239-da123dc03ef4?w=720&h=520&fit=crop&auto=format",
@@ -80,8 +81,8 @@ const serviceDetails: Record<string, {
     ],
     noteLabel: "Not included",
     note: "External windows, carpet shampooing, repairs, maintenance, pest control, heavy mould remediation and specialist restoration are excluded. A deposit return is not guaranteed.",
-    photo: "https://static.wixstatic.com/media/60287c_009d7a4272b84dceb905eef71262c958~mv2.jpg",
-    photoAlt: "Neatly prepared living and dining room from Clean Up Central's cleaning portfolio",
+    photo: "https://static.wixstatic.com/media/60287c_c95ac754a6334a13a80c3105899bdfad~mv2.jpg",
+    photoAlt: "Modern residential living room cleaned and prepared by Clean Up Central",
   },
   "cleaning-services.airbnb-turnover": {
     summary: "Guest-ready cleaning between stays, including presentation checks and supplied-linen changes.",
@@ -283,7 +284,7 @@ export default function CleaningServicesPage() {
     heading: "The right clean for every property.",
     body: "Choose the service that best fits your property, then we will guide you through the most suitable next step.",
     image: heroImage,
-    imageAltText: "Freshly prepared residential living room after a Clean Up Central cleaning visit",
+    imageAltText: "Illustrative modern residential bathroom with vanity and tiled floor",
   };
 
   const finalCtaContent = finalCta ?? {
@@ -376,7 +377,7 @@ export default function CleaningServicesPage() {
           <div className="min-h-[330px] sm:min-h-[440px] lg:min-h-[510px]">
             <img
               src={heroImage}
-              alt="Freshly prepared residential living room after a Clean Up Central cleaning visit"
+              alt="Illustrative modern residential bathroom with vanity and tiled floor"
               className="size-full object-cover"
             />
           </div>

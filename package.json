@@ -15,7 +15,8 @@
     "test:contact": "node --test tests/contact-enquiry-client.test.mjs",
     "test:quote-submission": "node --test tests/quote-submission-client.test.mjs",
     "test:quote-mapper": "node --test tests/quote-request-mapper.test.mjs",
-    "test": "npm run test:pricing && npm run test:payload && npm run test:booking && npm run test:alignment && npm run test:figma && npm run test:contact && npm run test:quote-submission && npm run test:quote-mapper && npm run test:typecheck",
+    "test:quote-lead": "node --test tests/quote-lead-tracking.test.mjs tests/quote-thank-you-routing.test.mjs",
+    "test": "npm run test:pricing && npm run test:payload && npm run test:booking && npm run test:alignment && npm run test:figma && npm run test:contact && npm run test:quote-submission && npm run test:quote-mapper && npm run test:quote-lead && npm run test:typecheck",
     "verify:build6": "npm test && npm run build && npm --prefix backend run verify:build6"
   },
   "dependencies": {

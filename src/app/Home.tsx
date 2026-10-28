@@ -50,23 +50,43 @@ const fallbackConfidence: PageSection[] = [
 
 const fallbackServiceCards: PageSection[] = [
   {
-    title: "home.services.cleaning",
-    eyebrow: "Cleaning Services",
-    heading: "Cleaning Services",
-    body: "Professional cleaning for homes, stays and workspaces, planned around your requirements.",
-    image: heroImage,
-    imageAltText: "Warm, professionally prepared living room",
-    primaryCtaText: "View services",
+    title: "home.services.residential",
+    eyebrow: "For homes",
+    heading: "Residential Cleaning",
+    body: "Standard, Deep and End of Tenancy cleaning for homes and residential properties.",
+    image: "https://static.wixstatic.com/media/60287c_009d7a4272b84dceb905eef71262c958~mv2.jpg",
+    imageAltText: "A living and dining room prepared after a Clean Up Central cleaning visit",
+    primaryCtaText: "Explore residential cleaning",
+    primaryCtaLink: "/cleaning-services",
+  },
+  {
+    title: "home.services.commercial",
+    eyebrow: "For businesses",
+    heading: "Commercial Cleaning",
+    body: "Tailored one-off and recurring cleaning for offices, workplaces, gyms and shared spaces.",
+    image: "https://images.unsplash.com/photo-1497366754035-f200968a6e72?w=900&h=640&fit=crop&auto=format",
+    imageAltText: "Illustrative contemporary office workspace",
+    primaryCtaText: "Explore commercial cleaning",
+    primaryCtaLink: "/commercial-cleaning",
+  },
+  {
+    title: "home.services.airbnb",
+    eyebrow: "For hosts and operators",
+    heading: "Airbnb & Short-Let Cleaning",
+    body: "Guest turnover cleaning, linen coordination and property preparation between stays.",
+    image: "https://static.wixstatic.com/media/60287c_3db1b40e4bc74791b3a2efc4dd37d4ee~mv2.jpg",
+    imageAltText: "Bedroom prepared for guests by Clean Up Central",
+    primaryCtaText: "Explore turnover cleaning",
     primaryCtaLink: "/cleaning-services",
   },
   {
     title: "home.services.property-support",
-    eyebrow: "Property Support",
+    eyebrow: "For property owners",
     heading: "Property Support",
-    body: "Practical support for properties that need trusted care between visits.",
+    body: "Agreed inspections, access coordination and practical on-site property support.",
     image: keysImage,
-    imageAltText: "Keys held at an apartment entrance",
-    primaryCtaText: "View services",
+    imageAltText: "Illustrative photograph of property keys",
+    primaryCtaText: "Explore property support",
     primaryCtaLink: "/property-support",
   },
 ];
@@ -205,9 +225,6 @@ export default function Home() {
   const finalCta = usePageSection("home.final-cta");
 
   const cmsConfidence = usePageSections("Home", "Confidence Strip");
-  const cmsServices = usePageSections("Home", "Services Overview").filter(
-    (item) => item.contentType === "Card",
-  );
   const cmsSteps = usePageSections("Home", "How It Works").filter(
     (item) => item.contentType === "Step",
   );
@@ -221,9 +238,9 @@ export default function Home() {
   const confidence = useFallbacks
     ? fallbackConfidence
     : cmsConfidence;
-  const serviceCards = useFallbacks
-    ? fallbackServiceCards
-    : cmsServices;
+  // Present all four core services even when the Wix CMS still holds the
+  // previous two-card content. Keep existing CMS introductions and other sections.
+  const serviceCards = fallbackServiceCards;
   const steps = useFallbacks ? fallbackSteps : cmsSteps;
 
   const heroContent = hero ?? {
@@ -243,6 +260,7 @@ export default function Home() {
     ["Home", "/home"],
     ["About", "/about"],
     ["Cleaning Services", "/cleaning-services"],
+    ["Commercial Cleaning", "/commercial-cleaning"],
     ["Property Support", "/property-support"],
     ["Contact", "/contact"],
   ] as const;
@@ -268,12 +286,12 @@ export default function Home() {
           <Link to="/home" aria-label="Clean Up Central home">
             <Logo />
           </Link>
-          <nav className="absolute left-1/2 hidden h-full -translate-x-1/2 items-center gap-6 lg:flex">
+          <nav className="absolute left-1/2 hidden h-full -translate-x-1/2 items-center gap-4 lg:flex">
             {routes.map(([label, to], index) => (
               <Link
                 key={label}
                 to={to}
-                className={`flex h-full items-center border-b-2 text-[10px] font-bold uppercase tracking-[.09em] transition duration-[var(--motion-standard)] ease-[var(--ease-out)] ${index === 0 ? "border-[#B08A3C]" : "border-transparent text-[#66635E] hover:text-[#121212]"}`}
+                className={`flex h-full items-center border-b-2 text-[10px] font-bold uppercase tracking-[.06em] transition duration-[var(--motion-standard)] ease-[var(--ease-out)] ${index === 0 ? "border-[#B08A3C]" : "border-transparent text-[#66635E] hover:text-[#121212]"}`}
               >
                 {label}
               </Link>
@@ -429,10 +447,7 @@ export default function Home() {
                   )}
                 </Eyebrow>
                 <h2 className="mt-4 font-serif text-[40px] leading-[1] tracking-[-.03em] sm:text-[48px]">
-                  {valueOrFallback(
-                    servicesIntro?.heading,
-                    "Two ways we can help.",
-                  )}
+                  {"Cleaning and property support, tailored to you."}
                 </h2>
               </div>
             )}
@@ -525,6 +540,41 @@ export default function Home() {
         </section>
       )}
 
+      <section className="border-t border-[#D8D5CF] bg-[#FAF9F6]" aria-labelledby="customer-reviews-heading">
+        <div className="mx-auto max-w-[1440px] px-5 py-16 sm:px-10 lg:px-16">
+          <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
+            <div>
+              <Eyebrow>Genuine Google feedback</Eyebrow>
+              <h2 id="customer-reviews-heading" className="mt-3 font-serif text-[42px] leading-[1.05] sm:text-[48px]">
+                Trusted by our customers.
+              </h2>
+              <p className="mt-3 text-sm text-[#66635E]">
+                Rated 5.0 out of 5 from 8 Google reviews, as checked in October 2026.
+              </p>
+            </div>
+            <a href="https://maps.app.goo.gl/q9pdJ2RTTePA7UkY9" target="_blank" rel="noopener noreferrer"
+               className="inline-flex min-h-11 items-center gap-2 text-xs font-bold uppercase tracking-[.08em] text-[#121212] hover:text-[#7A5A1E]">
+              Read Google reviews <ArrowRight size={17} aria-hidden="true" />
+            </a>
+          </div>
+          <div className="mt-8 grid gap-5 md:grid-cols-3">
+            {[
+              { name: "Nadia amani", quote: "Service was amazing from start to finish." },
+              { name: "Tyrell Spencer", quote: "Great clean. Great service." },
+              { name: "JM", quote: "Would highly recommend and would definitely use them again" },
+            ].map(({ name, quote }) => (
+              <figure key={name} className="flex flex-col border border-[#D8D5CF] bg-white p-6">
+                <span className="text-lg tracking-[.12em] text-[#B08A3C]" aria-label="Five stars">★★★★★</span>
+                <blockquote className="mt-5 flex-1 text-sm leading-7 text-[#343434]">“{quote}”</blockquote>
+                <figcaption className="mt-6 border-t border-[#D8D5CF] pt-4 text-xs font-bold">
+                  {name} <span className="ml-1 font-normal text-[#66635E]">· Google review</span>
+                </figcaption>
+              </figure>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {(useFallbacks || finalCta) && (
         <section className="bg-[#121212]">
           <div className="mx-auto flex max-w-[1440px] flex-col gap-6 px-5 py-9 sm:px-10 md:flex-row md:items-center md:justify-between lg:px-16">
@@ -581,6 +631,9 @@ export default function Home() {
                 to="/cleaning-services"
               >
                 Cleaning Services
+              </Link>
+              <Link className="block hover:text-[#B08A3C]" to="/commercial-cleaning">
+                Commercial Cleaning
               </Link>
               <Link
                 className="block hover:text-[#B08A3C]"

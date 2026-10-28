@@ -23,7 +23,7 @@ import type { PageSection } from "@/cms/cmsTypes";
 
 // Use an actual Clean Up Central residential living room rather than the previous stock image.
 const heroImage =
-  "https://static.wixstatic.com/media/60287c_009d7a4272b84dceb905eef71262c958~mv2.jpg";
+  "https://static.wixstatic.com/media/60287c_c95ac754a6334a13a80c3105899bdfad~mv2.jpg";
 
 const serviceImages = [
   "https://images.unsplash.com/photo-1519710164239-da123dc03ef4?w=720&h=520&fit=crop&auto=format",

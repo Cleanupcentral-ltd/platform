@@ -10,7 +10,7 @@ const APPROVED_PAGE_HASHES = Object.freeze({
     "5e26eca627e03f37bbf25e7a49c2f6fb631cd9bf3a1c545214e4ac7a74d36c45",
 
   "src/app/CleaningServices.tsx":
-    "2381c7f49c81b10fdd9998054a2c656a67dfb6b3a50d08410f16cd780269413d",
+    "fc138a2584500d341a0622569096e2cc5a6864954825c3d1c4ac194f47b488a6",
 
   "src/app/FAQs.tsx":
     "18c13605eb0a1d03c5300ac83e07be624f319fb8fea890448223a603e9a7feef",
@@ -158,10 +158,45 @@ for (const userPhoto of [
 ]) {
   expectText(cleaningServices, userPhoto, "A selected portfolio photo is missing");
 }
+// Founder Operations Handbook v3: paid extras are distinct from Standard/Deep.
+// End of Tenancy expressly includes appliance, cupboard and internal window interiors.
+for (const includedTask of [
+  "Kitchen, bathroom, bedroom and living-area cleaning",
+  "Dusting and sanitising accessible surfaces",
+  "Everything included in a Standard Clean",
+  "Moderate limescale and grease removal",
+  "Inside oven and detailed appliance cleaning",
+  "Inside fridge/freezer, cupboards and drawers",
+  "Internal windows, frames and ledges",
+  "Bed making and linen changes when clean linen is supplied",
+  "Damage and missing-item reporting",
+]) {
+  expectText(cleaningServices, includedTask, "Handbook service inclusion missing: " + includedTask);
+}
+for (const exclusion of [
+  "Oven interiors, fridge interiors, internal windows and grout cleaning are paid add-ons, not part of a Standard Clean.",
+  "Oven interiors, fridge interiors, internal windows and grout cleaning are paid add-ons, not part of a Deep Clean.",
+  "Full radiator cleaning is also charged separately.",
+  "Laundry and consumable restocking are charged separately.",
+  "Linen hire is not currently offered.",
+  "A deposit return is not guaranteed.",
+]) {
+  expectText(cleaningServices, exclusion, "Handbook boundary missing: " + exclusion);
+}
 expectText(
   cleaningServices,
-  "Exact inclusions are confirmed in your agreed service scope.",
-  "Typical service inclusions must not become unconditional guarantees",
+  'border-l-2 border-l-[#B08A3C] bg-[#F1EDE4]',
+  "Expanded inclusions must use the approved warm stone surface rather than a white box",
+);
+assert.equal(
+  cleaningServices.includes('bg-white px-5 py-6 sm:px-7'),
+  false,
+  "Expanded inclusions must not regress to the white background",
+);
+expectText(
+  cleaningServices,
+  "{details.noteLabel}: ",
+  "Each expanded service should clearly label paid add-ons or exclusions",
 );
 
 /*

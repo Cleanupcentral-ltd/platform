@@ -564,8 +564,8 @@ export default function Home() {
           </div>
           <div className="mt-8 grid gap-5 md:grid-cols-3">
             {[
-              { name: "Nadia amani", quote: "Service was amazing from start to finish." },
-              { name: "Tyrell Spencer", quote: "Great clean. Great service." },
+              { name: "Nadia", quote: "Service was amazing from start to finish." },
+              { name: "Tyrell", quote: "Great clean. Great service." },
               { name: "JM", quote: "Would highly recommend and would definitely use them again" },
             ].map(({ name, quote }) => (
               <figure key={name} className="flex flex-col border border-[#D8D5CF] bg-white p-6">

@@ -37,7 +37,8 @@ test("direct navigation without confirmation state redirects to the quote form",
     /return <Navigate to="\/quote" replace \/>/,
   );
   assert.ok(!confirmation.includes("trackConfirmedQuoteLead"));
-  assert.ok(!confirmation.includes("generate_lead"));
+  assert.ok(!confirmation.includes('gtag("event", "generate_lead"'));
+  assert.ok(!confirmation.includes("dataLayer.push("));
 });
 
 test("thank-you route never exposes private customer data or quote reference in the URL", () => {

@@ -960,11 +960,15 @@ export default function ContactPage() {
             </p>
           </div>
         </div>
-        <div className="mx-auto max-w-[1440px] border-t border-[#D8D5CF] px-5 py-4 text-[10px] font-bold uppercase tracking-[.1em] text-[#66635E] sm:px-10 lg:px-16">
+        <div className="mx-auto flex max-w-[1440px] flex-wrap items-center justify-between gap-4 border-t border-[#D8D5CF] px-5 py-4 text-[10px] font-bold uppercase tracking-[.1em] text-[#66635E] sm:px-10 lg:px-16">
           {valueOrFallback(
             copyright?.value,
             "© 2026 Clean Up Central Ltd. All rights reserved.",
           )}
+          <nav aria-label="Legal information" className="flex flex-wrap gap-4 normal-case tracking-normal">
+            <Link to="/privacy" className="hover:text-[#B08A3C]">Privacy Notice</Link>
+            <Link to="/terms" className="hover:text-[#B08A3C]">Terms &amp; Conditions</Link>
+          </nav>
         </div>
       </footer>
     </main>

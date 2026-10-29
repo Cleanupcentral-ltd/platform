@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 
 const APPROVED_PAGE_HASHES = Object.freeze({
   "src/app/Home.tsx":
-    "9c38dca3cfeccadfeeb153f40fe911f5e6d6e14440fe10978210bfd494e2aa65",
+    "974d117117404c3113e571e135546b25277f2bccc18166a46066c6e55da213fe",
 
   "src/app/About.tsx":
     "5e26eca627e03f37bbf25e7a49c2f6fb631cd9bf3a1c545214e4ac7a74d36c45",

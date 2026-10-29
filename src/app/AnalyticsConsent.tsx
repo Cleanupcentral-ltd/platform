@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { readAnalyticsConsent, saveAnalyticsConsent, startAnalytics } from "./analyticsConsent.js";
+import { readAnalyticsConsent, saveAnalyticsConsent, startAnalytics, stopAnalytics } from "./analyticsConsent.js";
 
 export default function AnalyticsConsent() {
   const [choice, setChoice] = useState<string | null>(() => readAnalyticsConsent());
@@ -11,6 +11,7 @@ export default function AnalyticsConsent() {
 
   function decide(value: "accepted" | "rejected") {
     saveAnalyticsConsent(value);
+    if (value === "rejected") stopAnalytics();
     setChoice(value);
     setOpen(false);
   }

@@ -20,10 +20,14 @@ export function startAnalytics(environment = globalThis) {
   const doc = environment.document;
   if (!doc) return false;
   // Do not load a second tag if Wix or another integration already supplied one.
-  if (typeof environment.gtag === "function") return true;
+  if (typeof environment.gtag === "function") {
+    environment.gtag("consent", "update", { analytics_storage: "granted", ad_storage: "denied", ad_user_data: "denied", ad_personalization: "denied" });
+    return true;
+  }
   if (doc.querySelector('script[src*="googletagmanager.com/gtag/js"]')) return true;
   const layer = environment.dataLayer = environment.dataLayer || [];
   environment.gtag = function () { layer.push(arguments); };
+  environment.gtag("consent", "default", { analytics_storage: "granted", ad_storage: "denied", ad_user_data: "denied", ad_personalization: "denied" });
   environment.gtag("js", new Date());
   environment.gtag("config", GA4_ID);
   const script = doc.createElement("script");
@@ -31,4 +35,13 @@ export function startAnalytics(environment = globalThis) {
   script.src = "https://www.googletagmanager.com/gtag/js?id=" + encodeURIComponent(GA4_ID);
   doc.head.appendChild(script);
   return true;
+}
+
+export function stopAnalytics(environment = globalThis) {
+  if (typeof environment.gtag === "function") {
+    environment.gtag("consent", "update", {
+      analytics_storage: "denied", ad_storage: "denied",
+      ad_user_data: "denied", ad_personalization: "denied",
+    });
+  }
 }

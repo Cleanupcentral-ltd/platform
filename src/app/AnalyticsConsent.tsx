@@ -26,6 +26,7 @@ export default function AnalyticsConsent() {
             We use essential website technology to operate this site. With your permission,
             we also use Google Analytics to understand visits and quote requests.
             You can refuse analytics and still use our services.
+            Read our <a href="/#/privacy" target="_blank" rel="noopener noreferrer" className="font-semibold underline underline-offset-2 hover:text-[#7A5A1E]">Privacy Notice</a> for more details.
           </p>
           <div className="mt-4 flex flex-wrap gap-3">
             <button type="button" onClick={() => decide("accepted")}

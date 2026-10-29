@@ -1,6 +1,6 @@
 import { Link } from "react-router";
 
-const UPDATED = "14 August 2026";
+const UPDATED = "29 October 2026";
 
 function Section({
   title,
@@ -143,7 +143,7 @@ export default function PrivacyPage() {
 
         <Section title="Cookies and website technology">
           <p>
-            Our website may use technology that is necessary to provide and secure the site. If we introduce optional analytics, advertising or other non-essential cookies or similar technologies, we will provide the information and choices required by applicable law before relying on them where consent is required.
+            Our website uses essential technology needed to operate and secure the site. If you choose to accept analytics, we use Google Analytics 4 to understand website visits and successful quote requests. Analytics is optional: you can reject it and still use the website. You can change your choice using the Cookie settings button on the website. We do not send your quote form contact details to Google Analytics.
           </p>
         </Section>
 

@@ -1,3 +1,4 @@
+import { readAnalyticsConsent } from "./analyticsConsent.js";
 /**
  * Track only an accepted backend quote request, not clicks or views of the
  * quote form or thank-you route.
@@ -22,6 +23,8 @@ export function trackConfirmedQuoteLead(
   ) {
     return false;
   }
+
+  if (readAnalyticsConsent(environment) !== "accepted") return false;
 
   const storageKey = `cuc:confirmed-quote-lead:${submissionId}`;
   let storage;
